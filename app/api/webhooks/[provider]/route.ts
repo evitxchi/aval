@@ -58,7 +58,8 @@ async function verify(provider: string, request: Request, raw: string) {
   }
   if (provider === "apple_messages") {
     const secret = await connectionCredential(request, provider, "webhookSecret") ?? config.APPLE_MSP_WEBHOOK_SECRET;
-    return Boolean(secret) && constantTime(request.headers.get("x-portero-webhook-secret") ?? "", secret ?? "");
+    const signature = request.headers.get("x-aval-webhook-secret") ?? request.headers.get("x-portero-webhook-secret") ?? "";
+    return Boolean(secret) && constantTime(signature, secret ?? "");
   }
   if (provider === "twilio") {
     const secret = await connectionCredential(request, provider, "authToken") ?? config.TWILIO_AUTH_TOKEN;

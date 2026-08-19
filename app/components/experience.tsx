@@ -25,7 +25,8 @@ const ExperienceContext = createContext<ExperienceValue | null>(null);
 
 function readPreference<T extends string>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
-  return (window.localStorage.getItem(key) as T | null) ?? fallback;
+  const legacyKey = key.replace(/^aval\./, "portero.");
+  return (window.localStorage.getItem(key) as T | null) ?? (window.localStorage.getItem(legacyKey) as T | null) ?? fallback;
 }
 
 export function ExperienceProvider({ children }: { children: ReactNode }) {
@@ -74,23 +75,23 @@ export function ExperienceProvider({ children }: { children: ReactNode }) {
 
   const setLocale = useCallback((next: Locale) => {
     setLocaleState(next);
-    window.localStorage.setItem("portero.locale", next);
+    window.localStorage.setItem("aval.locale", next);
     document.documentElement.lang = next === "latam" ? "es-419" : "en";
   }, []);
   const setTheme = useCallback((next: Theme) => {
     setThemeState(next);
-    window.localStorage.setItem("portero.theme", next);
+    window.localStorage.setItem("aval.theme", next);
   }, []);
   const setSounds = useCallback((enabled: boolean) => {
     setSoundsState(enabled);
-    window.localStorage.setItem("portero.sounds", enabled ? "on" : "off");
+    window.localStorage.setItem("aval.sounds", enabled ? "on" : "off");
   }, []);
 
   useEffect(() => {
     queueMicrotask(() => {
-      setLocaleState(readPreference<Locale>("portero.locale", "en"));
-      setThemeState(readPreference<Theme>("portero.theme", "light"));
-      setSoundsState(readPreference<string>("portero.sounds", "off") === "on");
+      setLocaleState(readPreference<Locale>("aval.locale", "en"));
+      setThemeState(readPreference<Theme>("aval.theme", "light"));
+      setSoundsState(readPreference<string>("aval.sounds", "off") === "on");
     });
   }, []);
 

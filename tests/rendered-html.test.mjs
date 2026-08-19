@@ -23,12 +23,13 @@ async function render() {
   );
 }
 
-test("server-renders the Portero connected operations dashboard", async () => {
+test("server-renders the Aval connected operations dashboard", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
+  assert.match(html, /Aval workspace/);
   assert.match(html, /Portfolio overview/);
   assert.match(html, /Lead-to-lease funnel/);
   assert.match(html, /Two sources unlock the view/);

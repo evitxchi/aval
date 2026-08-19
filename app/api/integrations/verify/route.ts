@@ -50,7 +50,7 @@ async function verifyCredentials(provider: string, credentials: Record<string, s
     const payload = await readJson(await fetch(`https://graph.facebook.com/${version}/${credentials.phoneNumberId}?fields=display_phone_number,verified_name`, { headers: { authorization: `Bearer ${credentials.accessToken}` } }));
     return { accountId: String(payload.id ?? credentials.phoneNumberId), accountName: String(payload.verified_name ?? payload.display_phone_number ?? "WhatsApp number"), metadata: { businessAccountId: credentials.businessAccountId, apiVersion: version } };
   }
-  if (provider === "appfolio") throw new Error("AppFolio must enable the agreed Stack API products before Portero can verify this database.");
+  if (provider === "appfolio") throw new Error("AppFolio must enable the agreed Stack API products before Aval can verify this database.");
   if (provider === "apple_messages") throw new Error("Apple Messages for Business verification is completed jointly with your approved Messaging Service Provider.");
   throw new Error("This provider is verified by its OAuth callback.");
 }

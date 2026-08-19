@@ -14,7 +14,7 @@ export async function getApiIdentity(request: Request): Promise<ApiIdentity | nu
   try { hostname = new URL(request.url).hostname; } catch { /* invalid request URL */ }
   const local = hostname === "localhost" || hostname === "127.0.0.1";
   const userId = request.headers.get("oai-authenticated-user-id") ?? (local ? "local-preview" : null);
-  const email = request.headers.get("oai-authenticated-user-email") ?? (local ? "preview@portero.local" : null);
+  const email = request.headers.get("oai-authenticated-user-email") ?? (local ? "preview@aval.local" : null);
   if (!userId || !email) return null;
   const encodedName = request.headers.get("oai-authenticated-user-full-name");
   let displayName = email;
@@ -31,7 +31,7 @@ export async function ensureOrganization(identity: ApiIdentity) {
   const now = new Date();
   const organization = {
     id: identity.organizationId,
-    name: "Portero workspace",
+    name: "Aval workspace",
     ownerUserId: identity.userId,
     createdAt: now,
     updatedAt: now,
