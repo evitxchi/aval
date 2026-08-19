@@ -1,0 +1,13 @@
+{
+  "name": "Portero Mobile",
+  "short_name": "Portero",
+  "description": "Approvals, conversations, and property work on site.",
+  "start_url": "/mobile",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#efeeeb",
+  "theme_color": "#0b0b0a",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

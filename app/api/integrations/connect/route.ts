@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { integrationConnections, oauthStates } from "@/db/schema";
 import { encryptSecret } from "@/lib/integrations/crypto";
@@ -110,5 +111,6 @@ export async function POST(request: Request) {
     target: [integrationConnections.organizationId, integrationConnections.provider],
     set: { status, authMode: provider.authMode, scopesJson: connection.scopesJson, accessTokenCiphertext: encrypted, metadataJson: connection.metadataJson, updatedAt: now },
   });
-  return Response.json({ connection: { provider: provider.id, status }, next: provider.note });
+  const [stored] = await db.select({ id: integrationConnections.id }).from(integrationConnections).where(and(eq(integrationConnections.organizationId, identity.organizationId), eq(integrationConnections.provider, provider.id))).limit(1);
+  return Response.json({ connection: { id: stored?.id ?? connection.id, provider: provider.id, status }, next: provider.note });
 }

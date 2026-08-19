@@ -12,6 +12,7 @@ export async function GET(request: Request) {
   try {
     await ensureOrganization(identity);
     const rows = await getDb().select({
+      id: integrationConnections.id,
       provider: integrationConnections.provider,
       status: integrationConnections.status,
       externalAccountName: integrationConnections.externalAccountName,
