@@ -23,21 +23,21 @@ async function render() {
   );
 }
 
-test("server-renders the Portero operations dashboard", async () => {
+test("server-renders the Portero connected operations dashboard", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
-  assert.match(html, /Portero está trabajando/);
-  assert.match(html, /Buenas tardes, Camila/);
-  assert.match(html, /Hoy requiere tu atención/);
-  assert.match(html, /class="ledger-card/);
-  assert.match(html, /Español \(México\)/);
+  assert.match(html, /Portfolio overview/);
+  assert.match(html, /Lead-to-lease funnel/);
+  assert.match(html, /Two sources unlock the view/);
+  assert.match(html, /Work moving through the system/);
+  assert.match(html, /Acme Residential/);
   assert.doesNotMatch(html, /codex-preview|react-loading-skeleton|Your site is taking shape/i);
 });
 
-test("ships Portero metadata, typography, tokens, and social preview", async () => {
+test("ships Monument typography, monochrome tokens, integrations, and durable storage", async () => {
   const [page, layout, css, packageJson] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
@@ -45,18 +45,17 @@ test("ships Portero metadata, typography, tokens, and social preview", async () 
     readFile(new URL("../package.json", import.meta.url), "utf8"),
   ]);
 
-  assert.match(page, /type Locale = "es" \| "en"/);
-  assert.match(page, /Formal · usted/);
-  assert.match(page, /const ledgerItems/);
-  assert.match(layout, /Instrument_Serif/);
-  assert.match(layout, /Inter/);
-  assert.match(layout, /IBM_Plex_Mono/);
-  assert.match(layout, /\/og\.png/);
-  assert.match(layout, /Operaciones de renta, resueltas/);
-  assert.match(css, /--canvas:\s*#efefee/i);
-  assert.match(css, /--accent:\s*#24453b/i);
+  assert.match(page, /WhatsApp Business/);
+  assert.match(page, /Apple Messages/);
+  assert.match(page, /QuickBooks Online/);
+  assert.match(page, /Connect two upstream systems/);
+  assert.match(layout, /localFont/);
+  assert.match(layout, /ABCMonumentGroteskTrial-Regular\.otf/);
+  assert.match(layout, /Property operations, connected/);
+  assert.match(css, /--canvas:\s*#efeeeb/i);
+  assert.match(css, /--ink:\s*#0b0b0a/i);
   assert.match(css, /prefers-reduced-motion:\s*reduce/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
-
-  await access(new URL("../public/og.png", import.meta.url));
+  await access(new URL("../app/fonts/ABCMonumentGroteskTrial-Regular.otf", import.meta.url));
+  await access(new URL("../drizzle/0000_brainy_squirrel_girl.sql", import.meta.url));
 });
