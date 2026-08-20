@@ -43,7 +43,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--ink); outli
 .app-shell { min-height: 100vh; display: grid; grid-template-columns: 244px minmax(0, 1fr); padding: 8px; gap: 8px; }
 .sidebar { position: sticky; top: 8px; height: calc(100vh - 16px); display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--line); border-radius: 24px; background: rgba(222, 221, 216, 0.9); box-shadow: inset 0 1px 0 rgba(255,255,255,.65); overflow: hidden; }
 .brand-lockup { height: 76px; margin: 8px; padding: 10px 10px 10px 8px; display: flex; align-items: center; gap: 11px; background: rgba(255,255,255,.58); border: 1px solid rgba(255,255,255,.8); border-radius: 18px; box-shadow: 0 1px 0 rgba(20,20,18,.05); }
-.brand-symbol { width: 42px; height: 42px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 13px; background: var(--ink); color: var(--inverse-ink); font-size: 24px; letter-spacing: -1px; }
+.brand-symbol { width: 42px; height: 42px; flex: 0 0 auto; display: grid; place-items: center; overflow: hidden; border-radius: 13px; background: url("/brand/aval-mark.png") center / cover no-repeat; color: transparent; font-size: 0; }
 .brand-lockup > div { display: grid; gap: 2px; min-width: 0; }
 .brand-lockup strong { font-size: 17px; line-height: 1; letter-spacing: -0.35px; }
 .brand-lockup small, .workspace-card small { color: var(--muted); font-size: 10px; white-space: nowrap; }
@@ -459,4 +459,110 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--ink); outli
 }
 @media (prefers-reduced-motion: reduce) {
   [data-reveal] { opacity: 1; transform: none; }
+}
+
+/* Contextual Aval assistant */
+.aval-assistant { position: relative; z-index: 125; }
+.aval-assistant-launcher { position: fixed; z-index: 126; right: 22px; bottom: 22px; width: 54px; height: 54px; display: grid; place-items: center; border: 1px solid color-mix(in srgb, var(--ink) 80%, transparent); border-radius: 18px; background: var(--ink); color: var(--inverse-ink); box-shadow: 0 14px 34px rgba(15,15,13,.22), inset 0 1px 0 rgba(255,255,255,.2); cursor: pointer; transition: transform .2s ease, border-radius .2s ease, box-shadow .2s ease; }
+.aval-assistant-launcher:hover { transform: translateY(-2px); box-shadow: 0 18px 42px rgba(15,15,13,.27), inset 0 1px 0 rgba(255,255,255,.2); }
+.aval-assistant-launcher > span { position: absolute; right: 4px; top: 4px; width: 9px; height: 9px; border: 2px solid var(--ink); border-radius: 50%; background: #8fc9a3; }
+.aval-assistant.is-open .aval-assistant-launcher { border-radius: 16px; }
+
+.aval-assistant-panel { position: fixed; z-index: 125; right: 22px; bottom: 86px; width: min(410px, calc(100vw - 44px)); height: min(650px, calc(100dvh - 112px)); min-height: 470px; display: grid; grid-template-rows: auto auto minmax(0,1fr) auto auto auto; overflow: hidden; border: 1px solid var(--line-strong); border-radius: 24px; background: color-mix(in srgb, var(--surface-raised) 97%, transparent); color: var(--ink); box-shadow: 0 28px 72px rgba(14,14,12,.2), 0 3px 14px rgba(14,14,12,.08); backdrop-filter: blur(24px); animation: aval-chat-rise .26s cubic-bezier(.2,.8,.2,1); }
+@keyframes aval-chat-rise { from { opacity: 0; transform: translateY(12px) scale(.975); } }
+
+.aval-assistant-header { min-height: 73px; padding: 13px 14px 13px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line); }
+.aval-assistant-identity { min-width: 0; display: flex; align-items: center; gap: 10px; }
+.aval-assistant-mark { width: 38px; height: 38px; flex: 0 0 auto; display: grid; place-items: center; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-soft) url("/brand/aval-mark.png") center / cover no-repeat; }
+.aval-assistant-identity > span:last-child { min-width: 0; display: grid; gap: 4px; }
+.aval-assistant-identity strong { font-size: 12px; font-weight: 400; letter-spacing: -.1px; }
+.aval-assistant-identity small { display: flex; align-items: center; gap: 6px; color: var(--quiet); font-size: 8px; }
+.aval-assistant-identity small i { width: 6px; height: 6px; border-radius: 50%; background: #4f9568; box-shadow: 0 0 0 3px color-mix(in srgb, #4f9568 13%, transparent); }
+.aval-assistant-close { width: 35px; height: 35px; flex: 0 0 auto; display: grid; place-items: center; border: 0; border-radius: 11px; background: transparent; color: var(--muted); cursor: pointer; }
+.aval-assistant-close:hover { background: var(--surface-soft); color: var(--ink); }
+
+.aval-assistant-context { min-height: 43px; padding: 7px 12px; display: grid; gap: 7px; border-bottom: 1px solid var(--line); background: var(--surface-soft); color: var(--quiet); font-size: 8px; }
+.aval-chat-context-row { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.aval-chat-scope { min-width: 0; display: flex; align-items: center; gap: 7px; white-space: nowrap; }
+.aval-chat-scope span { overflow: hidden; text-overflow: ellipsis; }
+.aval-module-picker { min-height: 29px; padding: 0 8px; flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface-raised); color: var(--muted); font-size: 8px; cursor: pointer; }
+.aval-module-picker:hover, .aval-module-picker.active { border-color: var(--line-strong); background: var(--ink); color: var(--inverse-ink); }
+.aval-module-picker-instruction { margin: 0; padding: 7px 8px; display: flex; align-items: center; gap: 7px; border-radius: 9px; background: var(--ink); color: var(--inverse-ink); line-height: 1.35; }
+.aval-module-picker-instruction > span { width: 6px; height: 6px; flex: 0 0 auto; border-radius: 50%; background: #8fc9a3; box-shadow: 0 0 0 3px color-mix(in srgb, #8fc9a3 18%, transparent); }
+.aval-selected-module-context { min-width: 0; min-height: 40px; padding: 6px 7px 6px 9px; display: grid; grid-template-columns: 17px minmax(0,1fr) 28px; align-items: center; gap: 8px; border: 1px solid var(--line-strong); border-radius: 11px; background: var(--surface-raised); color: var(--ink); }
+.aval-selected-module-context > span { min-width: 0; display: grid; gap: 2px; }
+.aval-selected-module-context small { color: var(--quiet); font-size: 7px; text-transform: uppercase; letter-spacing: .08em; }
+.aval-selected-module-context strong { overflow: hidden; font-size: 9px; font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
+.aval-selected-module-context button { width: 28px; height: 28px; display: grid; place-items: center; border: 0; border-radius: 8px; background: transparent; color: var(--quiet); cursor: pointer; }
+.aval-selected-module-context button:hover { background: var(--surface-soft); color: var(--ink); }
+
+.aval-assistant-stream { min-height: 0; padding: 17px 16px 10px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.aval-chat-message { width: fit-content; max-width: 92%; margin-bottom: 12px; }
+.aval-chat-message.user { margin-left: auto; padding: 10px 12px; border-radius: 15px 15px 5px 15px; background: var(--ink); color: var(--inverse-ink); }
+.aval-chat-message.assistant { padding: 0; }
+.aval-chat-message > p { margin: 0; font-size: 10px; line-height: 1.55; }
+.aval-chat-message.assistant > p { padding: 11px 12px; border: 1px solid var(--line); border-radius: 15px 15px 15px 5px; background: var(--surface); color: var(--muted); }
+
+.aval-chat-answer { display: grid; gap: 11px; }
+.aval-chat-answer-heading { display: grid; grid-template-columns: 20px 1fr; align-items: start; gap: 8px; }
+.aval-chat-answer-heading svg { margin-top: 1px; }
+.aval-chat-answer-heading strong { font-size: 13px; font-weight: 400; letter-spacing: -.25px; line-height: 1.35; }
+.aval-chat-answer > p { margin: 0; color: var(--muted); font-size: 9px; line-height: 1.55; }
+.aval-chat-stats { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 6px; }
+.aval-chat-stats > span { min-width: 0; padding: 9px; display: grid; gap: 4px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface-soft); }
+.aval-chat-stats small { color: var(--quiet); font-size: 7px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.aval-chat-stats strong { font-size: 10px; font-weight: 400; white-space: nowrap; }
+
+.aval-chat-evidence { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.aval-chat-evidence summary { min-height: 38px; display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 8px; list-style: none; cursor: pointer; }
+.aval-chat-evidence summary::-webkit-details-marker { display: none; }
+.aval-chat-evidence[open] summary svg { transform: rotate(90deg); }
+.aval-chat-evidence > div { padding-bottom: 5px; }
+.aval-chat-evidence > div > span { min-height: 38px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid var(--line); }
+.aval-chat-evidence > div small { color: var(--muted); font-size: 8px; }
+.aval-chat-evidence > div strong { color: var(--ink); font-size: 8px; font-weight: 400; text-align: right; }
+.aval-chat-evidence > p { margin: 0; padding: 8px 0 10px; display: flex; align-items: center; gap: 6px; color: var(--quiet); font-size: 7px; line-height: 1.4; }
+
+.aval-chat-action { width: 100%; min-height: 58px; padding: 10px 11px; display: grid; grid-template-columns: 18px minmax(0,1fr) 17px; align-items: center; gap: 9px; border: 0; border-radius: 13px; background: var(--ink); color: var(--inverse-ink); text-align: left; cursor: pointer; }
+.aval-chat-action > span { min-width: 0; display: grid; gap: 4px; }
+.aval-chat-action strong { font-size: 9px; font-weight: 400; }
+.aval-chat-action small { color: color-mix(in srgb, var(--inverse-ink) 64%, transparent); font-size: 7px; line-height: 1.35; }
+.aval-chat-action:disabled { background: var(--surface-sunken); color: var(--muted); cursor: default; }
+.aval-chat-action:disabled small { color: var(--quiet); }
+
+.aval-chat-thinking { min-height: 34px; display: flex; align-items: center; gap: 4px; color: var(--quiet); font-size: 8px; }
+.aval-chat-thinking i { width: 5px; height: 5px; border-radius: 50%; background: var(--ink); animation: aval-thinking 1.1s ease-in-out infinite; }
+.aval-chat-thinking i:nth-child(2) { animation-delay: .12s; }
+.aval-chat-thinking i:nth-child(3) { margin-right: 5px; animation-delay: .24s; }
+@keyframes aval-thinking { 0%, 65%, 100% { opacity: .25; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-3px); } }
+
+.aval-chat-suggestions { padding: 0 16px 10px; display: grid; gap: 6px; }
+.aval-chat-suggestions button { min-height: 38px; padding: 0 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface); color: var(--muted); font-size: 8px; text-align: left; cursor: pointer; }
+.aval-chat-suggestions button:hover { border-color: var(--line-strong); background: var(--surface-soft); color: var(--ink); }
+
+.aval-chat-composer { margin: 0 12px; padding: 5px 5px 5px 12px; display: grid; grid-template-columns: minmax(0,1fr) 36px; align-items: center; gap: 8px; border: 1px solid var(--line-strong); border-radius: 14px; background: var(--surface); box-shadow: 0 1px 0 rgba(255,255,255,.55) inset; }
+.aval-chat-composer:focus-within { border-color: color-mix(in srgb, var(--ink) 38%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ink) 6%, transparent); }
+.aval-chat-composer input { min-width: 0; height: 34px; border: 0; outline: 0; background: transparent; color: var(--ink); font-size: 9px; }
+.aval-chat-composer input::placeholder { color: var(--quiet); }
+.aval-chat-composer button { width: 36px; height: 36px; display: grid; place-items: center; border: 0; border-radius: 10px; background: var(--ink); color: var(--inverse-ink); cursor: pointer; }
+.aval-chat-composer button:disabled { background: var(--surface-sunken); color: var(--quiet); cursor: default; }
+.aval-chat-disclaimer { margin: 8px 12px 11px; color: var(--quiet); font-size: 7px; text-align: center; }
+
+html.aval-module-picking .content-shell { cursor: crosshair; }
+.aval-ai-module-hover, .aval-ai-module-selected { position: relative; z-index: 34; outline: 2px solid var(--ink) !important; outline-offset: 3px; }
+.aval-ai-module-hover { cursor: crosshair !important; box-shadow: 0 18px 46px rgba(14,14,12,.18) !important; }
+.aval-ai-module-hover::after { content: "Ask Aval"; position: absolute; z-index: 35; right: 9px; top: 9px; padding: 7px 9px; border-radius: 9px; background: var(--ink); color: var(--inverse-ink); box-shadow: var(--shadow-sm); font-size: 8px; line-height: 1; pointer-events: none; }
+.aval-ai-module-selected { outline-color: color-mix(in srgb, var(--ink) 72%, transparent) !important; box-shadow: 0 0 0 5px color-mix(in srgb, var(--ink) 7%, transparent), var(--shadow-sm) !important; }
+
+.toast-stack { bottom: 88px; }
+
+[data-theme="dark"] .aval-assistant-panel { background: color-mix(in srgb, var(--surface-raised) 97%, transparent); box-shadow: 0 28px 72px rgba(0,0,0,.5), 0 3px 14px rgba(0,0,0,.3); }
+[data-theme="dark"] .aval-assistant-launcher { box-shadow: 0 14px 34px rgba(0,0,0,.48), inset 0 1px 0 rgba(255,255,255,.08); }
+
+@media (max-width: 600px) {
+  .aval-assistant-launcher { right: 14px; bottom: 83px; width: 50px; height: 50px; border-radius: 16px; }
+  .aval-assistant-panel { left: 10px; right: 10px; bottom: 143px; width: auto; height: min(610px, calc(100dvh - 157px)); min-height: 420px; border-radius: 21px; }
+  .aval-chat-stats { grid-template-columns: 1fr; }
+  .aval-chat-stats > span { display: flex; align-items: center; justify-content: space-between; }
+  .toast-stack { bottom: 146px; }
 }

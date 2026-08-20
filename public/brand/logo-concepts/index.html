@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Aval logo concepts</title>
+  <style>
+    :root { color-scheme: light; font-family: Arial, Helvetica, sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #efeeeb; color: #0b0b0a; }
+    main { width: min(1440px, calc(100% - 40px)); margin: 0 auto; padding: 64px 0 80px; }
+    header { margin-bottom: 36px; }
+    h1 { margin: 0 0 8px; font-size: clamp(34px, 5vw, 64px); font-weight: 500; letter-spacing: -.055em; }
+    p { margin: 0; color: #686762; font-size: 14px; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+    article { overflow: hidden; border: 1px solid #d7d6d1; border-radius: 24px; background: #fff; box-shadow: 0 8px 30px rgba(0,0,0,.04); }
+    .preview { display: grid; grid-template-columns: 1fr 1fr; }
+    .tile { min-height: 260px; padding: 34px; display: grid; place-items: center; }
+    .tile.dark { background: #0b0b0a; }
+    img { display: block; width: 100%; height: 154px; object-fit: contain; }
+    .dark img { filter: invert(1); mix-blend-mode: screen; }
+    footer { padding: 18px 22px 20px; border-top: 1px solid #e4e3df; }
+    footer strong { display: block; margin-bottom: 4px; font-size: 14px; font-weight: 600; }
+    footer span { color: #777671; font-size: 12px; }
+    @media (max-width: 820px) { .grid { grid-template-columns: 1fr; } .tile { min-height: 210px; padding: 24px; } }
+    @media (max-width: 500px) { main { width: min(100% - 24px, 1440px); padding-top: 36px; } .preview { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Aval logo concepts</h1>
+      <p>Eight monochrome directions, shown in positive and reverse.</p>
+    </header>
+    <section class="grid">
+      <article><div class="preview"><div class="tile"><img src="01-doorway-a.png" alt="Doorway A logo"></div><div class="tile dark"><img src="01-doorway-a.png" alt="Doorway A logo reversed"></div></div><footer><strong>01 — Doorway A</strong><span>Property access reduced to a compact lowercase a.</span></footer></article>
+      <article><div class="preview"><div class="tile"><img src="02-courtyard-a.png" alt="Courtyard A logo"></div><div class="tile dark"><img src="02-courtyard-a.png" alt="Courtyard A logo reversed"></div></div><footer><strong>02 — Courtyard A</strong><span>A spatial plan with a calm architectural counter.</span></footer></article>
+      <article><div class="preview"><div class="tile"><img src="03-continuous-ava.png" alt="Continuous AVA logo"></div><div class="tile dark"><img src="03-continuous-ava.png" alt="Continuous AVA logo reversed"></div></div><footer><strong>03 — Continuous AVA</strong><span>A single flow built around the rhythm of the name.</span></footer></article>
+      <article><div class="preview"><div class="tile"><img src="04-modular-flow-a.png" alt="Modular Flow A logo"></div><div class="tile dark"><img src="04-modular-flow-a.png" alt="Modular Flow A logo reversed"></div></div><footer><strong>04 — Modular Flow</strong><span>Property blocks organized around one open channel.</span></footer></article>
+      <article><div class="preview"><div class="tile"><img src="05-keystone-av.png" alt="Keystone AV logo"></div><div class="tile dark"><img src="05-keystone-av.png" alt="Keystone AV logo reversed"></div></div><footer><strong>05 — Keystone AV</strong><span>An interlocked A/V with structure and momentum.</span></footer></article>
+      <article><div class="preview"><div class="tile"><img src="06-portfolio-grid.png" alt="Portfolio Grid logo"></div><div class="tile dark"><img src="06-portfolio-grid.png" alt="Portfolio Grid logo reversed"></div></div><footer><strong>06 — Portfolio Grid</strong><span>A portfolio system with a precise operational opening.</span></footer></article>
+      <article><div class="preview"><div class="tile"><img src="07-coordination-loop.png" alt="Coordination Loop logo"></div><div class="tile dark"><img src="07-coordination-loop.png" alt="Coordination Loop logo reversed"></div></div><footer><strong>07 — Coordination Loop</strong><span>Work moving continuously around the property.</span></footer></article>
+      <article><div class="preview"><div class="tile"><img src="08-custom-wordmark.png" alt="Custom Aval wordmark"></div><div class="tile dark"><img src="08-custom-wordmark.png" alt="Custom Aval wordmark reversed"></div></div><footer><strong>08 — Custom Wordmark</strong><span>A symbol-free typographic direction.</span></footer></article>
+    </section>
+  </main>
+</body>
+</html>

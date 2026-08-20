@@ -22,7 +22,11 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title,
     description,
-    icons: { icon: "/favicon.svg", shortcut: "/favicon.svg" },
+    icons: {
+      icon: [{ url: "/favicon.png", type: "image/png", sizes: "64x64" }],
+      shortcut: "/favicon.png",
+      apple: "/icon-192.png",
+    },
     manifest: "/manifest.webmanifest",
     appleWebApp: { capable: true, title: "Aval", statusBarStyle: "black-translucent" },
     openGraph: {
