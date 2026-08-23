@@ -32,7 +32,7 @@ test("server-renders the Aval connected operations dashboard", async () => {
   assert.match(html, /Aval workspace/);
   assert.match(html, /Portfolio overview/);
   assert.match(html, /Lead-to-lease funnel/);
-  assert.match(html, /Two sources unlock the view/);
+  assert.match(html, /\d+ of \d+ connected/);
   assert.match(html, /Work moving through the system/);
   assert.match(html, /Acme Residential/);
   assert.doesNotMatch(html, /codex-preview|react-loading-skeleton|Your site is taking shape/i);
