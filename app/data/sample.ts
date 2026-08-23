@@ -50,6 +50,12 @@ export interface InsightCandidate {
   actionable: boolean;
   action: InsightAction | null;
   evidence: EvidenceRow[];
+  // For every actionable insight except sendReminders (which shows a real
+  // per-recipient batch preview instead): the message key for the drafted
+  // review text shown before the user approves the action. Static copy for
+  // now, grounded in this insight's own evidence/moneyAtStake — the seam
+  // where a real model call replaces the static draft later.
+  draftKey?: string;
 }
 
 export interface PropertyRow {
@@ -198,6 +204,7 @@ export const sampleData = {
         urgency: 2,
         actionable: true,
         action: { type: "draftPricingReview" },
+        draftKey: "Overview.draftVacancyPricing",
         evidence: [
           { labelKey: "Overview.vacancyRomaSur6b", detailKey: "Overview.vacancyRomaSur6bDetail", amount: 21800 },
           { labelKey: "Overview.vacancyRomaSur8a", detailKey: "Overview.vacancyRomaSur8aDetail", amount: 19400 },
@@ -212,6 +219,7 @@ export const sampleData = {
         urgency: 2,
         actionable: true,
         action: { type: "openReview" },
+        draftKey: "Overview.draftNoiVariance",
         evidence: [],
       },
       {
@@ -223,6 +231,7 @@ export const sampleData = {
         urgency: 5,
         actionable: true,
         action: { type: "escalateMaintenance" },
+        draftKey: "Overview.draftMaintenanceEscalation",
         evidence: [
           { labelKey: "Overview.workOrderJardines22", detailKey: "Overview.workOrderJardines22Detail", amount: 2400 },
           { labelKey: "Overview.workOrderRomaSur2c", detailKey: "Overview.workOrderRomaSur2cDetail", amount: 1200 },
@@ -238,7 +247,12 @@ export const sampleData = {
         urgency: 3,
         actionable: true,
         action: { type: "openReview" },
-        evidence: [],
+        draftKey: "Overview.draftDepositReconciliation",
+        evidence: [
+          { labelKey: "Overview.depositAug14", detailKey: "Overview.depositAug14Detail", amount: 2200 },
+          { labelKey: "Overview.depositAug19", detailKey: "Overview.depositAug19Detail", amount: 1800 },
+          { labelKey: "Overview.depositAug27", detailKey: "Overview.depositAug27Detail", amount: 2000 },
+        ],
       },
       {
         id: "lease-renewal",
@@ -249,6 +263,7 @@ export const sampleData = {
         urgency: 1,
         actionable: true,
         action: { type: "openReview" },
+        draftKey: "Overview.draftLeaseRenewal",
         evidence: [],
       },
       {

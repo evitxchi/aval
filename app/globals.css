@@ -183,6 +183,10 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--ink); outli
 .metric-drilldown-trigger { margin-top: 10px; padding: 0; border: 0; background: transparent; display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-size: 10px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 
 .evidence-dialog { width: min(560px, calc(100vw - 28px)); }
+.review-draft-dialog { width: min(560px, calc(100vw - 28px)); }
+.review-draft-dialog .dialog-top { align-items: flex-start; }
+.review-draft-dialog .waterfall { margin-top: 12px; }
+.review-draft-text { margin: 16px 0 0; padding: 14px 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-soft); color: var(--muted); font-size: 11.5px; line-height: 1.6; }
 .evidence-rows { margin-top: 4px; display: grid; }
 .evidence-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
 .evidence-row:first-child { border-top: 0; }

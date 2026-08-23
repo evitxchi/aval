@@ -152,6 +152,7 @@ function Overview({ openConnections, dataMode, providers }: { openConnections: (
   const [drillDown, setDrillDown] = useState<"noi" | "economicOccupancy" | "rentCollected" | "openWorkOrders" | null>(null);
   const [reminderPreview, setReminderPreview] = useState<InsightCandidate | null>(null);
   const [removedRecipients, setRemovedRecipients] = useState<Set<string>>(new Set());
+  const [reviewDraft, setReviewDraft] = useState<InsightCandidate | null>(null);
   const [preparedInsights, setPreparedInsights] = useState<Record<string, boolean>>({});
   const rankedInsights = useMemo(() => rankInsights(sampleData.insights.candidates), []);
   const money = (amount: number) => `${currencyPrefix}${Math.abs(amount).toLocaleString(currentLocale)}`;
@@ -166,6 +167,16 @@ function Overview({ openConnections, dataMode, providers }: { openConnections: (
     }
   };
 
+  // Static for now — this is the seam where a connected model would draft
+  // the actual review text instead. The numbers it references are always
+  // real (moneyAtStake, the NOI delta), never invented for the draft.
+  const draftText = (insight: InsightCandidate) => {
+    if (!insight.draftKey) return "";
+    if (insight.id === "vacancy-pricing") return t(insight.draftKey, { amount: money(insight.moneyAtStake) });
+    if (insight.id === "noi-variance") return t(insight.draftKey, { delta: `+${derivedSample.noiDeltaPct.toFixed(1)}%` });
+    return t(insight.draftKey);
+  };
+
   const handleInsightAction = (insight: InsightCandidate) => {
     if (!insight.action) return;
     if (insight.action.type === "sendReminders") {
@@ -173,8 +184,14 @@ function Overview({ openConnections, dataMode, providers }: { openConnections: (
       setReminderPreview(insight);
       return;
     }
-    setPreparedInsights((current) => ({ ...current, [insight.id]: true }));
-    notify(t(insight.titleKey), t("Overview.insightPrepared"));
+    setReviewDraft(insight);
+  };
+
+  const approveReviewDraft = () => {
+    if (!reviewDraft) return;
+    setPreparedInsights((current) => ({ ...current, [reviewDraft.id]: true }));
+    notify(t(reviewDraft.titleKey), t("Overview.insightPrepared"));
+    setReviewDraft(null);
   };
 
   const confirmSendReminders = (recipientCount: number) => {
@@ -277,6 +294,27 @@ function Overview({ openConnections, dataMode, providers }: { openConnections: (
               </div>
             </>;
           })()}
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+
+    <Dialog.Root open={reviewDraft !== null} onOpenChange={(open) => !open && setReviewDraft(null)}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="dialog-overlay"/>
+        <Dialog.Content className="small-dialog review-draft-dialog">
+          {reviewDraft && <>
+            <div className="dialog-top">
+              <div><p className="eyebrow">{t("Overview.draftedReviewEyebrow")}</p><Dialog.Title>{t(reviewDraft.titleKey)}</Dialog.Title></div>
+              <Dialog.Close className="icon-button" aria-label={t("Overview.close")}><Xmark width={20} height={20}/></Dialog.Close>
+            </div>
+            {reviewDraft.tileKey === "noi" && <NoiWaterfall t={t} money={money}/>}
+            {reviewDraft.evidence.length > 0 && <div className="evidence-rows">{reviewDraft.evidence.map((row) => <div className="evidence-row" key={row.labelKey}><div><strong>{t(row.labelKey)}</strong><small>{t(row.detailKey)}</small></div><span>{money(row.amount)}</span></div>)}</div>}
+            <p className="review-draft-text">{draftText(reviewDraft)}</p>
+            <div className="dialog-actions">
+              <Dialog.Close className="soft-button">{t("Overview.cancel")}</Dialog.Close>
+              <button className="primary-button" onClick={approveReviewDraft}>{t("Overview.approveDraft")}</button>
+            </div>
+          </>}
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
