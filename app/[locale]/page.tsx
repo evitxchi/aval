@@ -8,7 +8,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import * as Tabs from "@radix-ui/react-tabs";
 import {
   Archive, Attachment, Bell, Calendar, ChatLines, Check, CheckCircle, Clock,
-  CoinsSwap, Dashboard, Database, FilterList, Globe, HalfMoon, HomeSimpleDoor, Key,
+  Coins, CoinsSwap, Dashboard, Database, FilterList, Flash, Globe, HalfMoon, HomeSimpleDoor, Key,
   Language, LogOut, NetworkLeft, NavArrowDown, NavArrowRight, Page, Pause,
   Phone, Plus, Search, SendDiagonal, Settings, ShieldCheck, SmartphoneDevice,
   SoundHigh, SoundOff, StatsUpSquare, SunLight, TaskList, Tools, User,
@@ -18,7 +18,7 @@ import { siApple, siGmail, siNotion, siQuickbooks, siTelegram, siWhatsapp, siXer
 import { AnimatedNumber, ExperienceProvider, useExperience } from "@/app/components/experience";
 import { Link, useRouter, usePathname } from "./navigation";
 import { AvalAssistant } from "@/app/components/aval-assistant";
-import { derivedSample, sampleData } from "@/app/data/sample";
+import { derivedSample, rankInsights, sampleData, type InsightCandidate } from "@/app/data/sample";
 
 type View = "overview" | "tasks" | "inbox" | "properties" | "leasing" | "maintenance" | "accounting" | "connections" | "documents" | "settings";
 type DataMode = "sample" | "empty" | "live";
@@ -136,6 +136,7 @@ const TILE_SOURCES: Record<(typeof metricTiles)[number]["key"] | "funnel", strin
 function Overview({ openConnections, dataMode, providers }: { openConnections: () => void; dataMode: DataMode; providers: Provider[] }) {
   const { market, notify } = useExperience();
   const t = useTranslations();
+  const currentLocale = useLocale();
   const currencyPrefix = market === "latam" ? "MX$" : "$";
   const accountingProvider = market === "latam" ? "contpaqi" : "quickbooks";
   const [period, setPeriod] = useState("Aug 12–18");
@@ -147,6 +148,40 @@ function Overview({ openConnections, dataMode, providers }: { openConnections: (
   const resolveCoverageProvider = (row: (typeof sampleData.coverage.rows)[number]) => row.provider === "quickbooks" ? accountingProvider : row.provider;
   const isCoverageRowConnected = (row: (typeof sampleData.coverage.rows)[number]) => providers.find((provider) => provider.id === resolveCoverageProvider(row))?.connection?.status === "connected";
   const connectedCount = sampleData.coverage.rows.filter(isCoverageRowConnected).length;
+  const [drillDown, setDrillDown] = useState<"noi" | "economicOccupancy" | "rentCollected" | "openWorkOrders" | null>(null);
+  const [reminderPreview, setReminderPreview] = useState<InsightCandidate | null>(null);
+  const [removedRecipients, setRemovedRecipients] = useState<Set<string>>(new Set());
+  const [preparedInsights, setPreparedInsights] = useState<Record<string, boolean>>({});
+  const rankedInsights = useMemo(() => rankInsights(sampleData.insights.candidates), []);
+  const money = (amount: number) => `${currencyPrefix}${Math.abs(amount).toLocaleString(currentLocale)}`;
+
+  const insightActionLabel = (insight: InsightCandidate) => {
+    if (!insight.action) return "";
+    switch (insight.action.type) {
+      case "sendReminders": return t("Overview.actionSendReminders", { count: insight.action.recipients.length });
+      case "escalateMaintenance": return t("Overview.actionEscalateMaintenance");
+      case "draftPricingReview": return t("Overview.actionDraftPricingReview");
+      case "openReview": return t("Overview.actionOpenReview");
+    }
+  };
+
+  const handleInsightAction = (insight: InsightCandidate) => {
+    if (!insight.action) return;
+    if (insight.action.type === "sendReminders") {
+      setRemovedRecipients(new Set());
+      setReminderPreview(insight);
+      return;
+    }
+    setPreparedInsights((current) => ({ ...current, [insight.id]: true }));
+    notify(t(insight.titleKey), t("Overview.insightPrepared"));
+  };
+
+  const confirmSendReminders = (recipientCount: number) => {
+    if (!reminderPreview) return;
+    setPreparedInsights((current) => ({ ...current, [reminderPreview.id]: true }));
+    notify(t(reminderPreview.titleKey), t("Overview.remindersPrepared", { count: recipientCount }));
+    setReminderPreview(null);
+  };
 
   return <div className="view-wrap">
     <AppHeader
@@ -173,6 +208,7 @@ function Overview({ openConnections, dataMode, providers }: { openConnections: (
             <strong><AnimatedNumber value={metric.value} prefix={metric.prefix === "$" ? currencyPrefix : metric.prefix} suffix={metric.suffix} decimals={metric.decimals}/></strong>
             <div className="metric-meta"><span>{metric.deltaText}</span> {t(metric.detailKey, metric.detailParams)}</div>
             <div className="mini-bars" aria-hidden="true">{metric.bars.map((height, index) => <i key={index} style={{ "--bar-height": `${height}%`, "--bar-delay": `${index * 65}ms` } as React.CSSProperties}/>)}</div>
+            <button className="metric-drilldown-trigger" onClick={() => setDrillDown(metric.key)}>{t("Overview.viewEvidence")}<NavArrowRight width={13} height={13}/></button>
           </>
         : connected
         ? <>
@@ -185,6 +221,64 @@ function Overview({ openConnections, dataMode, providers }: { openConnections: (
             <button className="text-button" onClick={openConnections}>{t("Overview.connect")}<NavArrowRight width={14} height={14}/></button>
           </>}
     </article>; })}</section>
+
+    <section className="panel insights-panel" data-reveal>
+      <div className="panel-heading"><div><p className="eyebrow">{t("Overview.insightsEyebrow")}</p><h2>{t("Overview.insightsHeading")}</h2></div><Flash width={20} height={20}/></div>
+      {isSample
+        ? <div className="insight-list">{rankedInsights.map((insight, index) => <article className="insight-card" key={insight.id}>
+            <span className="insight-rank">{index + 1}</span>
+            <div className="insight-body">
+              <h3>{t(insight.titleKey)}</h3>
+              <p>{t(insight.detailKey)}</p>
+              <div className="insight-meta">
+                <span className="insight-stake"><Coins width={14} height={14}/>{t("Overview.moneyAtStake")}<b>{money(insight.moneyAtStake)}</b></span>
+                {insight.tileKey && <button className="text-button" onClick={() => setDrillDown(insight.tileKey)}>{t("Overview.viewEvidence")}<NavArrowRight width={14} height={14}/></button>}
+              </div>
+            </div>
+            <button className="insight-action" disabled={preparedInsights[insight.id]} onClick={() => handleInsightAction(insight)}>
+              {preparedInsights[insight.id] ? <><CheckCircle width={16} height={16}/>{t("Overview.insightPrepared")}</> : insightActionLabel(insight)}
+            </button>
+          </article>)}</div>
+        : <p className="empty-copy">{t("Overview.insightsEmptyDescription")}</p>}
+    </section>
+
+    <Dialog.Root open={drillDown !== null} onOpenChange={(open) => !open && setDrillDown(null)}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="dialog-overlay"/>
+        <Dialog.Content className="small-dialog evidence-dialog">
+          {drillDown && <>
+            <div className="dialog-top"><Dialog.Title>{t(metricTiles.find((metric) => metric.key === drillDown)!.labelKey)}</Dialog.Title><Dialog.Close className="icon-button" aria-label={t("Overview.close")}><Xmark width={20} height={20}/></Dialog.Close></div>
+            {drillDown === "noi"
+              ? <NoiWaterfall t={t} money={money}/>
+              : <div className="evidence-rows">{(drillDown === "economicOccupancy" ? sampleData.economicOccupancy.evidenceRows : drillDown === "rentCollected" ? sampleData.rentCollected.evidenceRows : sampleData.openWorkOrders.evidenceRows).map((row) => <div className="evidence-row" key={row.labelKey}><div><strong>{t(row.labelKey)}</strong><small>{t(row.detailKey)}</small></div><span>{money(row.amount)}</span></div>)}</div>}
+          </>}
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+
+    <Dialog.Root open={reminderPreview !== null} onOpenChange={(open) => !open && setReminderPreview(null)}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="dialog-overlay"/>
+        <Dialog.Content className="small-dialog">
+          {reminderPreview && reminderPreview.action?.type === "sendReminders" && (() => {
+            const visible = reminderPreview.action.recipients.filter((recipient) => !removedRecipients.has(recipient.name));
+            return <>
+              <div className="dialog-top"><Dialog.Title>{t("Overview.sendRemindersTitle", { count: visible.length })}</Dialog.Title><Dialog.Close className="icon-button" aria-label={t("Overview.close")}><Xmark width={20} height={20}/></Dialog.Close></div>
+              <div className="recipient-list">{visible.map((recipient) => <div className="recipient-row" key={recipient.name}>
+                <BrandMark provider={recipient.channel} small/>
+                <div><strong>{recipient.name}</strong><small>{t(recipient.detailKey)}</small></div>
+                <span>{money(recipient.amount)}</span>
+                <button className="icon-button" onClick={() => setRemovedRecipients((current) => new Set(current).add(recipient.name))} aria-label={t("Overview.removeRecipient")}><Xmark width={15} height={15}/></button>
+              </div>)}</div>
+              <div className="dialog-actions">
+                <Dialog.Close className="soft-button">{t("Overview.cancel")}</Dialog.Close>
+                <button className="primary-button" disabled={visible.length === 0} onClick={() => confirmSendReminders(visible.length)}>{t("Overview.sendRemindersConfirm", { count: visible.length })}</button>
+              </div>
+            </>;
+          })()}
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
 
     <section className="overview-grid" data-reveal>
       <article className="panel funnel-panel">
@@ -286,6 +380,63 @@ function SettingsView({ openConnections }: { openConnections: () => void }) {
   const pathname = usePathname();
   const switchLocale = (nextLocale: "en" | "es-mx") => router.replace(pathname, { locale: nextLocale });
   return <div className="view-wrap"><AppHeader title={t("SettingsView.settings")} subtitle={t("SettingsView.personalPreferencesStayOnThisDevice")}/><section className="settings-grid"><article className="settings-card" data-reveal><div className="settings-heading"><span className="initials large">CR</span><div><p className="eyebrow">{t("SettingsView.profile")}</p><h2>Camila Reyes</h2><p>camila@acmeresidential.com</p></div></div><button className="wide-button" onClick={() => notify(t("SettingsView.profileEditorOpened"), t("SettingsView.workspaceIdentityChangesRequireAnAdministrator"))}>{t("SettingsView.editProfile")}<NavArrowRight width={17} height={17}/></button></article><article className="settings-card" data-reveal><div className="setting-row"><div><Language width={21} height={21}/><span><strong>{t("SettingsView.language")}</strong><small>{t("SettingsView.englishOrSpanishForLatinAmerica")}</small></span></div><div className="segmented text"><button className={currentLocale === "en" ? "active" : ""} onClick={() => switchLocale("en")}>English</button><button className={currentLocale === "es-mx" ? "active" : ""} onClick={() => switchLocale("es-mx")}>Español (México)</button></div></div><div className="setting-row"><div>{theme === "dark" ? <HalfMoon width={21} height={21}/> : <SunLight width={21} height={21}/>}<span><strong>{t("SettingsView.appearance")}</strong><small>{t("SettingsView.highFidelityLightAndInvertedDark")}</small></span></div><div className="segmented text"><button className={theme === "light" ? "active" : ""} onClick={() => setTheme("light")}>{t("SettingsView.light")}</button><button className={theme === "dark" ? "active" : ""} onClick={() => setTheme("dark")}>{t("SettingsView.dark")}</button></div></div><div className="setting-row"><div>{sounds ? <SoundHigh width={21} height={21}/> : <SoundOff width={21} height={21}/>}<span><strong>{t("SettingsView.tactileSounds")}</strong><small>{t("SettingsView.quietTapRevealNotificationAndSuccess")}</small></span></div><button className={`switch ${sounds ? "on" : ""}`} onClick={() => setSounds(!sounds)} aria-pressed={sounds}><i/></button></div></article><article className="settings-card" data-reveal><p className="eyebrow">{t("SettingsView.connectedWorkspace")}</p><h2>{t("SettingsView.permissionsSecurity")}</h2><p>{t("SettingsView.reviewScopesConnectionHealthAndRevocation")}</p><button className="wide-button" onClick={openConnections}>{t("SettingsView.manageConnections")}<NavArrowRight width={17} height={17}/></button></article><article className="settings-card mobile-promo" data-reveal><SmartphoneDevice width={28} height={28}/><div><p className="eyebrow">{t("SettingsView.separateMobileExperience")}</p><h2>Aval Mobile</h2><p>{t("SettingsView.aFocusedInstallableInterfaceForApprovals")}</p></div><Link className="primary-button" href="/mobile">{t("SettingsView.openMobileApp")}<NavArrowRight width={17} height={17}/></Link></article></section></div>;
+}
+
+function NoiWaterfall({ t, money }: { t: ReturnType<typeof useTranslations>; money: (amount: number) => string }) {
+  const { value, priorValue, attribution } = sampleData.noi;
+  const steps = [
+    { key: "prior", labelKey: "Overview.waterfallPrior", kind: "total" as const, delta: 0 },
+    ...attribution.map((row) => ({ key: row.driverKey, labelKey: row.driverKey, kind: "delta" as const, delta: row.amount })),
+    { key: "current", labelKey: "Overview.waterfallCurrent", kind: "total" as const, delta: 0 },
+  ];
+
+  let running = priorValue;
+  const bars = steps.map((step, index) => {
+    const from = step.kind === "total" ? 0 : running;
+    const to = step.kind === "total" ? (index === 0 ? priorValue : value) : running + step.delta;
+    if (step.kind === "delta") running = to;
+    return { ...step, from, to, index };
+  });
+
+  const peak = Math.max(...bars.map((bar) => Math.max(bar.from, bar.to)));
+  const chartHeight = 132;
+  const scale = chartHeight / (peak * 1.08);
+  const barWidth = 68;
+  const gap = 18;
+  const chartWidth = bars.length * barWidth + (bars.length - 1) * gap;
+
+  return (
+    <div className="waterfall" data-reveal data-sound-reveal>
+      <svg viewBox={`0 0 ${chartWidth} ${chartHeight + 34}`} width="100%" role="img" aria-label={t("Overview.waterfallAriaLabel")}>
+        {bars.map((bar) => {
+          const x = bar.index * (barWidth + gap);
+          const topValue = Math.max(bar.from, bar.to);
+          const bottomValue = Math.min(bar.from, bar.to);
+          const y = chartHeight - topValue * scale;
+          const barHeight = Math.max(2, (topValue - bottomValue) * scale);
+          const isPositive = bar.kind === "total" || bar.delta >= 0;
+          return (
+            <g key={bar.key} className="waterfall-bar" style={{ "--bar-delay": `${bar.index * 90}ms` } as React.CSSProperties}>
+              {bar.index > 0 && bar.kind === "delta" && (
+                <line
+                  x1={x - gap} x2={x}
+                  y1={chartHeight - bar.from * scale} y2={chartHeight - bar.from * scale}
+                  className="waterfall-connector"
+                />
+              )}
+              <rect x={x} y={y} width={barWidth} height={barHeight} rx={4} className={`waterfall-rect ${bar.kind} ${isPositive ? "positive" : "negative"}`} />
+              <text x={x + barWidth / 2} y={y - 8} textAnchor="middle" className="waterfall-value">
+                {bar.kind === "total" ? money(bar.to) : `${bar.delta >= 0 ? "+" : "−"}${money(bar.delta)}`}
+              </text>
+              <text x={x + barWidth / 2} y={chartHeight + 20} textAnchor="middle" className="waterfall-label">
+                {t(bar.labelKey)}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
 }
 
 function ConnectionDialog({ provider, onClose, onRefresh }: { provider: Provider | null; onClose: () => void; onRefresh: () => void }) {
