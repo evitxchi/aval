@@ -16,6 +16,13 @@ export interface LedgerStep {
   textKey: string;
 }
 
+export interface HistoryEntry {
+  id: string;
+  provider: string;
+  textKey: string;
+  minutesAgo: number;
+}
+
 export interface EvidenceRow {
   labelKey: string;
   detailKey: string;
@@ -168,6 +175,25 @@ export const sampleData = {
       { provider: "twilio", textKey: "Overview.ledgerCall" },
       { provider: "complete", textKey: "Overview.ledgerComplete" },
     ] satisfies LedgerStep[],
+  },
+  // "History" in the Overview header opens this list — real itemized
+  // entries, not a round hardcoded count with nothing behind it. Several
+  // deliberately echo the insights above (a reminder batch, the pricing
+  // draft, the maintenance dispatch) to show the ledger and the insight
+  // queue are the same underlying activity, not two disconnected surfaces.
+  history: {
+    entries: [
+      { id: "h1", provider: "whatsapp", textKey: "Overview.historySentReminders", minutesAgo: 9 },
+      { id: "h2", provider: "twilio", textKey: "Overview.historyPaymentPlanCall", minutesAgo: 26 },
+      { id: "h3", provider: "slack", textKey: "Overview.historyFlaggedAccounts", minutesAgo: 41 },
+      { id: "h4", provider: "appfolio", textKey: "Overview.historyLeaseSigned", minutesAgo: 62 },
+      { id: "h5", provider: "outlook", textKey: "Overview.historyVendorEstimate", minutesAgo: 130 },
+      { id: "h6", provider: "quickbooks", textKey: "Overview.historyDepositsMatched", minutesAgo: 260 },
+      { id: "h7", provider: "whatsapp", textKey: "Overview.historyViewingConfirmed", minutesAgo: 340 },
+      { id: "h8", provider: "appfolio", textKey: "Overview.historyPricingDrafted", minutesAgo: 1080 },
+      { id: "h9", provider: "twilio", textKey: "Overview.historyVendorDispatched", minutesAgo: 1500 },
+      { id: "h10", provider: "slack", textKey: "Overview.historyNoiNotified", minutesAgo: 2600 },
+    ] satisfies HistoryEntry[],
   },
   insights: {
     // More candidates than the queue shows (7) so the cap in rankInsights()

@@ -93,6 +93,14 @@ function BrandMark({ provider, small = false }: { provider: string; small?: bool
   const inner = provider === "whatsapp" ? <SimpleMark icon={siWhatsapp}/> : provider === "apple_messages" ? <SimpleMark icon={siApple}/> : provider === "slack" ? <SlackMark/> : provider === "notion" ? <SimpleMark icon={siNotion}/> : provider === "outlook" ? <OutlookMark/> : provider === "gmail" ? <SimpleMark icon={siGmail}/> : provider === "telegram" ? <SimpleMark icon={siTelegram}/> : provider === "twilio" ? <TwilioMark/> : provider === "quickbooks" ? <SimpleMark icon={siQuickbooks}/> : provider === "xero" ? <SimpleMark icon={siXero}/> : provider === "appfolio" ? <span className="wordmark appfolio-mark">a</span> : provider === "buildium" ? <span className="wordmark buildium-mark">B</span> : provider === "granola" ? <span className="wordmark granola-mark">g</span> : provider === "contpaqi" ? <span className="wordmark contpaqi-mark">C</span> : provider === "alegra" ? <span className="wordmark alegra-mark">A</span> : <Database width={22} height={22}/>;
   return <span className={`brand-mark ${small ? "small" : ""} brand-${provider}`}>{inner}</span>;
 }
+function formatMinutesAgo(minutesAgo: number, locale: string): string {
+  const rtf = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
+  if (minutesAgo < 60) return rtf.format(-minutesAgo, "minute");
+  const hours = Math.round(minutesAgo / 60);
+  if (hours < 24) return rtf.format(-hours, "hour");
+  return rtf.format(-Math.round(hours / 24), "day");
+}
+
 function AppHeader({ title, subtitle, actions }: { title: string; subtitle?: string; actions?: ReactNode }) { return <header className="app-header"><div><p className="eyebrow">Aval workspace</p><h1>{title}</h1>{subtitle && <p className="header-subtitle">{subtitle}</p>}</div><div className="header-actions">{actions}<button className="icon-button" onClick={() => window.dispatchEvent(new Event("aval:notifications"))} aria-label="Notifications"><Bell width={20} height={20}/><span className="notification-dot"/></button></div></header>; }
 
 const metricTiles = [
@@ -142,6 +150,7 @@ function Overview({ openConnections, dataMode, providers }: { openConnections: (
   const accountingProvider = market === "latam" ? "contpaqi" : "quickbooks";
   const [period, setPeriod] = useState("Aug 12–18");
   const [chipDismissed, setChipDismissed] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const isSample = dataMode === "sample";
   const showChip = isSample && !chipDismissed;
   const connectedCategories = useMemo(() => new Set(providers.filter((provider) => provider.connection?.status === "connected").map((provider) => provider.category)), [providers]);
@@ -319,6 +328,26 @@ function Overview({ openConnections, dataMode, providers }: { openConnections: (
       </Dialog.Portal>
     </Dialog.Root>
 
+    <Dialog.Root open={historyOpen} onOpenChange={setHistoryOpen}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="dialog-overlay subtle"/>
+        <Dialog.Content className="notification-drawer">
+          <div className="drawer-heading">
+            <div><p className="eyebrow">{t("Overview.historyCount", { count: sampleData.history.entries.length })}</p><Dialog.Title>{t("Overview.historyTitle")}</Dialog.Title></div>
+            <Dialog.Close className="icon-button" aria-label={t("Overview.close")}><Xmark width={20} height={20}/></Dialog.Close>
+          </div>
+          <div className="notification-list history-list">
+            {sampleData.history.entries.map((entry) => (
+              <div className="history-row" key={entry.id}>
+                <BrandMark provider={entry.provider} small/>
+                <span><strong>{t(entry.textKey)}</strong><small>{formatMinutesAgo(entry.minutesAgo, currentLocale)}</small></span>
+              </div>
+            ))}
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+
     <section className="overview-grid" data-reveal>
       <article className="panel funnel-panel">
         <div className="panel-heading"><div><p className="eyebrow">{t("Overview.leasing")}</p><h2>{t("Overview.leadToLeaseFunnel")}</h2></div><span className="quiet-label">{period}</span></div>
@@ -353,7 +382,7 @@ function Overview({ openConnections, dataMode, providers }: { openConnections: (
     <section className="panel activity-panel" data-reveal>
       <div className="panel-heading">
         <div><p className="eyebrow">Aval, now</p><h2>{t("Overview.workMovingThroughTheSystem")}</h2></div>
-        {isSample && <button className="soft-button" onClick={() => notify(t("Overview.historyOpened"), t("Overview.38VerifiedActionsFromThisWeek"))}><Archive width={17} height={17}/>{t("Overview.history")}</button>}
+        {isSample && <button className="soft-button" onClick={() => setHistoryOpen(true)}><Archive width={17} height={17}/>{t("Overview.history")}</button>}
       </div>
       {isSample
         ? <div className="activity-flow">{sampleData.ledger.steps.map((step, index) => <span className="activity-segment" key={step.provider}>{index > 0 && <i className="flow-arrow">→</i>}<span className={`activity-card ${step.provider === "complete" ? "complete" : ""}`}><span>{step.provider === "complete" ? <CheckCircle width={24} height={24}/> : <BrandMark provider={step.provider} small/>}</span><p>{t(step.textKey)}</p></span></span>)}</div>
@@ -540,7 +569,7 @@ function DesktopApp() {
   return <main className={`app-shell ${collapsed ? "sidebar-is-collapsed" : ""}`}><aside className="sidebar"><div className="brand-lockup"><span className="brand-symbol">a</span><div><strong>aval</strong><small>{t("DesktopApp.propertyOperations")}</small></div><button className="icon-button sidebar-collapse" onClick={() => setCollapsed(!collapsed)} aria-label="Collapse sidebar"><ViewColumns3 width={18} height={18}/></button></div><nav>{navGroups.map((group) => <div className="nav-group" key={group.labelKey}><p>{t(group.labelKey)}</p>{group.items.map((item) => { const Icon = item.icon; return <button className={view === item.id ? "active" : ""} onClick={() => setActiveView(item.id)} key={item.id} title={t(item.labelKey)}><Icon width={20} height={20}/><span>{t(item.labelKey)}</span>{item.count && <b>{item.count}</b>}{view === item.id && <NavArrowRight className="nav-chevron" width={16} height={16}/>}</button>; })}</div>)}</nav><button className="workspace-card" onClick={() => setProfile(!profile)}><span className="initials">AC</span><span><strong>Acme Residential</strong><small>Camila Reyes</small></span><span className="icon-button"><NavArrowDown width={16} height={16}/></span></button>{profile && <div className="profile-menu"><div><span className="initials">CR</span><span><strong>Camila Reyes</strong><small>Administrator</small></span></div><button onClick={() => setActiveView("settings")}><Settings width={17} height={17}/>{t("DesktopApp.profileSettings")}</button><button onClick={() => switchLocale(currentLocale === "en" ? "es-mx" : "en")}><Language width={17} height={17}/>{currentLocale === "en" ? "Español (México)" : "English"}</button><button onClick={() => setMarket(market === "us" ? "latam" : "us")}><Globe width={17} height={17}/>{market === "us" ? t("DesktopApp.marketUnitedStates") : t("DesktopApp.marketLatam")}</button><button onClick={() => setTheme(theme === "light" ? "dark" : "light")}>{theme === "light" ? <HalfMoon width={17} height={17}/> : <SunLight width={17} height={17}/>} {theme === "light" ? t("DesktopApp.darkMode") : t("DesktopApp.lightMode")}</button><button onClick={() => setSounds(!sounds)}>{sounds ? <SoundHigh width={17} height={17}/> : <SoundOff width={17} height={17}/>} {sounds ? t("DesktopApp.soundsOn") : t("DesktopApp.soundsOff")}</button><Link href="/mobile"><SmartphoneDevice width={17} height={17}/>{t("DesktopApp.openMobileApp")}</Link>
       {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- external platform sign-out route, not part of this app router */}
       <a href="/signout-with-chatgpt?return_to=/"><LogOut width={17} height={17}/>{t("DesktopApp.signOut")}</a>
-      </div>}</aside><section className="content-shell" aria-label={t(titleKey)}>{view === "overview" && <Overview openConnections={openConnections} dataMode={dataMode} providers={providers}/>} {view === "tasks" && <TasksView/>} {view === "inbox" && <InboxView/>} {view === "connections" && <ConnectionsView providers={providers} loading={loading} onOpen={openProvider}/>} {view === "settings" && <SettingsView openConnections={openConnections}/>} {(["properties", "leasing", "maintenance", "accounting", "documents"] as View[]).includes(view) && <OperationsView view={view} openConnections={openConnections} dataMode={dataMode} providers={providers}/>}</section>{selectedProvider && <ConnectionDialog provider={selectedProvider} onClose={() => setSelectedProvider(null)} onRefresh={loadProviders}/>}<Dialog.Root open={notifications} onOpenChange={setNotifications}><Dialog.Portal><Dialog.Overlay className="dialog-overlay subtle"/><Dialog.Content className="notification-drawer"><div className="drawer-heading"><div><p className="eyebrow">{t("DesktopApp.liveWorkspace")}</p><Dialog.Title>{t("DesktopApp.notifications")}</Dialog.Title></div><Dialog.Close className="icon-button"><Xmark width={20} height={20}/></Dialog.Close></div><div className="notification-list"><button onClick={() => { setActiveView("tasks"); setNotifications(false); }}><span className="presence-dot"/><span><strong>{t("DesktopApp.draftNeedsApproval")}</strong><small>Diana Ortiz · WhatsApp · 9 min</small></span></button><button onClick={() => { setActiveView("connections"); setNotifications(false); }}><span className="presence-dot"/><span><strong>{t("DesktopApp.accountingSourceIncomplete")}</strong><small>QuickBooks or Xero · 24 min</small></span></button><button onClick={() => { setActiveView("inbox"); setNotifications(false); }}><span className="presence-dot"/><span><strong>{t("DesktopApp.twoResidentReplies")}</strong><small>Shared inbox · 31 min</small></span></button></div><button className="wide-button" onClick={() => setNotificationCount(0)}><Check width={17} height={17}/>{notificationCount ? t("DesktopApp.markAllAsRead") : t("DesktopApp.allCaughtUp")}</button></Dialog.Content></Dialog.Portal></Dialog.Root><AvalAssistant view={view}/></main>;
+      </div>}</aside><section className="content-shell" aria-label={t(titleKey)}>{view === "overview" && <Overview openConnections={openConnections} dataMode={dataMode} providers={providers}/>} {view === "tasks" && <TasksView/>} {view === "inbox" && <InboxView/>} {view === "connections" && <ConnectionsView providers={providers} loading={loading} onOpen={openProvider}/>} {view === "settings" && <SettingsView openConnections={openConnections}/>} {(["properties", "leasing", "maintenance", "accounting", "documents"] as View[]).includes(view) && <OperationsView view={view} openConnections={openConnections} dataMode={dataMode} providers={providers}/>}</section>{selectedProvider && <ConnectionDialog provider={selectedProvider} onClose={() => setSelectedProvider(null)} onRefresh={loadProviders}/>}<Dialog.Root open={notifications} onOpenChange={setNotifications}><Dialog.Portal><Dialog.Overlay className="dialog-overlay subtle"/><Dialog.Content className="notification-drawer"><div className="drawer-heading"><div><p className="eyebrow">{t("DesktopApp.liveWorkspace")}</p><Dialog.Title>{t("DesktopApp.notifications")}</Dialog.Title></div><Dialog.Close className="icon-button"><Xmark width={20} height={20}/></Dialog.Close></div><div className="notification-list"><button onClick={() => { setActiveView("tasks"); setNotifications(false); }}><span className="presence-dot"/><span><strong>{t("DesktopApp.draftNeedsApproval")}</strong><small>{t("DesktopApp.notifDraftDetail", { minutes: 9 })}</small></span></button><button onClick={() => { setActiveView("connections"); setNotifications(false); }}><span className="presence-dot"/><span><strong>{t("DesktopApp.accountingSourceIncomplete")}</strong><small>{t("DesktopApp.notifAccountingDetail", { minutes: 24 })}</small></span></button><button onClick={() => { setActiveView("inbox"); setNotifications(false); }}><span className="presence-dot"/><span><strong>{t("DesktopApp.twoResidentReplies")}</strong><small>{t("DesktopApp.notifRepliesDetail", { minutes: 31 })}</small></span></button></div><button className="wide-button" onClick={() => setNotificationCount(0)}><Check width={17} height={17}/>{notificationCount ? t("DesktopApp.markAllAsRead") : t("DesktopApp.allCaughtUp")}</button></Dialog.Content></Dialog.Portal></Dialog.Root><AvalAssistant view={view}/></main>;
 }
 
 export default function Home() { return <ExperienceProvider><DesktopApp/></ExperienceProvider>; }
