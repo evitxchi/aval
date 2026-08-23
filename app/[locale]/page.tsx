@@ -9,7 +9,7 @@ import * as Tabs from "@radix-ui/react-tabs";
 import {
   Archive, Attachment, Bell, Calendar, ChatLines, Check, CheckCircle, ClipboardCheck, Clock,
   Coins, CoinsSwap, Dashboard, Database, FilterList, Flash, Globe, HalfMoon, HomeSimpleDoor, Key,
-  Language, LogOut, NetworkLeft, NavArrowDown, NavArrowRight, Page, Pause,
+  Language, LogOut, NetworkLeft, NavArrowDown, NavArrowLeft, NavArrowRight, Page, Pause,
   Phone, Plus, ScaleFrameEnlarge, ScaleFrameReduce, Search, SendDiagonal, Settings, ShieldCheck, SmartphoneDevice,
   SoundHigh, SoundOff, StatsUpSquare, SunLight, TaskList, Tools, User,
   ViewColumns3, ViewGrid, Xmark, XmarkCircle,
@@ -59,7 +59,13 @@ const fallbackProviders: Provider[] = [
   { id: "alegra", title: "Alegra", category: "Accounting", description: "Facturación, cuentas por cobrar y pagos para pequeñas y medianas empresas en LatAm.", authMode: "api_key", permissions: ["Accounting data"], credentialFields: [{ key: "apiKey", label: "Alegra API key", secret: true }], env: [], webhook: false, readOnly: true, note: "Authenticates with an Alegra API key.", configured: false },
   { id: "appfolio", title: "AppFolio", category: "Leasing & PMS", description: "Inquiries, showings, applications, leases, tenants, and ledgers.", authMode: "credentials", permissions: ["Rental applications", "Showings", "Tenant ledgers"], credentialFields: [{ key: "clientId", label: "Client ID" }, { key: "clientSecret", label: "Client secret", secret: true }, { key: "database", label: "Database name" }], env: [], webhook: false, readOnly: true, note: "Requires enabled AppFolio Stack API products.", configured: true },
   { id: "buildium", title: "Buildium", category: "Leasing & PMS", description: "Rentals, applicants, leases, tasks, and accounting data.", authMode: "credentials", permissions: ["Rentals", "Applicants", "Leases"], credentialFields: [{ key: "clientId", label: "Buildium client ID" }, { key: "clientSecret", label: "Buildium client secret", secret: true }], env: [], webhook: false, readOnly: true, note: "Server-to-server client headers.", configured: true },
+  { id: "yardi", title: "Yardi", category: "Leasing & PMS", description: "Resident, lease, and general-ledger data from Yardi Voyager or Breeze.", authMode: "credentials", permissions: ["Resident data", "Leases", "General ledger"], credentialFields: [{ key: "interfaceId", label: "Yardi interface ID" }, { key: "interfaceKey", label: "Yardi interface key", secret: true }], env: [], webhook: false, readOnly: true, note: "Requires an approved Yardi Interface Partner agreement — no self-serve signup.", configured: true },
+  { id: "realpage", title: "RealPage", category: "Leasing & PMS", description: "Leasing, resident, and accounting data from RealPage's enterprise multifamily platform.", authMode: "credentials", permissions: ["Resident data", "Leases", "Accounting data"], credentialFields: [{ key: "clientId", label: "RealPage Exchange client ID" }, { key: "clientSecret", label: "RealPage Exchange client secret", secret: true }], env: [], webhook: false, readOnly: true, note: "Granted only through the RealPage Exchange partner program — sales-led, not self-serve.", configured: true },
+  { id: "entrata", title: "Entrata", category: "Leasing & PMS", description: "Leases, resident profiles, and accounting data from Entrata's multifamily suite.", authMode: "credentials", permissions: ["Leases", "Resident profiles", "Accounting data"], credentialFields: [{ key: "apiUser", label: "Entrata API user" }, { key: "apiPassword", label: "Entrata API password", secret: true }], env: [], webhook: false, readOnly: true, note: "Requires a signed API Developer Interface Agreement and IP allowlisting.", configured: true },
+  { id: "rentmanager", title: "Rent Manager", category: "Leasing & PMS", description: "Rentals, tenants, work orders, and accounting data from Rent Manager.", authMode: "credentials", permissions: ["Rentals", "Tenants", "Work orders", "Accounting"], credentialFields: [{ key: "apiKey", label: "Rent Manager API key", secret: true }], env: [], webhook: false, readOnly: true, note: "Requires enrollment in Rent Manager's Integrations Program, not a public self-serve key.", configured: true },
+  { id: "doorloop", title: "DoorLoop", category: "Leasing & PMS", description: "Rentals, leases, tenants, and accounting data from DoorLoop.", authMode: "api_key", permissions: ["Rentals", "Leases", "Tenants", "Accounting"], credentialFields: [{ key: "apiKey", label: "DoorLoop API key", secret: true }], env: [], webhook: false, readOnly: true, note: "Public, self-serve API key generated in DoorLoop account settings.", configured: true },
   { id: "whatsapp", title: "WhatsApp Business", category: "Communication", description: "Tenant messaging through Meta's Cloud API.", authMode: "credentials", permissions: ["Messages", "Business account"], credentialFields: [{ key: "businessAccountId", label: "WhatsApp Business Account ID" }, { key: "phoneNumberId", label: "Phone number ID" }, { key: "accessToken", label: "Permanent system-user access token", secret: true }], env: ["META_WHATSAPP_APP_SECRET", "META_WHATSAPP_VERIFY_TOKEN", "META_GRAPH_API_VERSION"], webhook: true, readOnly: false, note: "Signed webhook verification is required.", configured: false },
+  { id: "whatsapp_personal", title: "WhatsApp (Personal)", category: "Communication", description: "For teams messaging tenants from a personal WhatsApp number instead of a Business account.", authMode: "qr_link", permissions: ["Messages"], env: [], webhook: true, readOnly: false, note: "Links via a QR-paired companion device, the same mechanism as WhatsApp Web — less reliable than the official Business API and outside WhatsApp's own terms for automated use.", configured: true },
   { id: "apple_messages", title: "Apple Messages", category: "Communication", description: "Apple Messages for Business via an approved messaging provider.", authMode: "msp", permissions: ["Business registration", "MSP routing"], credentialFields: [{ key: "provider", label: "Messaging Service Provider" }, { key: "webhookSecret", label: "Webhook signing secret", secret: true }], env: [], webhook: true, readOnly: false, note: "Apple does not expose direct iMessage OAuth.", configured: true },
   { id: "slack", title: "Slack", category: "Communication", description: "Selected channels, approvals, and task updates.", authMode: "oauth2", permissions: ["Channel history", "Post messages", "Users"], env: ["SLACK_CLIENT_ID", "SLACK_CLIENT_SECRET", "SLACK_SIGNING_SECRET"], webhook: true, readOnly: false, note: "Workspace admins choose channels during OAuth.", configured: false },
   { id: "notion", title: "Notion", category: "Knowledge", description: "Only pages and databases explicitly shared with Aval.", authMode: "oauth2", permissions: ["Selected pages and databases"], env: ["NOTION_CLIENT_ID", "NOTION_CLIENT_SECRET"], webhook: false, readOnly: true, note: "The authorization screen controls page access.", configured: false },
@@ -69,14 +75,21 @@ const fallbackProviders: Provider[] = [
   { id: "twilio", title: "Calls & SMS", category: "Communication", description: "Calls, SMS, recordings, and resident timeline context.", authMode: "credentials", permissions: ["Calls", "Messages", "Recordings"], credentialFields: [{ key: "accountSid", label: "Account SID" }, { key: "authToken", label: "Auth token", secret: true }], env: [], webhook: true, readOnly: false, note: "Twilio-compatible telephony.", configured: true },
   { id: "granola", title: "Granola", category: "Knowledge", description: "Meeting notes, transcripts, participants, and follow-ups.", authMode: "api_key", permissions: ["Meeting notes", "Transcripts"], credentialFields: [{ key: "apiKey", label: "Granola Business API key", secret: true }], env: [], webhook: false, readOnly: true, note: "Requires a Business workspace API key.", configured: true },
 ];
-const providerOrder = ["whatsapp", "apple_messages", "slack", "notion", "outlook", "gmail", "telegram", "twilio", "granola"];
+const providerOrder = ["whatsapp", "whatsapp_personal", "apple_messages", "slack", "notion", "outlook", "gmail", "telegram", "twilio", "granola"];
+const pmsProviderOrder = ["appfolio", "buildium", "yardi", "realpage", "entrata", "rentmanager", "doorloop"];
 
 const guides: Record<string, { aval: string[]; customer: string[]; proof: string }> = {
   quickbooks: { aval: ["Intuit production app, callback URL, and accounting scope", "Encrypted refresh-token rotation", "Webhook handling for changed entities"], customer: ["QuickBooks Online administrator", "Select the correct company during consent", "Approve a read-only data check"], proof: "OAuth must return and store the selected company realm." },
   xero: { aval: ["Xero OAuth app and exact callback URL", "2026 granular read scopes plus offline_access", "Tenant-aware sync"], customer: ["Standard or adviser role", "Choose the correct Xero organisation", "Confirm invoices, payments, bank transactions, and reports"], proof: "Aval must store the selected tenant ID." },
   appfolio: { aval: ["Approved AppFolio Stack partnership", "Contracted API products", "Database-to-portfolio field map"], customer: ["Ask AppFolio to enable agreed API products", "Provide database and issued credentials", "Approve a historical sync window"], proof: "Credentials cannot work until AppFolio enables each product." },
   buildium: { aval: ["Buildium client-header adapter", "Ten-concurrent-request limit", "Pagination and source-ID checkpoints"], customer: ["Buildium API subscription", "Client ID and secret", "Confirm rentals, applicants, leases, tasks, and accounting"], proof: "Aval calls the official rentals endpoint before marking connected." },
+  yardi: { aval: ["Approved Yardi Interface Partner status", "Per-interface licensing agreement", "Voyager/Breeze field mapping"], customer: ["Yardi property management agreement", "Interface enabled by your Yardi account team", "Approve a historical sync window"], proof: "Credentials cannot work until Yardi's partner team issues an interface." },
+  realpage: { aval: ["RealPage Exchange partner enrollment", "AppPartner integration agreement", "Field mapping to Aval's internal model"], customer: ["RealPage account team introduction", "RealPage Exchange access request", "Approve a historical sync window"], proof: "Aval calls the RealPage Exchange endpoint before marking connected." },
+  entrata: { aval: ["Signed API Developer Interface Agreement", "IP allowlisting", "Entrata field mapping"], customer: ["Entrata administrator", "Request API access from Entrata support", "Provide the IP ranges to allowlist"], proof: "Entrata rejects calls from outside the agreed IP range until this is complete." },
+  rentmanager: { aval: ["Rent Manager Integrations Program enrollment", "API key adapter", "Field mapping to Aval's internal model"], customer: ["Rent Manager account", "Enroll in the Integrations Program", "Issue an API key to Aval"], proof: "Aval calls the Rent Manager API before marking connected." },
+  doorloop: { aval: ["Public API adapter", "Rate-limit aware sync", "Field mapping to Aval's internal model"], customer: ["DoorLoop account", "Generate an API key in Settings", "Confirm rentals, leases, tenants, and accounting"], proof: "Aval calls the DoorLoop API before marking connected." },
   whatsapp: { aval: ["Meta app, Graph version, app secret, verify token", "Signed HTTPS webhook", "Approved outbound message templates"], customer: ["Verified Meta Business portfolio", "Registered WhatsApp number", "Permanent system-user token, WABA ID, and Phone Number ID"], proof: "Aval reads the phone-number record before accepting signed events." },
+  whatsapp_personal: { aval: ["Linked-device session manager", "QR refresh and reconnect handling", "Rate-limit aware send queue"], customer: ["A phone with WhatsApp installed", "Scan the QR code Aval shows you", "Keep that phone connected to the internet"], proof: "Aval confirms the linked session is active before marking this connected — the same handshake WhatsApp Web uses." },
   apple_messages: { aval: ["Messages for Business approval", "Apple-approved Messaging Service Provider", "MSP webhook/send adapter"], customer: ["Register the brand and entry points", "Choose an approved MSP", "Complete Apple/MSP launch review"], proof: "There is no direct consumer iMessage API or OAuth shortcut." },
   slack: { aval: ["Slack app, redirect, event subscriptions, signing secret", "Least-privilege bot scopes", "Fast acknowledgement and async event processing"], customer: ["Workspace administrator", "Choose workspace and channels", "Invite the bot to private channels"], proof: "OAuth identifies the workspace; signed events prove origin." },
   notion: { aval: ["Public Notion integration and redirect", "Encrypted credentials", "Page-level sync cursor"], customer: ["Authorised workspace member", "Choose pages in Notion's page picker", "Share additional pages later"], proof: "Aval sees only explicitly selected content." },
@@ -87,12 +100,52 @@ const guides: Record<string, { aval: string[]; customer: string[]; proof: string
   granola: { aval: ["Public API adapter", "Scoped note ingestion", "Separate optional MCP flow"], customer: ["Granola Business workspace", "Workspace API key with note scopes", "Choose personal/public note access"], proof: "The public API check is distinct from Granola MCP browser OAuth." },
 };
 
+const PIPELINE_STAGES: { id: string; icon: IconComponent; labelKey: string; detailKey: string }[] = [
+  { id: "authorize", icon: Key, labelKey: "ConnectionDialog.authorize", detailKey: "ConnectionsView.pipelineAuthorizeDetail" },
+  { id: "verify", icon: ShieldCheck, labelKey: "ConnectionDialog.verify", detailKey: "ConnectionsView.pipelineVerifyDetail" },
+  { id: "normalize", icon: NetworkLeft, labelKey: "ConnectionDialog.normalize", detailKey: "ConnectionsView.pipelineNormalizeDetail" },
+  { id: "readModels", icon: Database, labelKey: "ConnectionsView.pipelineReadModels", detailKey: "ConnectionsView.pipelineReadModelsDetail" },
+];
+
 function SimpleMark({ icon }: { icon: { path: string; hex: string; title: string } }) { return <svg viewBox="0 0 24 24" aria-label={icon.title} role="img"><path fill={`#${icon.hex}`} d={icon.path}/></svg>; }
 function SlackMark() { return <svg viewBox="0 0 24 24" aria-label="Slack" role="img"><path fill="#36C5F0" d="M5.2 0a2.4 2.4 0 0 0 0 4.8h2.4V2.4A2.4 2.4 0 0 0 5.2 0m0 6.4H2.4a2.4 2.4 0 0 0 0 4.8h2.8z"/><path fill="#2EB67D" d="M24 5.2a2.4 2.4 0 0 0-4.8 0v2.4h2.4A2.4 2.4 0 0 0 24 5.2m-6.4 0V2.4a2.4 2.4 0 0 0-4.8 0v2.8z"/><path fill="#ECB22E" d="M18.8 24a2.4 2.4 0 0 0 0-4.8h-2.4v2.4a2.4 2.4 0 0 0 2.4 2.4m0-6.4h2.8a2.4 2.4 0 0 0 0-4.8h-2.8z"/><path fill="#E01E5A" d="M0 18.8a2.4 2.4 0 0 0 4.8 0v-2.4H2.4A2.4 2.4 0 0 0 0 18.8m6.4 0v2.8a2.4 2.4 0 0 0 4.8 0v-2.8z"/></svg>; }
 function OutlookMark() { return <svg viewBox="0 0 24 24" aria-label="Microsoft Outlook" role="img"><path fill="#0A64C9" d="M1 4.8 11.1 3v18L1 19.2z"/><path fill="#1976D2" d="M12.3 5h10.3v14H12.3z"/><path fill="#fff" d="M12.3 8.3h10.3v1.2l-5.1 3.9-5.2-3.9zM4 8h4.2c2.3 0 3.6 1.6 3.6 4s-1.3 4-3.7 4H4zm2.2 1.8v4.4h1.7c1.1 0 1.7-.8 1.7-2.2s-.6-2.2-1.7-2.2z"/></svg>; }
 function TwilioMark() { return <svg viewBox="0 0 24 24" aria-label="Twilio" role="img"><circle cx="12" cy="12" r="10" fill="#F22F46"/><g fill="#fff"><circle cx="8.6" cy="8.6" r="2.1"/><circle cx="15.4" cy="8.6" r="2.1"/><circle cx="8.6" cy="15.4" r="2.1"/><circle cx="15.4" cy="15.4" r="2.1"/></g></svg>; }
+// A stylized, deterministic QR-like pattern for the WhatsApp Personal linking
+// flow — decorative only (no real pairing session exists in sample mode),
+// not a scannable code. Generated once with a seeded PRNG so it's stable
+// across renders instead of reshuffling on every re-render.
+const QR_DATA_CELLS: [number, number][] = (() => {
+  const size = 29;
+  const inFinderZone = (x: number, y: number) => (x < 8 && y < 8) || (x >= 21 && y < 8) || (x < 8 && y >= 21);
+  const cells: [number, number][] = [];
+  let seed = 42;
+  const next = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      if (inFinderZone(x, y)) continue;
+      if (next() < 0.42) cells.push([x, y]);
+    }
+  }
+  return cells;
+})();
+function QrPlaceholder() {
+  return (
+    <svg viewBox="0 0 29 29" className="qr-placeholder" role="img" aria-hidden="true">
+      <rect width="29" height="29" fill="white"/>
+      {([[0, 0], [22, 0], [0, 22]] as const).map(([x, y]) => (
+        <g key={`${x}-${y}`}>
+          <rect x={x} y={y} width="7" height="7" fill="black"/>
+          <rect x={x + 1} y={y + 1} width="5" height="5" fill="white"/>
+          <rect x={x + 2} y={y + 2} width="3" height="3" fill="black"/>
+        </g>
+      ))}
+      {QR_DATA_CELLS.map(([x, y]) => <rect key={`${x}-${y}`} x={x} y={y} width="1" height="1" fill="black"/>)}
+    </svg>
+  );
+}
 function BrandMark({ provider, small = false }: { provider: string; small?: boolean }) {
-  const inner = provider === "whatsapp" ? <SimpleMark icon={siWhatsapp}/> : provider === "apple_messages" ? <SimpleMark icon={siApple}/> : provider === "slack" ? <SlackMark/> : provider === "notion" ? <SimpleMark icon={siNotion}/> : provider === "outlook" ? <OutlookMark/> : provider === "gmail" ? <SimpleMark icon={siGmail}/> : provider === "telegram" ? <SimpleMark icon={siTelegram}/> : provider === "twilio" ? <TwilioMark/> : provider === "quickbooks" ? <SimpleMark icon={siQuickbooks}/> : provider === "xero" ? <SimpleMark icon={siXero}/> : provider === "appfolio" ? <span className="wordmark appfolio-mark">a</span> : provider === "buildium" ? <span className="wordmark buildium-mark">B</span> : provider === "granola" ? <span className="wordmark granola-mark">g</span> : provider === "contpaqi" ? <span className="wordmark contpaqi-mark">C</span> : provider === "alegra" ? <span className="wordmark alegra-mark">A</span> : provider === "aval" ? <span className="wordmark aval-mark">a</span> : <Database width={22} height={22}/>;
+  const inner = provider === "whatsapp" ? <SimpleMark icon={siWhatsapp}/> : provider === "apple_messages" ? <SimpleMark icon={siApple}/> : provider === "slack" ? <SlackMark/> : provider === "notion" ? <SimpleMark icon={siNotion}/> : provider === "outlook" ? <OutlookMark/> : provider === "gmail" ? <SimpleMark icon={siGmail}/> : provider === "telegram" ? <SimpleMark icon={siTelegram}/> : provider === "twilio" ? <TwilioMark/> : provider === "quickbooks" ? <SimpleMark icon={siQuickbooks}/> : provider === "xero" ? <SimpleMark icon={siXero}/> : provider === "appfolio" ? <span className="wordmark appfolio-mark">a</span> : provider === "buildium" ? <span className="wordmark buildium-mark">B</span> : provider === "granola" ? <span className="wordmark granola-mark">g</span> : provider === "contpaqi" ? <span className="wordmark contpaqi-mark">C</span> : provider === "alegra" ? <span className="wordmark alegra-mark">A</span> : provider === "yardi" ? <span className="wordmark yardi-mark">Y</span> : provider === "realpage" ? <span className="wordmark realpage-mark">R</span> : provider === "entrata" ? <span className="wordmark entrata-mark">E</span> : provider === "rentmanager" ? <span className="wordmark rentmanager-mark">RM</span> : provider === "doorloop" ? <span className="wordmark doorloop-mark">D</span> : provider === "whatsapp_personal" ? <SimpleMark icon={siWhatsapp}/> : provider === "aval" ? <span className="wordmark aval-mark">a</span> : <Database width={22} height={22}/>;
   return <span className={`brand-mark ${small ? "small" : ""} brand-${provider}`}>{inner}</span>;
 }
 function formatMinutesAgo(minutesAgo: number, locale: string): string {
@@ -282,6 +335,134 @@ function ReminderPreviewDialog({ insight, removedRecipients, onRemoveRecipient, 
   );
 }
 
+// Fixed "today" for every date-range computation below — this app runs on
+// static sample data anchored to mid-August 2026 (the leasing trend's six
+// weeks, the history entries' relative timestamps), so presets and the
+// custom calendar's "no future dates" rule need a stable reference instead
+// of the real current date.
+const SAMPLE_TODAY = new Date(2026, 7, 18);
+function addDays(date: Date, amount: number): Date {
+  const result = new Date(date);
+  result.setDate(result.getDate() + amount);
+  return result;
+}
+function startOfQuarter(date: Date): Date {
+  return new Date(date.getFullYear(), Math.floor(date.getMonth() / 3) * 3, 1);
+}
+function isSameDay(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+function formatDateRange(start: Date, end: Date, locale: string): string {
+  const monthFmt = new Intl.DateTimeFormat(locale, { month: "short" });
+  const dayFmt = new Intl.DateTimeFormat(locale, { day: "numeric" });
+  const sameMonth = start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear();
+  return sameMonth
+    ? `${monthFmt.format(start)} ${dayFmt.format(start)}–${dayFmt.format(end)}`
+    : `${monthFmt.format(start)} ${dayFmt.format(start)} – ${monthFmt.format(end)} ${dayFmt.format(end)}`;
+}
+function buildMonthCells(year: number, month: number): (Date | null)[] {
+  const firstWeekday = new Date(year, month, 1).getDay();
+  const totalDays = new Date(year, month + 1, 0).getDate();
+  const cells: (Date | null)[] = Array.from({ length: firstWeekday }, () => null);
+  for (let day = 1; day <= totalDays; day++) cells.push(new Date(year, month, day));
+  return cells;
+}
+// Real property-management calendar shapes, not arbitrary day counts: a
+// billing week, the same six-week window the leasing trend chart shows,
+// month-to-date, quarter-to-date, and year-to-date.
+const DATE_PRESETS: { labelKey: string; range: [Date, Date] }[] = [
+  { labelKey: "Overview.periodThisWeek", range: [addDays(SAMPLE_TODAY, -6), SAMPLE_TODAY] },
+  { labelKey: "Overview.periodLast6Weeks", range: [addDays(SAMPLE_TODAY, -41), SAMPLE_TODAY] },
+  { labelKey: "Overview.periodThisMonth", range: [new Date(SAMPLE_TODAY.getFullYear(), SAMPLE_TODAY.getMonth(), 1), SAMPLE_TODAY] },
+  { labelKey: "Overview.periodThisQuarter", range: [startOfQuarter(SAMPLE_TODAY), SAMPLE_TODAY] },
+  { labelKey: "Overview.periodYearToDate", range: [new Date(SAMPLE_TODAY.getFullYear(), 0, 1), SAMPLE_TODAY] },
+];
+
+/**
+ * Preset list by default; "Custom range" swaps in a two-month drag-select
+ * calendar (click a start day, hover previews the range, click an end day
+ * to apply) — the same click-then-click interaction flight-booking date
+ * pickers use. Days after SAMPLE_TODAY are disabled: sample data has
+ * nothing to show for a period that hasn't happened yet.
+ */
+function DateRangePicker({ period, onChange, t, locale }: { period: string; onChange: (label: string) => void; t: T; locale: string }) {
+  const [open, setOpen] = useState(false);
+  const [customMode, setCustomMode] = useState(false);
+  const [calendarAnchor, setCalendarAnchor] = useState(() => new Date(SAMPLE_TODAY.getFullYear(), SAMPLE_TODAY.getMonth() - 1, 1));
+  const [rangeStart, setRangeStart] = useState<Date | null>(null);
+  const [rangeHover, setRangeHover] = useState<Date | null>(null);
+
+  const closeMenu = () => { setOpen(false); setCustomMode(false); setRangeStart(null); setRangeHover(null); };
+  const backToPresets = () => { setCustomMode(false); setRangeStart(null); setRangeHover(null); };
+
+  const applyPreset = (preset: (typeof DATE_PRESETS)[number]) => {
+    onChange(formatDateRange(preset.range[0], preset.range[1], locale));
+    closeMenu();
+  };
+
+  const handleDayClick = (day: Date) => {
+    if (day > SAMPLE_TODAY) return;
+    if (!rangeStart) { setRangeStart(day); setRangeHover(day); return; }
+    const [start, end] = day < rangeStart ? [day, rangeStart] : [rangeStart, day];
+    onChange(formatDateRange(start, end, locale));
+    closeMenu();
+  };
+
+  const weekdayFmt = new Intl.DateTimeFormat(locale, { weekday: "short" });
+  const monthYearFmt = new Intl.DateTimeFormat(locale, { month: "long", year: "numeric" });
+  const dayLabelFmt = new Intl.DateTimeFormat(locale, { dateStyle: "long" });
+  const weekdayLabels = Array.from({ length: 7 }, (_, index) => weekdayFmt.format(new Date(2026, 7, 9 + index)));
+  const months = [calendarAnchor, new Date(calendarAnchor.getFullYear(), calendarAnchor.getMonth() + 1, 1)];
+  const rangeBounds = rangeStart && rangeHover ? (rangeHover < rangeStart ? [rangeHover, rangeStart] : [rangeStart, rangeHover]) : null;
+
+  return (
+    <details className="app-menu date-range-menu" open={open} onToggle={(event) => setOpen((event.target as HTMLDetailsElement).open)}>
+      <summary className="soft-button"><Calendar width={18} height={18}/>{period}<NavArrowDown width={16} height={16}/></summary>
+      <div className="menu-popover date-range-popover">
+        {!customMode
+          ? <div className="date-preset-list">
+              {DATE_PRESETS.map((preset) => <button type="button" key={preset.labelKey} onClick={() => applyPreset(preset)}>{t(preset.labelKey)}</button>)}
+              <button type="button" className="date-custom-trigger" onClick={() => setCustomMode(true)}>{t("Overview.periodCustomRange")}<NavArrowRight width={14} height={14}/></button>
+            </div>
+          : <div className="date-calendar">
+              <div className="date-calendar-nav">
+                <button type="button" className="icon-button" onClick={() => setCalendarAnchor((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1))} aria-label={t("Overview.previousMonth")}><NavArrowLeft width={16} height={16}/></button>
+                <button type="button" className="text-button" onClick={backToPresets}>{t("Overview.backToPresets")}</button>
+                <button type="button" className="icon-button" onClick={() => setCalendarAnchor((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1))} aria-label={t("Overview.nextMonth")}><NavArrowRight width={16} height={16}/></button>
+              </div>
+              <div className="date-calendar-months">
+                {months.map((monthDate) => (
+                  <div className="date-calendar-month" key={`${monthDate.getFullYear()}-${monthDate.getMonth()}`}>
+                    <p className="date-calendar-month-label">{monthYearFmt.format(monthDate)}</p>
+                    <div className="date-calendar-weekdays">{weekdayLabels.map((label, index) => <span key={index}>{label}</span>)}</div>
+                    <div className="date-calendar-grid">
+                      {buildMonthCells(monthDate.getFullYear(), monthDate.getMonth()).map((day, index) => {
+                        if (!day) return <span key={index}/>;
+                        const isFuture = day > SAMPLE_TODAY;
+                        const isEdge = (rangeStart && isSameDay(day, rangeStart)) || (rangeHover && isSameDay(day, rangeHover));
+                        const inRange = rangeBounds !== null && day >= rangeBounds[0] && day <= rangeBounds[1];
+                        return (
+                          <button
+                            type="button" key={index}
+                            className={`date-calendar-day${isEdge ? " selected" : ""}${inRange ? " in-range" : ""}${isSameDay(day, SAMPLE_TODAY) ? " today" : ""}`}
+                            disabled={isFuture}
+                            onClick={() => handleDayClick(day)}
+                            onMouseEnter={() => rangeStart && setRangeHover(day)}
+                            aria-label={dayLabelFmt.format(day)}
+                          >{day.getDate()}</button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="date-calendar-hint">{rangeStart ? t("Overview.selectEndDate") : t("Overview.selectStartDate")}</p>
+            </div>}
+      </div>
+    </details>
+  );
+}
+
 function Overview({ openConnections, dataMode, providers, pendingTarget, targetToken, reviewStatuses, sentReceipts, onApprove, onDeny, onSendReminders }: {
   openConnections: () => void; dataMode: DataMode; providers: Provider[];
   pendingTarget: NotificationTarget | null; targetToken: number;
@@ -359,7 +540,7 @@ function Overview({ openConnections, dataMode, providers, pendingTarget, targetT
         : t("Overview.aCalmReadOnLeasingCash")}
       actions={<>
         {showChip && <span className="sample-chip">{t("Overview.sampleDataConnectASourceTo")}<button aria-label={t("Overview.dismiss")} onClick={() => setChipDismissed(true)}><Xmark width={12} height={12}/></button></span>}
-        <details className="app-menu"><summary className="soft-button"><Calendar width={18} height={18}/>{period}<NavArrowDown width={16} height={16}/></summary><div className="menu-popover">{["Aug 12–18", "Aug 5–11", "July 2026"].map((item) => <button key={item} onClick={() => setPeriod(item)}><Check className={period === item ? "visible-check" : "hidden-check"} width={15} height={15}/>{item}</button>)}</div></details>
+        <DateRangePicker period={period} onChange={setPeriod} t={t} locale={currentLocale}/>
         <button className="primary-button" onClick={openConnections}><NetworkLeft width={18} height={18}/>{t("Overview.connectData")}</button>
       </>}
     />
@@ -672,9 +853,31 @@ function SourceCard({ provider, title, detail, onOpen }: { provider: string; tit
 function ConnectionsView({ providers, loading, onOpen }: { providers: Provider[]; loading: boolean; onOpen: (id: string) => void }) {
   const { market, notify } = useExperience();
   const t = useTranslations(); const apps = providerOrder.map((id) => providers.find((provider) => provider.id === id)).filter(Boolean) as Provider[];
+  const pmsApps = pmsProviderOrder.map((id) => providers.find((provider) => provider.id === id)).filter(Boolean) as Provider[];
   const accountingProvider = market === "latam" ? "contpaqi" : "quickbooks";
   const accountingDetail = market === "latam" ? "CONTPAQi, Alegra, or Xero for receivables, payments, occupancy economics, and delinquency." : "QuickBooks, Xero, or the PMS accounting module for receivables, payments, occupancy economics, and delinquency.";
-  return <div className="view-wrap connections-view"><AppHeader title={t("ConnectionsView.connections")} subtitle={t("ConnectionsView.aSecureExplicitBridgeToThe")} actions={<button className="soft-button" onClick={() => notify(t("ConnectionsView.securityModel"), t("ConnectionsView.tenantIsolatedCredentialsLeastPrivilegeSigned"))}><ShieldCheck width={18} height={18}/>{t("ConnectionsView.securityModel")}</button>}/><section className="connection-hero" data-reveal data-sound-reveal><div><p className="eyebrow">{t("ConnectionsView.connectionLayer")}</p><h2>{t("ConnectionsView.bringTheOperatingSystemTogether")}</h2><p>{t("ConnectionsView.authorizeOnlyWhatAvalNeedsEvery")}</p></div><div className="pipeline-diagram">{[[Key, "Authorize"], [ShieldCheck, "Verify"], [NetworkLeft, "Normalize"], [Database, "Read models"]].map(([Icon, label], index) => { const Mark = Icon as IconComponent; return <span className="pipeline-node" style={{ "--node-delay": `${index * 120}ms` } as React.CSSProperties} key={label as string}><Mark width={18} height={18}/>{label as string}</span>; })}</div></section><section><div className="section-title"><div><p className="eyebrow">{t("ConnectionsView.foundation")}</p><h2>{t("ConnectionsView.connectTwoUpstreamSystems")}</h2></div><p>{t("ConnectionsView.metricsAndTheLeasingFunnelUnlock")}</p></div><div className="required-grid"><SourceCard provider={accountingProvider} title={t("ConnectionsView.accountingSystem")} detail={accountingDetail} onOpen={onOpen}/><SourceCard provider="appfolio" title={t("ConnectionsView.leasingPipeline")} detail="AppFolio, Buildium, or the PMS source for contacted → viewed → applied → signed." onOpen={onOpen}/></div></section><section><div className="section-title"><div><p className="eyebrow">{t("ConnectionsView.channelsContext")}</p><h2>{t("ConnectionsView.meetAvalWhereTheWorkHappens")}</h2></div><p>{loading ? t("ConnectionsView.checkingYourWorkspace") : t("ConnectionsView.permissionsStayIsolatedPerConnection")}</p></div><div className="connection-grid">{apps.map((provider) => <article className="connection-card" data-reveal key={provider.id}><div className="connection-card-top"><BrandMark provider={provider.id}/><span className={`connection-status ${provider.connection?.status ?? "not-connected"}`}>{provider.connection?.status?.replaceAll("_", " ") ?? (provider.configured ? t("ConnectionsView.readyToConfigure") : t("ConnectionsView.avalSetupRequired"))}</span></div><h3>{provider.title}</h3><p>{provider.description}</p><div className="connection-features"><span>{provider.readOnly ? t("ConnectionsView.readOnly") : t("ConnectionsView.twoWay")}</span><span>{provider.webhook ? "Webhook" : t("ConnectionsView.scheduledSync")}</span></div><button className="wide-button" onClick={() => onOpen(provider.id)}>{provider.connection?.status === "connected" ? t("ConnectionsView.manage") : t("ConnectionsView.setUp")}<NavArrowRight width={17} height={17}/></button></article>)}</div></section></div>;
+  const [pipelineDetail, setPipelineDetail] = useState<string | null>(null);
+  const activeStage = PIPELINE_STAGES.find((stage) => stage.id === pipelineDetail) ?? null;
+  return <div className="view-wrap connections-view"><AppHeader title={t("ConnectionsView.connections")} subtitle={t("ConnectionsView.aSecureExplicitBridgeToThe")} actions={<button className="soft-button" onClick={() => notify(t("ConnectionsView.securityModel"), t("ConnectionsView.tenantIsolatedCredentialsLeastPrivilegeSigned"))}><ShieldCheck width={18} height={18}/>{t("ConnectionsView.securityModel")}</button>}/><section className="connection-hero" data-reveal data-sound-reveal><div><p className="eyebrow">{t("ConnectionsView.connectionLayer")}</p><h2>{t("ConnectionsView.bringTheOperatingSystemTogether")}</h2><p>{t("ConnectionsView.authorizeOnlyWhatAvalNeedsEvery")}</p></div><div className="pipeline-diagram">{PIPELINE_STAGES.flatMap((stage, index) => { const Icon = stage.icon; const node = <button type="button" className="pipeline-node" style={{ "--node-delay": `${index * 120}ms` } as React.CSSProperties} onClick={() => setPipelineDetail(stage.id)} key={`node-${stage.id}`}><Icon width={18} height={18}/>{t(stage.labelKey)}</button>; return index === 0 ? [node] : [<i key={`line-${stage.id}`}/>, node]; })}</div></section>
+
+    <Dialog.Root open={activeStage !== null} onOpenChange={(open) => !open && setPipelineDetail(null)}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="dialog-overlay"/>
+        <Dialog.Content className="small-dialog">
+          {activeStage && <>
+            <div className="dialog-top"><Dialog.Title>{t(activeStage.labelKey)}</Dialog.Title><Dialog.Close className="icon-button" aria-label={t("Overview.close")}><Xmark width={20} height={20}/></Dialog.Close></div>
+            <p className="pipeline-detail-text">{t(activeStage.detailKey)}</p>
+            <div className="dialog-actions"><Dialog.Close className="soft-button">{t("Overview.close")}</Dialog.Close></div>
+          </>}
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+
+    <section><div className="section-title"><div><p className="eyebrow">{t("ConnectionsView.foundation")}</p><h2>{t("ConnectionsView.connectTwoUpstreamSystems")}</h2></div><p>{t("ConnectionsView.metricsAndTheLeasingFunnelUnlock")}</p></div><div className="required-grid"><SourceCard provider={accountingProvider} title={t("ConnectionsView.accountingSystem")} detail={accountingDetail} onOpen={onOpen}/><SourceCard provider="appfolio" title={t("ConnectionsView.leasingPipeline")} detail="AppFolio, Buildium, or the PMS source for contacted → viewed → applied → signed." onOpen={onOpen}/></div></section>
+
+    <section><div className="section-title"><div><p className="eyebrow">{t("ConnectionsView.propertySystems")}</p><h2>{t("ConnectionsView.propertySystemsHeading")}</h2></div><p>{t("ConnectionsView.propertySystemsBody")}</p></div><div className="connection-grid">{pmsApps.map((provider) => <article className="connection-card" data-reveal key={provider.id}><div className="connection-card-top"><BrandMark provider={provider.id}/><span className={`connection-status ${provider.connection?.status ?? "not-connected"}`}>{provider.connection?.status?.replaceAll("_", " ") ?? (provider.configured ? t("ConnectionsView.readyToConfigure") : t("ConnectionsView.avalSetupRequired"))}</span></div><h3>{provider.title}</h3><p>{provider.description}</p><div className="connection-features"><span>{provider.readOnly ? t("ConnectionsView.readOnly") : t("ConnectionsView.twoWay")}</span><span>{provider.webhook ? "Webhook" : t("ConnectionsView.scheduledSync")}</span></div><button className="wide-button" onClick={() => onOpen(provider.id)}>{provider.connection?.status === "connected" ? t("ConnectionsView.manage") : t("ConnectionsView.setUp")}<NavArrowRight width={17} height={17}/></button></article>)}</div></section>
+
+    <section><div className="section-title"><div><p className="eyebrow">{t("ConnectionsView.channelsContext")}</p><h2>{t("ConnectionsView.meetAvalWhereTheWorkHappens")}</h2></div><p>{loading ? t("ConnectionsView.checkingYourWorkspace") : t("ConnectionsView.permissionsStayIsolatedPerConnection")}</p></div><div className="connection-grid">{apps.map((provider) => <article className="connection-card" data-reveal key={provider.id}><div className="connection-card-top"><BrandMark provider={provider.id}/><span className={`connection-status ${provider.connection?.status ?? "not-connected"}`}>{provider.connection?.status?.replaceAll("_", " ") ?? (provider.configured ? t("ConnectionsView.readyToConfigure") : t("ConnectionsView.avalSetupRequired"))}</span></div><h3>{provider.title}</h3><p>{provider.description}</p><div className="connection-features"><span>{provider.readOnly ? t("ConnectionsView.readOnly") : t("ConnectionsView.twoWay")}</span><span>{provider.webhook ? "Webhook" : t("ConnectionsView.scheduledSync")}</span></div><button className="wide-button" onClick={() => onOpen(provider.id)}>{provider.connection?.status === "connected" ? t("ConnectionsView.manage") : t("ConnectionsView.setUp")}<NavArrowRight width={17} height={17}/></button></article>)}</div></section></div>;
 }
 
 const propertyTotals = derivePropertyTotals(sampleData.properties.list);
@@ -804,7 +1007,7 @@ function ConnectionDialog({ provider, onClose, onRefresh }: { provider: Provider
   const t = useTranslations(); const [credentials, setCredentials] = useState<Record<string, string>>({}); const [status, setStatus] = useState<"idle" | "working" | "error" | "saved">("idle"); const [message, setMessage] = useState("");
   if (!provider) return null; const providerGuide = guides[provider.id] ?? { aval: ["Secure provider adapter"], customer: ["Administrator consent"], proof: "The upstream identity is verified before sync." }; const blocked = provider.authMode === "oauth2" && provider.configured === false;
   const connect = async (event?: FormEvent) => { event?.preventDefault(); setStatus("working"); setMessage(""); try { const response = await fetch("/api/integrations/connect", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ provider: provider.id, credentials: provider.authMode === "oauth2" ? undefined : credentials, returnTo: `/?view=connections&connected=${provider.id}` }) }); const data = await response.json() as { authorizationUrl?: string; error?: string; required?: string[]; missing?: string[]; connection?: { id: string } }; if (!response.ok) throw new Error(`${data.error ?? "Connection failed"}${data.required ? `: ${data.required.join(", ")}` : ""}${data.missing ? `: ${data.missing.join(", ")}` : ""}`); if (data.authorizationUrl) { window.location.href = data.authorizationUrl; return; } if (!data.connection?.id) throw new Error("Encrypted connection was not returned."); const verification = await fetch("/api/integrations/verify", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ connectionId: data.connection.id }) }); const verified = await verification.json() as { error?: string; connection?: { externalAccountName?: string } }; if (!verification.ok) { setStatus("saved"); setMessage(`${t("ConnectionDialog.credentialsEncryptedProviderActionRemains")} ${verified.error ?? provider.note}`); notify(t("ConnectionDialog.setupSaved"), provider.title); onRefresh(); return; } setStatus("saved"); setMessage(t("ConnectionDialog.identityVerifiedInitialSyncIsQueued")); celebrate(t("ConnectionDialog.connectionVerified"), verified.connection?.externalAccountName ?? provider.title); onRefresh(); } catch (error) { setStatus("error"); setMessage(error instanceof Error ? error.message : "Connection failed"); } };
-  return <Dialog.Root open onOpenChange={(open) => !open && onClose()}><Dialog.Portal><Dialog.Overlay className="dialog-overlay"/><Dialog.Content className="connection-dialog"><div className="dialog-top"><BrandMark provider={provider.id}/><Dialog.Close className="icon-button"><Xmark width={20} height={20}/></Dialog.Close></div><Dialog.Title>{provider.title}</Dialog.Title><Dialog.Description>{provider.description}</Dialog.Description><div className="dialog-status-row"><span><ShieldCheck width={16} height={16}/>{provider.readOnly ? t("ConnectionDialog.readAccess") : t("ConnectionDialog.twoWayChannel")}</span><span><Key width={16} height={16}/>{provider.authMode.replace("_", " ")}</span><span><NetworkLeft width={16} height={16}/>{provider.webhook ? "Webhook + sync" : t("ConnectionDialog.scheduledSync")}</span></div><Tabs.Root defaultValue="readiness"><Tabs.List className="dialog-tabs three"><Tabs.Trigger value="readiness">{t("ConnectionDialog.readiness")}</Tabs.Trigger><Tabs.Trigger value="access">{t("ConnectionDialog.access")}</Tabs.Trigger><Tabs.Trigger value="flow">{t("ConnectionDialog.flow")}</Tabs.Trigger></Tabs.List><Tabs.Content value="readiness"><div className="readiness-grid"><div><p>{t("ConnectionDialog.avalConfiguresOnce")}</p>{providerGuide.aval.map((item) => <span key={item}><Check width={15} height={15}/>{item}</span>)}</div><div><p>{t("ConnectionDialog.customerBrings")}</p>{providerGuide.customer.map((item) => <span key={item}><User width={15} height={15}/>{item}</span>)}</div></div><p className="proof-note"><ShieldCheck width={16} height={16}/>{providerGuide.proof}</p>{blocked && <div className="setup-warning"><strong>{t("ConnectionDialog.avalSetupRequiredBeforeCustomersCan")}</strong><span>{provider.env.join(" · ")}</span></div>}</Tabs.Content><Tabs.Content value="access"><div className="permission-box"><p>{t("ConnectionDialog.avalWillRequest")}</p>{provider.permissions.map((permission) => <span key={permission}><Check width={16} height={16}/>{permission}</span>)}</div><p className="connection-note">{provider.note}</p></Tabs.Content><Tabs.Content value="flow"><ol className="architecture-list"><li><b>01</b><span><strong>{t("ConnectionDialog.authorize")}</strong>{t("ConnectionDialog.consentIsScopedToThisWorkspace")}</span></li><li><b>02</b><span><strong>{t("ConnectionDialog.verify")}</strong>{t("ConnectionDialog.avalTestsTheActualUpstreamIdentity")}</span></li><li><b>03</b><span><strong>{t("ConnectionDialog.normalize")}</strong>{t("ConnectionDialog.sourceIdsAndTimestampsRemainTraceable")}</span></li></ol></Tabs.Content></Tabs.Root>{provider.authMode !== "oauth2" && <form className="credential-form" onSubmit={connect}>{provider.credentialFields?.map((field) => <label key={field.key}>{field.label}<input type={field.secret ? "password" : "text"} value={credentials[field.key] ?? ""} onChange={(event) => setCredentials((current) => ({ ...current, [field.key]: event.target.value }))} autoComplete="off" required/></label>)}</form>}{message && <p className={`dialog-message ${status}`}>{message}</p>}<div className="dialog-actions"><button className="soft-button" onClick={onClose}>{t("ConnectionDialog.cancel")}</button><button className="primary-button" disabled={status === "working" || status === "saved" || blocked} onClick={() => connect()}>{status === "working" ? t("ConnectionDialog.verifying") : status === "saved" ? t("ConnectionDialog.saved") : blocked ? t("ConnectionDialog.avalSetupRequired") : provider.authMode === "oauth2" ? t("ConnectionDialog.continueToAuthorization") : t("ConnectionDialog.encryptVerify")}<NavArrowRight width={17} height={17}/></button></div></Dialog.Content></Dialog.Portal></Dialog.Root>;
+  return <Dialog.Root open onOpenChange={(open) => !open && onClose()}><Dialog.Portal><Dialog.Overlay className="dialog-overlay"/><Dialog.Content className="connection-dialog"><div className="dialog-top"><BrandMark provider={provider.id}/><Dialog.Close className="icon-button"><Xmark width={20} height={20}/></Dialog.Close></div><Dialog.Title>{provider.title}</Dialog.Title><Dialog.Description>{provider.description}</Dialog.Description><div className="dialog-status-row"><span><ShieldCheck width={16} height={16}/>{provider.readOnly ? t("ConnectionDialog.readAccess") : t("ConnectionDialog.twoWayChannel")}</span><span><Key width={16} height={16}/>{provider.authMode.replace("_", " ")}</span><span><NetworkLeft width={16} height={16}/>{provider.webhook ? "Webhook + sync" : t("ConnectionDialog.scheduledSync")}</span></div><Tabs.Root defaultValue="readiness"><Tabs.List className="dialog-tabs three"><Tabs.Trigger value="readiness">{t("ConnectionDialog.readiness")}</Tabs.Trigger><Tabs.Trigger value="access">{t("ConnectionDialog.access")}</Tabs.Trigger><Tabs.Trigger value="flow">{t("ConnectionDialog.flow")}</Tabs.Trigger></Tabs.List><Tabs.Content value="readiness"><div className="readiness-grid"><div><p>{t("ConnectionDialog.avalConfiguresOnce")}</p>{providerGuide.aval.map((item) => <span key={item}><Check width={15} height={15}/>{item}</span>)}</div><div><p>{t("ConnectionDialog.customerBrings")}</p>{providerGuide.customer.map((item) => <span key={item}><User width={15} height={15}/>{item}</span>)}</div></div><p className="proof-note"><ShieldCheck width={16} height={16}/>{providerGuide.proof}</p>{blocked && <div className="setup-warning"><strong>{t("ConnectionDialog.notYetAvailableTitle")}</strong><p>{t("ConnectionDialog.notYetAvailableBody")}</p><details className="setup-warning-technical"><summary>{t("ConnectionDialog.technicalReferenceForSupport")}</summary><span>{provider.env.join(" · ")}</span></details></div>}</Tabs.Content><Tabs.Content value="access"><div className="permission-box"><p>{t("ConnectionDialog.avalWillRequest")}</p>{provider.permissions.map((permission) => <span key={permission}><Check width={16} height={16}/>{permission}</span>)}</div><p className="connection-note">{provider.note}</p></Tabs.Content><Tabs.Content value="flow"><ol className="architecture-list"><li><b>01</b><span><strong>{t("ConnectionDialog.authorize")}</strong>{t("ConnectionDialog.consentIsScopedToThisWorkspace")}</span></li><li><b>02</b><span><strong>{t("ConnectionDialog.verify")}</strong>{t("ConnectionDialog.avalTestsTheActualUpstreamIdentity")}</span></li><li><b>03</b><span><strong>{t("ConnectionDialog.normalize")}</strong>{t("ConnectionDialog.sourceIdsAndTimestampsRemainTraceable")}</span></li></ol></Tabs.Content></Tabs.Root>{provider.authMode === "qr_link" && <div className="qr-link-panel"><QrPlaceholder/><div><p>{t("ConnectionDialog.qrLinkInstructions")}</p><span className="qr-link-status"><span className="presence-dot"/>{status === "working" ? t("ConnectionDialog.waitingForScan") : t("ConnectionDialog.qrLinkReady")}</span></div></div>}{provider.authMode !== "oauth2" && provider.authMode !== "qr_link" && <form className="credential-form" onSubmit={connect}>{provider.credentialFields?.map((field) => <label key={field.key}>{field.label}<input type={field.secret ? "password" : "text"} value={credentials[field.key] ?? ""} onChange={(event) => setCredentials((current) => ({ ...current, [field.key]: event.target.value }))} autoComplete="off" required/></label>)}</form>}{message && <p className={`dialog-message ${status}`}>{message}</p>}<div className="dialog-actions"><button className="soft-button" onClick={onClose}>{t("ConnectionDialog.cancel")}</button><button className="primary-button" disabled={status === "working" || status === "saved" || blocked} onClick={() => connect()}>{status === "working" ? (provider.authMode === "qr_link" ? t("ConnectionDialog.waitingForScan") : t("ConnectionDialog.verifying")) : status === "saved" ? t("ConnectionDialog.saved") : blocked ? t("ConnectionDialog.avalSetupRequired") : provider.authMode === "oauth2" ? t("ConnectionDialog.continueToAuthorization") : provider.authMode === "qr_link" ? t("ConnectionDialog.linkDevice") : t("ConnectionDialog.encryptVerify")}<NavArrowRight width={17} height={17}/></button></div></Dialog.Content></Dialog.Portal></Dialog.Root>;
 }
 
 function DesktopApp() {

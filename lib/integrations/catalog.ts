@@ -1,9 +1,17 @@
 export type ProviderId =
   | "quickbooks"
   | "xero"
+  | "contpaqi"
+  | "alegra"
   | "appfolio"
   | "buildium"
+  | "yardi"
+  | "realpage"
+  | "entrata"
+  | "rentmanager"
+  | "doorloop"
   | "whatsapp"
+  | "whatsapp_personal"
   | "apple_messages"
   | "slack"
   | "notion"
@@ -18,7 +26,7 @@ export type IntegrationProvider = {
   title: string;
   category: "Accounting" | "Leasing & PMS" | "Communication" | "Knowledge";
   description: string;
-  authMode: "oauth2" | "credentials" | "bot_token" | "api_key" | "msp";
+  authMode: "oauth2" | "credentials" | "bot_token" | "api_key" | "msp" | "qr_link";
   permissions: string[];
   credentialFields?: { key: string; label: string; secret?: boolean }[];
   env: string[];
@@ -51,6 +59,32 @@ export const integrationCatalog: IntegrationProvider[] = [
     webhook: false,
     readOnly: true,
     note: "Uses Xero's granular read scopes introduced in 2026.",
+  },
+  {
+    id: "contpaqi",
+    title: "CONTPAQi",
+    category: "Accounting",
+    description: "Read facturación, cuentas por cobrar, and accounting reports for operators in Mexico.",
+    authMode: "api_key",
+    permissions: ["Accounting data"],
+    credentialFields: [{ key: "apiKey", label: "CONTPAQi API key", secret: true }],
+    env: [],
+    webhook: false,
+    readOnly: true,
+    note: "Requires a CONTPAQi license with API access enabled.",
+  },
+  {
+    id: "alegra",
+    title: "Alegra",
+    category: "Accounting",
+    description: "Read facturación, receivables, and payments for small and mid-size businesses across LatAm.",
+    authMode: "api_key",
+    permissions: ["Accounting data"],
+    credentialFields: [{ key: "apiKey", label: "Alegra API key", secret: true }],
+    env: [],
+    webhook: false,
+    readOnly: true,
+    note: "Authenticates with an Alegra API key.",
   },
   {
     id: "appfolio",
@@ -86,6 +120,80 @@ export const integrationCatalog: IntegrationProvider[] = [
     note: "Server-to-server authentication using Buildium's required client headers.",
   },
   {
+    id: "yardi",
+    title: "Yardi",
+    category: "Leasing & PMS",
+    description: "Normalize resident, lease, and general-ledger data from Yardi Voyager or Breeze.",
+    authMode: "credentials",
+    permissions: ["Resident data", "Leases", "General ledger"],
+    credentialFields: [
+      { key: "interfaceId", label: "Yardi interface ID" },
+      { key: "interfaceKey", label: "Yardi interface key", secret: true },
+    ],
+    env: [],
+    webhook: false,
+    readOnly: true,
+    note: "Requires becoming an approved Yardi Interface Partner and a signed per-interface agreement — no self-serve signup.",
+  },
+  {
+    id: "realpage",
+    title: "RealPage",
+    category: "Leasing & PMS",
+    description: "Normalize leasing, resident, and accounting data from RealPage's enterprise multifamily platform.",
+    authMode: "credentials",
+    permissions: ["Resident data", "Leases", "Accounting data"],
+    credentialFields: [
+      { key: "clientId", label: "RealPage Exchange client ID" },
+      { key: "clientSecret", label: "RealPage Exchange client secret", secret: true },
+    ],
+    env: [],
+    webhook: false,
+    readOnly: true,
+    note: "Access is granted only through the RealPage Exchange partner program — sales-led, not self-serve.",
+  },
+  {
+    id: "entrata",
+    title: "Entrata",
+    category: "Leasing & PMS",
+    description: "Normalize leases, resident profiles, and accounting data from Entrata's multifamily suite.",
+    authMode: "credentials",
+    permissions: ["Leases", "Resident profiles", "Accounting data"],
+    credentialFields: [
+      { key: "apiUser", label: "Entrata API user" },
+      { key: "apiPassword", label: "Entrata API password", secret: true },
+    ],
+    env: [],
+    webhook: false,
+    readOnly: true,
+    note: "Requires a signed API Developer Interface Agreement and IP allowlisting before any credential works.",
+  },
+  {
+    id: "rentmanager",
+    title: "Rent Manager",
+    category: "Leasing & PMS",
+    description: "Normalize rentals, tenants, work orders, and accounting data from Rent Manager.",
+    authMode: "credentials",
+    permissions: ["Rentals", "Tenants", "Work orders", "Accounting"],
+    credentialFields: [{ key: "apiKey", label: "Rent Manager API key", secret: true }],
+    env: [],
+    webhook: false,
+    readOnly: true,
+    note: "Requires enrollment in Rent Manager's Integrations Program rather than a public self-serve key.",
+  },
+  {
+    id: "doorloop",
+    title: "DoorLoop",
+    category: "Leasing & PMS",
+    description: "Normalize rentals, leases, tenants, and accounting data from DoorLoop.",
+    authMode: "api_key",
+    permissions: ["Rentals", "Leases", "Tenants", "Accounting"],
+    credentialFields: [{ key: "apiKey", label: "DoorLoop API key", secret: true }],
+    env: [],
+    webhook: false,
+    readOnly: true,
+    note: "Public, self-serve API key generated directly in DoorLoop account settings.",
+  },
+  {
     id: "whatsapp",
     title: "WhatsApp Business",
     category: "Communication",
@@ -101,6 +209,18 @@ export const integrationCatalog: IntegrationProvider[] = [
     webhook: true,
     readOnly: false,
     note: "Inbound events are signature-verified before they enter the message queue.",
+  },
+  {
+    id: "whatsapp_personal",
+    title: "WhatsApp (Personal)",
+    category: "Communication",
+    description: "Send and receive tenant messages from a personal WhatsApp number, for teams without a Business account.",
+    authMode: "qr_link",
+    permissions: ["Messages"],
+    env: [],
+    webhook: true,
+    readOnly: false,
+    note: "Links via a QR-paired companion device, the same mechanism as WhatsApp Web — less reliable than the official Business API and outside WhatsApp's own terms for automated use.",
   },
   {
     id: "apple_messages",

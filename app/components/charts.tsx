@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
 import type { useTranslations } from "next-intl";
+import { RefreshDouble } from "iconoir-react";
 import {
   deriveAccountingTotals,
   derivePropertyTotals,
@@ -39,17 +40,40 @@ const NARRATIVE_KIND_LABEL: Record<NarrativeKind, string> = {
   proposal: "OperationsView.narrativeKindProposal",
 };
 
+const NARRATIVE_WINDOW_SIZE = 3;
+
+/**
+ * Cycles through a pool larger than what's shown at once, windowSize items
+ * at a time, wrapping around — so "refresh" surfaces findings that were
+ * always real and already computed, just not in the default view, rather
+ * than fabricating something new. This is the seam a live model call
+ * replaces later: same UI, real generation instead of a rotating pool.
+ */
+function rotateNarrativePool<Item>(pool: Item[], round: number, windowSize: number): Item[] {
+  if (pool.length <= windowSize) return pool;
+  const offset = (round * windowSize) % pool.length;
+  return Array.from({ length: windowSize }, (_, index) => pool[(offset + index) % pool.length]);
+}
+
 /**
  * Every chart's takeaways, spelled out below it instead of left for the
  * viewer to infer. Each item's numbers come from the same sampleData the
  * chart itself renders — computed in the chart component, never a second,
  * separately-authored figure that could quietly drift from the chart above it.
  */
-function ChartNarrative({ t, items }: { t: T; items: NarrativeItem[] }) {
+function ChartNarrative({ t, items, onRefresh, refreshing }: { t: T; items: NarrativeItem[]; onRefresh?: () => void; refreshing?: boolean }) {
   return (
     <div className="chart-narrative">
-      <p className="chart-narrative-heading">{t("OperationsView.narrativeHeading")}</p>
-      <ul>
+      <div className="chart-narrative-top">
+        <p className="chart-narrative-heading">{t("OperationsView.narrativeHeading")}</p>
+        {onRefresh && (
+          <button type="button" className="chart-narrative-refresh" onClick={onRefresh} disabled={refreshing}>
+            <RefreshDouble width={12} height={12} className={refreshing ? "spinning" : ""}/>
+            {t("OperationsView.narrativeRefresh")}
+          </button>
+        )}
+      </div>
+      <ul className={refreshing ? "is-refreshing" : ""}>
         {items.map((item) => (
           <li className={`narrative-${item.kind}`} key={item.textKey}>
             <span className="narrative-kind">{t(NARRATIVE_KIND_LABEL[item.kind])}</span>
@@ -59,6 +83,17 @@ function ChartNarrative({ t, items }: { t: T; items: NarrativeItem[] }) {
       </ul>
     </div>
   );
+}
+
+/** Local refresh state shared by every chart's narrative pool: cycle the round after a short simulated delay. */
+function useNarrativeRefresh() {
+  const [round, setRound] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+  const refresh = () => {
+    setRefreshing(true);
+    window.setTimeout(() => { setRound((current) => current + 1); setRefreshing(false); }, 650);
+  };
+  return { round, refreshing, refresh };
 }
 
 /**
@@ -108,6 +143,7 @@ export function PropertyOccupancyChart({ t, locale }: { t: T; locale: string }) 
   const maxUnits = Math.max(...rows.map((row) => row.units));
   const healthColor = (pct: number) => (pct >= 95 ? VIZ.green : pct >= 85 ? VIZ.amber : VIZ.red);
   const { activeKey, handlersFor } = useSegmentDetail();
+  const { round, refreshing, refresh } = useNarrativeRefresh();
 
   const rowsWithStats = rows.map((row) => ({
     ...row,
@@ -116,16 +152,22 @@ export function PropertyOccupancyChart({ t, locale }: { t: T; locale: string }) 
   }));
   const weakest = rowsWithStats.reduce((min, row) => (row.occupiedPct < min.occupiedPct ? row : min));
   const strongest = rowsWithStats.reduce((max, row) => (row.occupiedPct > max.occupiedPct ? row : max));
+  const biggest = rowsWithStats.reduce((max, row) => (row.units > max.units ? row : max));
   const downRows = rowsWithStats.filter((row) => row.downUnits > 0);
   const totalDown = downRows.reduce((sum, row) => sum + row.downUnits, 0);
+  const highOccupancyRows = rowsWithStats.filter((row) => row.occupiedPct >= 95);
   const listFormatter = new Intl.ListFormat(locale, { style: "long", type: "conjunction" });
   const downDetail = listFormatter.format(downRows.map((row) => t("OperationsView.narrativeUnitCountAtProperty", { count: row.downUnits, property: t(row.nameKey) })));
+  const highOccupancyDetail = listFormatter.format(highOccupancyRows.map((row) => t(row.nameKey)));
 
-  const narrative: NarrativeItem[] = [
+  const narrativePool: NarrativeItem[] = [
     { kind: "insight", textKey: "OperationsView.propertiesNarrativeSpread", params: { weakest: t(weakest.nameKey), weakestPct: weakest.occupiedPct.toFixed(1), portfolioPct: portfolioPct.toFixed(1), strongest: t(strongest.nameKey), strongestPct: strongest.occupiedPct.toFixed(1) } },
     ...(totalDown > 0 ? [{ kind: "question" as const, textKey: "OperationsView.propertiesNarrativeDownUnits", params: { count: totalDown, detail: downDetail } }] : []),
-    { kind: "proposal", textKey: "OperationsView.propertiesNarrativeProposal", params: { readyCount: totals.readyForLeasing, readyAtWeakest: weakest.readyForLeasing, weakest: t(weakest.nameKey) } },
+    { kind: "proposal" as const, textKey: "OperationsView.propertiesNarrativeProposal", params: { readyCount: totals.readyForLeasing, readyAtWeakest: weakest.readyForLeasing, weakest: t(weakest.nameKey) } },
+    { kind: "insight" as const, textKey: "OperationsView.propertiesNarrativeLargest", params: { property: t(biggest.nameKey), units: biggest.units, pct: biggest.occupiedPct.toFixed(1) } },
+    ...(highOccupancyRows.length > 0 ? [{ kind: "proposal" as const, textKey: "OperationsView.propertiesNarrativeRentReview", params: { detail: highOccupancyDetail } }] : []),
   ];
+  const narrative = rotateNarrativePool(narrativePool, round, NARRATIVE_WINDOW_SIZE);
 
   return (
     <div className="chart-frame property-chart" data-reveal data-sound-reveal>
@@ -150,7 +192,7 @@ export function PropertyOccupancyChart({ t, locale }: { t: T; locale: string }) 
           );
         })}
       </div>
-      <ChartNarrative t={t} items={narrative} />
+      <ChartNarrative t={t} items={narrative} onRefresh={refresh} refreshing={refreshing} />
     </div>
   );
 }
@@ -199,13 +241,19 @@ export function LeasingTrendChart({ t }: { t: T }) {
     last.viewed / last.contacted > first.viewed / first.contacted &&
     last.applied / last.viewed > first.applied / first.viewed &&
     last.signed / last.applied > first.signed / first.applied;
+  const firstAppliedToSignedPct = (first.signed / first.applied) * 100;
+  const lastAppliedToSignedPct = (last.signed / last.applied) * 100;
 
-  const narrative: NarrativeItem[] = [
+  const narrativePool: NarrativeItem[] = [
     { kind: "insight", textKey: "OperationsView.leasingNarrativeVolume", params: { contactedGrowthPct: contactedGrowthPct.toFixed(0), contactedStart: first.contacted, contactedEnd: last.contacted, signedGrowthPct: signedGrowthPct.toFixed(0), signedStart: first.signed, signedEnd: last.signed } },
-    { kind: "insight", textKey: "OperationsView.leasingNarrativeConversion", params: { startPct: firstConversionPct.toFixed(1), endPct: lastConversionPct.toFixed(1) } },
+    { kind: "insight" as const, textKey: "OperationsView.leasingNarrativeConversion", params: { startPct: firstConversionPct.toFixed(1), endPct: lastConversionPct.toFixed(1) } },
     ...(everyStageImproved ? [{ kind: "question" as const, textKey: "OperationsView.leasingNarrativeQuestion" }] : []),
-    { kind: "proposal", textKey: "OperationsView.leasingNarrativeProposal" },
+    { kind: "proposal" as const, textKey: "OperationsView.leasingNarrativeProposal" },
+    { kind: "insight" as const, textKey: "OperationsView.leasingNarrativeBiggestGain", params: { startPct: firstAppliedToSignedPct.toFixed(1), endPct: lastAppliedToSignedPct.toFixed(1) } },
+    ...(everyStageImproved ? [{ kind: "question" as const, textKey: "OperationsView.leasingNarrativeSustainability", params: { contactedGrowthPct: contactedGrowthPct.toFixed(0) } }] : []),
   ];
+  const { round, refreshing, refresh } = useNarrativeRefresh();
+  const narrative = rotateNarrativePool(narrativePool, round, NARRATIVE_WINDOW_SIZE);
 
   return (
     <div className="chart-frame leasing-trend-chart" data-reveal data-sound-reveal>
@@ -266,7 +314,7 @@ export function LeasingTrendChart({ t }: { t: T }) {
           );
         })}
       </div>
-      <ChartNarrative t={t} items={narrative} />
+      <ChartNarrative t={t} items={narrative} onRefresh={refresh} refreshing={refreshing} />
     </div>
   );
 }
@@ -309,12 +357,22 @@ export function MaintenanceRoseChart({ t, locale }: { t: T; locale: string }) {
     const monthMax = Math.max(...categories.map((category) => category.countsByMonth[monthIndex]));
     return leadCategory.category.countsByMonth[monthIndex] === monthMax;
   });
+  const runnerUp = categoryTotals.filter((entry) => entry.category.categoryKey !== leadCategory.category.categoryKey).reduce((max, entry) => (entry.total > max.total ? entry : max));
+  const secondPlaceTies = categoryTotals.filter((entry) => entry.category.categoryKey !== leadCategory.category.categoryKey && entry.total === runnerUp.total);
+  const plumbing = categories.find((category) => category.categoryKey === "OperationsView.categoryPlumbing");
+  const structural = categories.find((category) => category.categoryKey === "OperationsView.categoryStructural");
+  const seesawSigns = plumbing && structural ? months.map((_, index) => Math.sign(plumbing.countsByMonth[index] - structural.countsByMonth[index])) : [];
+  const seesawPattern = seesawSigns.length > 1 && seesawSigns.every((value, index) => index === 0 || (value !== 0 && value === -seesawSigns[index - 1]));
 
-  const narrative: NarrativeItem[] = [
+  const narrativePool: NarrativeItem[] = [
     { kind: "insight", textKey: "OperationsView.maintenanceNarrativeShare", params: { category: t(leadCategory.category.categoryKey), count: leadCategory.total, total: grandTotal, pct: ((leadCategory.total / grandTotal) * 100).toFixed(0) } },
     ...(leadCategoryLeadsEveryMonth ? [{ kind: "question" as const, textKey: "OperationsView.maintenanceNarrativeConsistency", params: { category: t(leadCategory.category.categoryKey) } }] : []),
-    { kind: "proposal", textKey: "OperationsView.maintenanceNarrativeProposal", params: { category: t(leadCategory.category.categoryKey) } },
+    { kind: "proposal" as const, textKey: "OperationsView.maintenanceNarrativeProposal", params: { category: t(leadCategory.category.categoryKey) } },
+    ...(secondPlaceTies.length > 1 ? [{ kind: "insight" as const, textKey: "OperationsView.maintenanceNarrativeSecondTie", params: { categories: new Intl.ListFormat(locale, { style: "long", type: "conjunction" }).format(secondPlaceTies.map((entry) => t(entry.category.categoryKey))), count: runnerUp.total } }] : []),
+    ...(seesawPattern ? [{ kind: "question" as const, textKey: "OperationsView.maintenanceNarrativeSeesaw" }] : []),
   ];
+  const { round, refreshing, refresh } = useNarrativeRefresh();
+  const narrative = rotateNarrativePool(narrativePool, round, NARRATIVE_WINDOW_SIZE);
 
   return (
     <div className="chart-frame maintenance-rose" data-reveal data-sound-reveal>
@@ -389,7 +447,7 @@ export function MaintenanceRoseChart({ t, locale }: { t: T; locale: string }) {
           </span>
         ))}
       </div>
-      <ChartNarrative t={t} items={narrative} />
+      <ChartNarrative t={t} items={narrative} onRefresh={refresh} refreshing={refreshing} />
     </div>
   );
 }
@@ -451,11 +509,18 @@ export function AccountingSankey({ t, money }: { t: T; money: (amount: number) =
   const nextExpense = expenses.filter((expense) => expense.key !== "maintenance").reduce((max, expense) => (expense.amount > max.amount ? expense : max));
   const otherIncome = revenueSources.find((source) => source.key === "otherIncome")!;
   const noiMarginPct = (sampleData.noi.value / totalRevenue) * 100;
-  const narrative: NarrativeItem[] = [
+  const management = expenses.find((expense) => expense.key === "management")!;
+  const taxes = expenses.find((expense) => expense.key === "taxes")!;
+  const utilities = expenses.find((expense) => expense.key === "utilities")!;
+  const narrativePool: NarrativeItem[] = [
     { kind: "insight", textKey: "OperationsView.accountingNarrativeLargestExpense", params: { category: t(maintenance.labelKey), amount: money(maintenance.amount), pct: ((maintenance.amount / totalExpenses) * 100).toFixed(1), nextCategory: t(nextExpense.labelKey), nextAmount: money(nextExpense.amount) } },
-    { kind: "question", textKey: "OperationsView.accountingNarrativeOtherIncome", params: { label: t(otherIncome.labelKey), pct: ((otherIncome.amount / totalRevenue) * 100).toFixed(1), amount: money(otherIncome.amount) } },
-    { kind: "proposal", textKey: "OperationsView.accountingNarrativeMargin", params: { marginPct: noiMarginPct.toFixed(1), category: t(maintenance.labelKey) } },
+    { kind: "question" as const, textKey: "OperationsView.accountingNarrativeOtherIncome", params: { label: t(otherIncome.labelKey), pct: ((otherIncome.amount / totalRevenue) * 100).toFixed(1), amount: money(otherIncome.amount) } },
+    { kind: "proposal" as const, textKey: "OperationsView.accountingNarrativeMargin", params: { marginPct: noiMarginPct.toFixed(1), category: t(maintenance.labelKey) } },
+    { kind: "insight" as const, textKey: "OperationsView.accountingNarrativeFixedCosts", params: { management: t(management.labelKey), managementAmount: money(management.amount), taxes: t(taxes.labelKey), taxesAmount: money(taxes.amount) } },
+    { kind: "question" as const, textKey: "OperationsView.accountingNarrativeUtilitiesConcentration", params: { category: t(utilities.labelKey), amount: money(utilities.amount) } },
   ];
+  const { round, refreshing, refresh } = useNarrativeRefresh();
+  const narrative = rotateNarrativePool(narrativePool, round, NARRATIVE_WINDOW_SIZE);
 
   // The SVG only draws ribbons and node bars, at a fixed pixel height with
   // preserveAspectRatio="none" so it can stretch to fill a flex row. Labels
@@ -532,7 +597,7 @@ export function AccountingSankey({ t, money }: { t: T; money: (amount: number) =
         </div>
         <SankeyLabelColumn nodes={withShare(rightNodes)} align="right" t={t} money={money} activeKey={activeKey} handlersFor={handlersFor} />
       </div>
-      <ChartNarrative t={t} items={narrative} />
+      <ChartNarrative t={t} items={narrative} onRefresh={refresh} refreshing={refreshing} />
     </div>
   );
 }

@@ -52,7 +52,12 @@ async function verifyCredentials(provider: string, credentials: Record<string, s
   }
   if (provider === "appfolio") throw new Error("AppFolio must enable the agreed Stack API products before Aval can verify this database.");
   if (provider === "apple_messages") throw new Error("Apple Messages for Business verification is completed jointly with your approved Messaging Service Provider.");
-  throw new Error("This provider is verified by its OAuth callback.");
+  if (provider === "yardi") throw new Error("Yardi verification requires an approved Yardi Interface Partner agreement before this connection can go live.");
+  if (provider === "realpage") throw new Error("RealPage verification requires access granted through the RealPage Exchange partner program before this connection can go live.");
+  if (provider === "entrata") throw new Error("Entrata verification requires a signed API Developer Interface Agreement and IP allowlisting before this connection can go live.");
+  if (provider === "rentmanager") throw new Error("Rent Manager verification requires enrollment in Rent Manager's Integrations Program before this connection can go live.");
+  if (provider === "contpaqi" || provider === "alegra" || provider === "doorloop" || provider === "whatsapp_personal") throw new Error("Live verification for this connection isn't wired up in this environment yet — credentials are stored encrypted and ready once Aval enables it.");
+  throw new Error("No verification method is configured for this provider yet.");
 }
 
 export async function POST(request: Request) {
