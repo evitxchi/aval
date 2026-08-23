@@ -1,15 +1,23 @@
 import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
+import { notFound } from "next/navigation";
 import localFont from "next/font/local";
-import "./globals.css";
+import { NextIntlClientProvider } from "next-intl";
+import { getMessages } from "next-intl/server";
+import "../globals.css";
+import { routing } from "./routing";
 
 const monument = localFont({
-  src: "./fonts/ABCMonumentGroteskTrial-Regular.otf",
+  src: "../fonts/ABCMonumentGroteskTrial-Regular.otf",
   variable: "--font-monument",
   weight: "400",
   style: "normal",
   display: "swap",
 });
+
+export function generateStaticParams() {
+  return routing.locales.map((locale) => ({ locale }));
+}
 
 export async function generateMetadata(): Promise<Metadata> {
   const incomingHeaders = await headers();
@@ -55,11 +63,20 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default async function RootLayout({
+  children,
+  params,
+}: Readonly<{ children: React.ReactNode; params: Promise<{ locale: string }> }>) {
+  const { locale } = await params;
+  if (!routing.locales.includes(locale as (typeof routing.locales)[number])) notFound();
+  const messages = await getMessages();
+
   return (
-    <html lang="en">
+    <html lang={locale}>
       <body className={monument.variable}>
-        {children}
+        <NextIntlClientProvider locale={locale} messages={messages}>
+          {children}
+        </NextIntlClientProvider>
       </body>
     </html>
   );

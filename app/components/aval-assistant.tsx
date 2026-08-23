@@ -2,53 +2,43 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
+import { useTranslations } from "next-intl";
 import { ChatLines, CheckCircle, Database, NavArrowRight, SendDiagonal, StatsUpSquare, ViewGrid, Xmark } from "iconoir-react";
 import { useExperience } from "@/app/components/experience";
 
-type Pair = readonly [string, string];
-type EvidenceRow = { label: Pair; value: string };
-type Stat = { label: Pair; value: string };
+type EvidenceRow = { label: string; value: string };
+type Stat = { label: string; value: string };
 type Answer = {
-  headline: Pair;
-  summary: Pair;
+  headline: string;
+  summary: string;
   stats: Stat[];
   evidence: EvidenceRow[];
-  action?: Pair;
-  actionDetail?: Pair;
+  action?: string;
+  actionDetail?: string;
 };
 type ChatMessage = {
   id: number;
   role: "user" | "assistant";
   text?: string;
-  textPair?: Pair;
   answer?: Answer;
 };
 type SelectedModule = { label: string; snapshot: string };
 
-const viewNames: Record<string, Pair> = {
-  overview: ["Portfolio overview", "Resumen del portafolio"],
-  tasks: ["Aval tasks", "Tareas de Aval"],
-  inbox: ["Shared inbox", "Bandeja compartida"],
-  properties: ["Properties", "Propiedades"],
-  leasing: ["Leasing", "Arrendamiento"],
-  maintenance: ["Maintenance", "Mantenimiento"],
-  accounting: ["Accounting", "Contabilidad"],
-  connections: ["Connections", "Conexiones"],
-  documents: ["Documents", "Documentos"],
-  settings: ["Settings", "Ajustes"],
+const viewNameKeys: Record<string, string> = {
+  overview: "Nav.portfolioOverview",
+  tasks: "Nav.avalTasks",
+  inbox: "Nav.sharedInbox",
+  properties: "Nav.properties",
+  leasing: "Nav.leasing",
+  maintenance: "Nav.maintenance",
+  accounting: "Nav.accounting",
+  connections: "Nav.connections",
+  documents: "Nav.documents",
+  settings: "Nav.settings",
 };
 
-const suggestions: Pair[] = [
-  ["What needs my attention today?", "¿Qué necesita mi atención hoy?"],
-  ["Why are collections behind?", "¿Por qué está atrasada la cobranza?"],
-  ["Which maintenance items are urgent?", "¿Qué mantenimientos son urgentes?"],
-];
-
-const focusedSuggestions: Pair[] = [
-  ["Analyze this module", "Analiza este módulo"],
-  ["Why is this happening?", "¿Por qué está pasando esto?"],
-  ["What should I do next?", "¿Qué debería hacer después?"],
-];
+const suggestionKeys = ["AvalAssistant.suggestion1", "AvalAssistant.suggestion2", "AvalAssistant.suggestion3"];
+const focusedSuggestionKeys = ["AvalAssistant.focusedSuggestion1", "AvalAssistant.focusedSuggestion2", "AvalAssistant.focusedSuggestion3"];
 
 const moduleSelector = [
   "[data-ai-module]",
@@ -74,186 +64,100 @@ function describeModule(element: HTMLElement): SelectedModule {
   return { label, snapshot };
 }
 
-function analyzeQuestion(question: string, view: string, selectedModule: SelectedModule | null): Answer {
+function analyzeQuestion(t: ReturnType<typeof useTranslations>, question: string, view: string, selectedModule: SelectedModule | null): Answer {
   const normalized = `${selectedModule?.label ?? ""} ${selectedModule?.snapshot ?? ""} ${question}`.toLocaleLowerCase();
 
   if (/net operating income|ingreso operativo neto|\bnoi\b/.test(normalized)) {
     return {
-      headline: ["NOI is 4.8% ahead month to date", "El ingreso operativo neto está 4.8% arriba en el mes"],
-      summary: [
-        "Higher collections and lower turnover expense are offsetting a small increase in emergency maintenance costs.",
-        "Una mayor cobranza y menores gastos de rotación compensan un pequeño aumento en mantenimiento de emergencia.",
-      ],
-      stats: [
-        { label: ["Month to date", "Mes a la fecha"], value: "MX$286,410" },
-        { label: ["Vs prior period", "Vs periodo anterior"], value: "+4.8%" },
-        { label: ["Forecast", "Pronóstico"], value: "MX$438,900" },
-      ],
-      evidence: [
-        { label: ["Collection variance", "Variación de cobranza"], value: "+MX$18,600" },
-        { label: ["Turnover expense", "Gasto de rotación"], value: "−MX$7,200" },
-        { label: ["Emergency maintenance", "Mantenimiento urgente"], value: "+MX$4,100" },
-      ],
-      action: ["Open variance review", "Abrir revisión de variaciones"],
-      actionDetail: ["Prepare the property-level NOI drivers for manager review.", "Preparar los impulsores del NOI por propiedad para revisión."],
+      headline: t("AvalAssistant.answerNoiHeadline"),
+      summary: t("AvalAssistant.answerNoiSummary"),
+      stats: [{ label: t("AvalAssistant.answerNoiStat1"), value: "MX$286,410" }, { label: t("AvalAssistant.answerNoiStat2"), value: "+4.8%" }, { label: t("AvalAssistant.answerNoiStat3"), value: "MX$438,900" }],
+      evidence: [{ label: t("AvalAssistant.answerNoiEvidence1"), value: "+MX$18,600" }, { label: t("AvalAssistant.answerNoiEvidence2"), value: "−MX$7,200" }, { label: t("AvalAssistant.answerNoiEvidence3"), value: "+MX$4,100" }],
+      action: t("AvalAssistant.answerNoiAction"),
+      actionDetail: t("AvalAssistant.answerNoiActionDetail"),
     };
   }
-
   if (/data coverage|cobertura de datos|source|fuente/.test(normalized)) {
     return {
-      headline: ["Two upstream sources still limit confidence", "Dos fuentes de origen aún limitan la confianza"],
-      summary: [
-        "Accounting and leasing data are not verified yet. Resident-channel activity is available but remains optional for portfolio metrics.",
-        "Los datos contables y de arrendamiento aún no están verificados. La actividad de canales de residentes está disponible, pero es opcional para las métricas.",
-      ],
-      stats: [
-        { label: ["Required", "Requeridas"], value: "2" },
-        { label: ["Connected", "Conectadas"], value: "0" },
-        { label: ["Optional", "Opcionales"], value: "1" },
-      ],
-      evidence: [
-        { label: ["Accounting", "Contabilidad"], value: "QuickBooks or Xero" },
-        { label: ["Leasing pipeline", "Embudo de arrendamiento"], value: "AppFolio, Buildium, or PMS" },
-        { label: ["Resident channels", "Canales de residentes"], value: "Optional" },
-      ],
-      action: ["Review required connections", "Revisar conexiones requeridas"],
-      actionDetail: ["Open the setup path for the two sources blocking confidence.", "Abrir la configuración de las dos fuentes que bloquean la confianza."],
+      headline: t("AvalAssistant.answerCoverageHeadline"),
+      summary: t("AvalAssistant.answerCoverageSummary"),
+      stats: [{ label: t("AvalAssistant.answerCoverageStat1"), value: "2" }, { label: t("AvalAssistant.answerCoverageStat2"), value: "0" }, { label: t("AvalAssistant.answerCoverageStat3"), value: "1" }],
+      evidence: [{ label: t("AvalAssistant.answerCoverageEvidence1"), value: "QuickBooks or Xero" }, { label: t("AvalAssistant.answerCoverageEvidence2"), value: "AppFolio, Buildium, or PMS" }, { label: t("AvalAssistant.answerCoverageEvidence3"), value: "Optional" }],
+      action: t("AvalAssistant.answerCoverageAction"),
+      actionDetail: t("AvalAssistant.answerCoverageActionDetail"),
     };
   }
-
   if (/lead-to-lease|funnel|embudo|prospecto|contacted|contactados/.test(normalized)) {
     return {
-      headline: ["Viewed → applied is the largest funnel loss", "Visita → solicitud es la mayor pérdida del embudo"],
-      summary: [
-        "Only 45.1% of viewers apply. Roma Sur contributes most of the drop, where follow-up time is about 19 hours slower than the portfolio median.",
-        "Solo el 45.1% de quienes visitan presentan solicitud. Roma Sur concentra la mayor caída, con seguimiento unas 19 horas más lento que la mediana.",
-      ],
-      stats: [
-        { label: ["Contacted", "Contactados"], value: "148" },
-        { label: ["Viewed", "Visitaron"], value: "82" },
-        { label: ["Signed", "Firmaron"], value: "21" },
-      ],
-      evidence: [
-        { label: ["Contacted → viewed", "Contactado → visita"], value: "55.4%" },
-        { label: ["Viewed → applied", "Visita → solicitud"], value: "45.1%" },
-        { label: ["Applied → signed", "Solicitud → firma"], value: "56.8%" },
-      ],
-      action: ["Prepare follow-up sequence", "Preparar secuencia de seguimiento"],
-      actionDetail: ["Draft a same-day follow-up for the 11 warmest prospects.", "Preparar seguimiento el mismo día para los 11 prospectos más activos."],
+      headline: t("AvalAssistant.answerFunnelHeadline"),
+      summary: t("AvalAssistant.answerFunnelSummary"),
+      stats: [{ label: t("AvalAssistant.answerFunnelStat1"), value: "148" }, { label: t("AvalAssistant.answerFunnelStat2"), value: "82" }, { label: t("AvalAssistant.answerFunnelStat3"), value: "21" }],
+      evidence: [{ label: t("AvalAssistant.answerFunnelEvidence1"), value: "55.4%" }, { label: t("AvalAssistant.answerFunnelEvidence2"), value: "45.1%" }, { label: t("AvalAssistant.answerFunnelEvidence3"), value: "56.8%" }],
+      action: t("AvalAssistant.answerFunnelAction"),
+      actionDetail: t("AvalAssistant.answerFunnelActionDetail"),
     };
   }
-
   if (/collect|rent|delinquen|payment|cobran|renta|pago|moros/.test(normalized)) {
     return {
-      headline: ["Three accounts explain 71% of the collection gap", "Tres cuentas explican el 71% de la brecha de cobranza"],
-      summary: [
-        "Paseo Norte is the main driver. One resident broke a payment promise yesterday, and all three accounts have a reachable WhatsApp number.",
-        "Paseo Norte es el principal origen. Un residente incumplió una promesa de pago ayer y las tres cuentas tienen WhatsApp disponible.",
-      ],
-      stats: [
-        { label: ["Collected", "Cobrado"], value: "92.6%" },
-        { label: ["Exposure", "Exposición"], value: "MX$28,500" },
-        { label: ["Accounts", "Cuentas"], value: "3 of 84" },
-      ],
-      evidence: [
-        { label: ["Unit 3B · Lucía R.", "Unidad 3B · Lucía R."], value: "38 days · MX$12,000" },
-        { label: ["Unit 5A · Mateo S.", "Unidad 5A · Mateo S."], value: "Promise broken · MX$9,500" },
-        { label: ["Unit 7C · Nora V.", "Unidad 7C · Nora V."], value: "32 days · MX$7,000" },
-      ],
-      action: ["Prepare 3 reminders", "Preparar 3 recordatorios"],
-      actionDetail: ["Personalized WhatsApp drafts with per-recipient preview.", "Borradores personalizados de WhatsApp con vista previa por destinatario."],
+      headline: t("AvalAssistant.answerCollectionsHeadline"),
+      summary: t("AvalAssistant.answerCollectionsSummary"),
+      stats: [{ label: t("AvalAssistant.answerCollectionsStat1"), value: "92.6%" }, { label: t("AvalAssistant.answerCollectionsStat2"), value: "MX$28,500" }, { label: t("AvalAssistant.answerCollectionsStat3"), value: "3 of 84" }],
+      evidence: [{ label: t("AvalAssistant.answerCollectionsEvidence1"), value: "38 days · MX$12,000" }, { label: t("AvalAssistant.answerCollectionsEvidence2"), value: "Promise broken · MX$9,500" }, { label: t("AvalAssistant.answerCollectionsEvidence3"), value: "32 days · MX$7,000" }],
+      action: t("AvalAssistant.answerCollectionsAction"),
+      actionDetail: t("AvalAssistant.answerCollectionsActionDetail"),
     };
   }
-
   if (/maintenance|work order|repair|ticket|mantenimiento|reparaci|orden/.test(normalized)) {
     return {
-      headline: ["Four work orders are at risk of missing SLA", "Cuatro órdenes de trabajo están en riesgo de incumplir el SLA"],
-      summary: [
-        "A water leak at Jardines 22 needs human escalation. The other three can be assigned to approved vendors now.",
-        "Una fuga de agua en Jardines 22 requiere escalamiento humano. Las otras tres pueden asignarse ahora a proveedores aprobados.",
-      ],
-      stats: [
-        { label: ["Open", "Abiertas"], value: "18" },
-        { label: ["At risk", "En riesgo"], value: "4" },
-        { label: ["Next breach", "Próximo incumplimiento"], value: "3h" },
-      ],
-      evidence: [
-        { label: ["Jardines 22 · Unit 4A", "Jardines 22 · Unidad 4A"], value: "Active leak · 3h" },
-        { label: ["Roma Sur · Unit 2C", "Roma Sur · Unidad 2C"], value: "No hot water · 7h" },
-        { label: ["Paseo Norte · Common area", "Paseo Norte · Área común"], value: "Lighting · 11h" },
-      ],
-      action: ["Prepare vendor assignments", "Preparar asignaciones"],
-      actionDetail: ["Escalate the leak and draft three vendor bookings.", "Escalar la fuga y preparar tres reservas con proveedores."],
+      headline: t("AvalAssistant.answerMaintenanceHeadline"),
+      summary: t("AvalAssistant.answerMaintenanceSummary"),
+      stats: [{ label: t("AvalAssistant.answerMaintenanceStat1"), value: "18" }, { label: t("AvalAssistant.answerMaintenanceStat2"), value: "4" }, { label: t("AvalAssistant.answerMaintenanceStat3"), value: "3h" }],
+      evidence: [{ label: t("AvalAssistant.answerMaintenanceEvidence1"), value: "Active leak · 3h" }, { label: t("AvalAssistant.answerMaintenanceEvidence2"), value: "No hot water · 7h" }, { label: t("AvalAssistant.answerMaintenanceEvidence3"), value: "Lighting · 11h" }],
+      action: t("AvalAssistant.answerMaintenanceAction"),
+      actionDetail: t("AvalAssistant.answerMaintenanceActionDetail"),
     };
   }
-
   if (/vacan|leasing|lease|occup|unit|arrend|ocup|unidad/.test(normalized)) {
     return {
-      headline: ["Two ready units have been vacant for 27+ days", "Dos unidades listas llevan más de 27 días vacantes"],
-      summary: [
-        "Both are in Roma Sur and priced about 8% above comparable signed leases. A pricing review is the highest-leverage next step.",
-        "Ambas están en Roma Sur y tienen precios cerca de 8% por encima de contratos comparables. Revisar el precio es el siguiente paso con mayor impacto.",
-      ],
-      stats: [
-        { label: ["Economic occupancy", "Ocupación económica"], value: "94.2%" },
-        { label: ["Ready units", "Unidades listas"], value: "5" },
-        { label: ["Monthly exposure", "Exposición mensual"], value: "MX$41,200" },
-      ],
-      evidence: [
-        { label: ["Roma Sur · Unit 6B", "Roma Sur · Unidad 6B"], value: "31 days · +9.1% vs comps" },
-        { label: ["Roma Sur · Unit 8A", "Roma Sur · Unidad 8A"], value: "27 days · +7.3% vs comps" },
-      ],
-      action: ["Draft pricing review", "Preparar revisión de precio"],
-      actionDetail: ["Create an owner-ready comparison with recommended ranges.", "Crear una comparación para el propietario con rangos recomendados."],
+      headline: t("AvalAssistant.answerVacancyHeadline"),
+      summary: t("AvalAssistant.answerVacancySummary"),
+      stats: [{ label: t("AvalAssistant.answerVacancyStat1"), value: "94.2%" }, { label: t("AvalAssistant.answerVacancyStat2"), value: "5" }, { label: t("AvalAssistant.answerVacancyStat3"), value: "MX$41,200" }],
+      evidence: [{ label: t("AvalAssistant.answerVacancyEvidence1"), value: "31 days · +9.1% vs comps" }, { label: t("AvalAssistant.answerVacancyEvidence2"), value: "27 days · +7.3% vs comps" }],
+      action: t("AvalAssistant.answerVacancyAction"),
+      actionDetail: t("AvalAssistant.answerVacancyActionDetail"),
     };
   }
-
   if (/today|attention|priority|risk|hoy|atenci|prioridad|riesgo/.test(normalized)) {
     return {
-      headline: ["Three items deserve attention today", "Tres asuntos necesitan atención hoy"],
-      summary: [
-        "Collections have the highest immediate recovery value, followed by an urgent leak and two aging vacancies.",
-        "La cobranza tiene el mayor valor de recuperación inmediato, seguida por una fuga urgente y dos vacantes prolongadas.",
-      ],
-      stats: [
-        { label: ["Collection risk", "Riesgo de cobranza"], value: "MX$28,500" },
-        { label: ["Urgent work orders", "Órdenes urgentes"], value: "4" },
-        { label: ["Vacancy exposure", "Exposición por vacancia"], value: "MX$41,200" },
-      ],
-      evidence: [
-        { label: ["1 · Paseo Norte collections", "1 · Cobranza de Paseo Norte"], value: "3 reachable accounts" },
-        { label: ["2 · Jardines 22 leak", "2 · Fuga en Jardines 22"], value: "SLA breach in 3h" },
-        { label: ["3 · Roma Sur vacancies", "3 · Vacantes en Roma Sur"], value: "27–31 days" },
-      ],
-      action: ["Prepare today’s action plan", "Preparar el plan de hoy"],
-      actionDetail: ["Bundle the approved messages, escalation, and pricing review.", "Agrupar los mensajes, el escalamiento y la revisión de precios."],
+      headline: t("AvalAssistant.answerTodayHeadline"),
+      summary: t("AvalAssistant.answerTodaySummary"),
+      stats: [{ label: t("AvalAssistant.answerTodayStat1"), value: "MX$28,500" }, { label: t("AvalAssistant.answerTodayStat2"), value: "4" }, { label: t("AvalAssistant.answerTodayStat3"), value: "MX$41,200" }],
+      evidence: [{ label: t("AvalAssistant.answerTodayEvidence1"), value: "3 reachable accounts" }, { label: t("AvalAssistant.answerTodayEvidence2"), value: "SLA breach in 3h" }, { label: t("AvalAssistant.answerTodayEvidence3"), value: "27–31 days" }],
+      action: t("AvalAssistant.answerTodayAction"),
+      actionDetail: t("AvalAssistant.answerTodayActionDetail"),
     };
   }
 
-  const currentView = viewNames[view] ?? viewNames.overview;
-  const subject: Pair = selectedModule
-    ? [`the ${selectedModule.label} module`, `el módulo ${selectedModule.label}`]
-    : currentView;
+  const currentViewKey = viewNameKeys[view] ?? viewNameKeys.overview;
+  const subject = selectedModule ? t("AvalAssistant.generalSubjectModule", { label: selectedModule.label }) : t(currentViewKey);
   return {
-    headline: [`Here’s what stands out in ${subject[0]}`, `Esto es lo más relevante en ${subject[1]}`],
-    summary: [
-      "The portfolio is stable overall, but collections, maintenance SLA risk, and aging vacancies have executable next steps today.",
-      "El portafolio está estable en general, pero la cobranza, el riesgo de SLA y las vacantes prolongadas tienen acciones ejecutables hoy.",
-    ],
+    headline: t("AvalAssistant.answerGeneralHeadlineModule", { subject }),
+    summary: t("AvalAssistant.answerGeneralSummary"),
     stats: [
-      { label: ["Units", "Unidades"], value: "142" },
-      { label: ["Properties", "Propiedades"], value: "6" },
-      { label: ["Priority findings", "Hallazgos prioritarios"], value: "3" },
+      { label: t("AvalAssistant.answerGeneralStat1"), value: "142" },
+      { label: t("AvalAssistant.answerGeneralStat2"), value: "6" },
+      { label: t("AvalAssistant.answerGeneralStat3"), value: "3" },
     ],
     evidence: [
-      { label: ["Data freshness", "Actualización de datos"], value: "4 minutes ago" },
-      { label: ["Scope", "Alcance"], value: "Acme Residential" },
+      { label: t("AvalAssistant.answerGeneralEvidence1"), value: t("AvalAssistant.dataFreshness4MinAgo") },
+      { label: t("AvalAssistant.answerGeneralEvidence2"), value: "Acme Residential" },
     ],
   };
 }
 
 export function AvalAssistant({ view }: { view: string }) {
-  const { copy, locale, notify } = useExperience();
+  const { notify } = useExperience();
+  const t = useTranslations();
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
   const [thinking, setThinking] = useState(false);
@@ -264,10 +168,7 @@ export function AvalAssistant({ view }: { view: string }) {
     {
       id: 1,
       role: "assistant",
-      textPair: [
-        "I’m connected to this dashboard context. Ask about collections, vacancies, maintenance, or what deserves attention.",
-        "Estoy conectado al contexto de este tablero. Pregunta por cobranza, vacantes, mantenimiento o qué necesita atención.",
-      ],
+      text: t("AvalAssistant.welcomeMessage"),
     },
   ]);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -275,7 +176,7 @@ export function AvalAssistant({ view }: { view: string }) {
   const selectedElementRef = useRef<HTMLElement | null>(null);
   const nextId = useRef(2);
   const timer = useRef<number | null>(null);
-  const currentContext = useMemo(() => copy(...(viewNames[view] ?? viewNames.overview)), [copy, view]);
+  const currentContext = useMemo(() => t(viewNameKeys[view] ?? viewNameKeys.overview), [t, view]);
 
   useEffect(() => {
     if (open) window.setTimeout(() => inputRef.current?.focus(), 80);
@@ -325,10 +226,7 @@ export function AvalAssistant({ view }: { view: string }) {
       setMessages((current) => [...current, {
         id: nextId.current++,
         role: "assistant",
-        textPair: [
-          `I’m looking at “${moduleContext.label}” now. Ask what changed, why it happened, or what action to take.`,
-          `Ahora estoy analizando “${moduleContext.label}”. Pregunta qué cambió, por qué ocurrió o qué acción tomar.`,
-        ],
+        text: t("AvalAssistant.moduleSelectedMessage", { module: moduleContext.label }),
       }]);
     };
 
@@ -340,7 +238,7 @@ export function AvalAssistant({ view }: { view: string }) {
       document.removeEventListener("pointerover", hoverModule, true);
       document.removeEventListener("click", selectModule, true);
     };
-  }, [open, pickingModule]);
+  }, [open, pickingModule, t]);
 
   useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -370,7 +268,7 @@ export function AvalAssistant({ view }: { view: string }) {
     setInput("");
     setThinking(true);
     timer.current = window.setTimeout(() => {
-      setMessages((current) => [...current, { id: nextId.current++, role: "assistant", answer: analyzeQuestion(trimmed, view, focusedModule) }]);
+      setMessages((current) => [...current, { id: nextId.current++, role: "assistant", answer: analyzeQuestion(t, trimmed, view, focusedModule) }]);
       setThinking(false);
       timer.current = null;
     }, 520);
@@ -384,7 +282,7 @@ export function AvalAssistant({ view }: { view: string }) {
   const prepareAction = (message: ChatMessage) => {
     if (!message.answer?.action) return;
     setPrepared((current) => ({ ...current, [message.id]: true }));
-    notify(copy("Action prepared for review", "Acción preparada para revisión"), copy(...(message.answer.actionDetail ?? message.answer.action)));
+    notify(t("AvalAssistant.actionPreparedForReview"), message.answer.actionDetail ?? message.answer.action);
   };
 
   const clearSelectedModule = () => {
@@ -404,34 +302,33 @@ export function AvalAssistant({ view }: { view: string }) {
     else setOpen(true);
   };
 
-  const pick = (pair: Pair) => pair[locale === "latam" ? 1 : 0];
-  const promptSuggestions = selectedModule ? focusedSuggestions : messages.length === 1 ? suggestions : [];
+  const promptSuggestions = selectedModule ? focusedSuggestionKeys : messages.length === 1 ? suggestionKeys : [];
 
   return (
     <div className={`aval-assistant ${open ? "is-open" : ""}`}>
       {open && (
-        <section className="aval-assistant-panel" role="dialog" aria-label={copy("Aval assistant", "Asistente de Aval")}>
+        <section className="aval-assistant-panel" role="dialog" aria-label={t("AvalAssistant.avalAssistant")}>
           <header className="aval-assistant-header">
             <div className="aval-assistant-identity">
               <span className="aval-assistant-mark" aria-hidden="true" />
-              <span><strong>{copy("Ask Aval", "Pregunta a Aval")}</strong><small><i />{copy("Live dashboard context", "Contexto del tablero en vivo")}</small></span>
+              <span><strong>{t("AvalAssistant.askAval")}</strong><small><i />{t("AvalAssistant.liveDashboardContext")}</small></span>
             </div>
-            <button className="aval-assistant-close" type="button" onClick={closeAssistant} aria-label={copy("Close assistant", "Cerrar asistente")}><Xmark width={19} height={19} /></button>
+            <button className="aval-assistant-close" type="button" onClick={closeAssistant} aria-label={t("AvalAssistant.closeAssistant")}><Xmark width={19} height={19} /></button>
           </header>
 
           <div className="aval-assistant-context">
             <div className="aval-chat-context-row">
               <span className="aval-chat-scope"><Database width={15} height={15} /><span>{currentContext}</span><span>·</span><span>Acme Residential</span></span>
               <button className={`aval-module-picker ${pickingModule ? "active" : ""}`} type="button" onClick={() => setPickingModule((current) => !current)} aria-pressed={pickingModule}>
-                <ViewGrid width={15} height={15} />{selectedModule ? copy("Change module", "Cambiar módulo") : copy("Select module", "Elegir módulo")}
+                <ViewGrid width={15} height={15} />{selectedModule ? t("AvalAssistant.changeModule") : t("AvalAssistant.selectModule")}
               </button>
             </div>
-            {pickingModule && <p className="aval-module-picker-instruction"><span />{copy("Hover over a dashboard module, then click it", "Pasa sobre un módulo del tablero y haz clic")}</p>}
+            {pickingModule && <p className="aval-module-picker-instruction"><span />{t("AvalAssistant.hoverOverADashboardModuleThen")}</p>}
             {selectedModule && (
               <div className="aval-selected-module-context">
                 <ViewGrid width={16} height={16} />
-                <span><small>{copy("Focused module", "Módulo enfocado")}</small><strong>{selectedModule.label}</strong></span>
-                <button type="button" onClick={clearSelectedModule} aria-label={copy("Clear selected module", "Quitar módulo seleccionado")}><Xmark width={15} height={15} /></button>
+                <span><small>{t("AvalAssistant.focusedModule")}</small><strong>{selectedModule.label}</strong></span>
+                <button type="button" onClick={clearSelectedModule} aria-label={t("AvalAssistant.clearSelectedModule")}><Xmark width={15} height={15} /></button>
               </div>
             )}
           </div>
@@ -439,23 +336,23 @@ export function AvalAssistant({ view }: { view: string }) {
           <div className="aval-assistant-stream" ref={streamRef} aria-live="polite">
             {messages.map((message) => (
               <div className={`aval-chat-message ${message.role}`} key={message.id}>
-                {(message.text || message.textPair) && <p>{message.textPair ? pick(message.textPair) : message.text}</p>}
+                {message.text && <p>{message.text}</p>}
                 {message.answer && (
                   <div className="aval-chat-answer">
-                    <div className="aval-chat-answer-heading"><StatsUpSquare width={18} height={18} /><strong>{pick(message.answer.headline)}</strong></div>
-                    <p>{pick(message.answer.summary)}</p>
+                    <div className="aval-chat-answer-heading"><StatsUpSquare width={18} height={18} /><strong>{message.answer.headline}</strong></div>
+                    <p>{message.answer.summary}</p>
                     <div className="aval-chat-stats">
-                      {message.answer.stats.map((stat) => <span key={stat.label[0]}><small>{pick(stat.label)}</small><strong>{stat.value}</strong></span>)}
+                      {message.answer.stats.map((stat) => <span key={stat.label}><small>{stat.label}</small><strong>{stat.value}</strong></span>)}
                     </div>
                     <details className="aval-chat-evidence">
-                      <summary>{copy("View evidence", "Ver evidencia")}<NavArrowRight width={15} height={15} /></summary>
-                      <div>{message.answer.evidence.map((row) => <span key={row.label[0]}><small>{pick(row.label)}</small><strong>{row.value}</strong></span>)}</div>
-                      <p><CheckCircle width={14} height={14} />{copy("Calculated from the dashboard snapshot · updated 4 min ago", "Calculado con el tablero · actualizado hace 4 min")}</p>
+                      <summary>{t("AvalAssistant.viewEvidence")}<NavArrowRight width={15} height={15} /></summary>
+                      <div>{message.answer.evidence.map((row) => <span key={row.label}><small>{row.label}</small><strong>{row.value}</strong></span>)}</div>
+                      <p><CheckCircle width={14} height={14} />{t("AvalAssistant.calculatedFromTheDashboardSnapshotUpdated")}</p>
                     </details>
                     {message.answer.action && (
                       <button className="aval-chat-action" type="button" disabled={prepared[message.id]} onClick={() => prepareAction(message)}>
                         {prepared[message.id] ? <CheckCircle width={17} height={17} /> : <SendDiagonal width={17} height={17} />}
-                        <span><strong>{prepared[message.id] ? copy("Prepared for review", "Preparada para revisión") : pick(message.answer.action)}</strong><small>{pick(message.answer.actionDetail ?? message.answer.action)}</small></span>
+                        <span><strong>{prepared[message.id] ? t("AvalAssistant.preparedForReview") : message.answer.action}</strong><small>{message.answer.actionDetail ?? message.answer.action}</small></span>
                         {!prepared[message.id] && <NavArrowRight width={17} height={17} />}
                       </button>
                     )}
@@ -463,24 +360,24 @@ export function AvalAssistant({ view }: { view: string }) {
                 )}
               </div>
             ))}
-            {thinking && <div className="aval-chat-thinking" aria-label={copy("Analyzing dashboard data", "Analizando datos del tablero")}><i /><i /><i /><span>{copy("Analyzing dashboard data", "Analizando datos del tablero")}</span></div>}
+            {thinking && <div className="aval-chat-thinking" aria-label={t("AvalAssistant.analyzingDashboardData")}><i /><i /><i /><span>{t("AvalAssistant.analyzingDashboardData")}</span></div>}
           </div>
 
           {promptSuggestions.length > 0 && (
             <div className="aval-chat-suggestions">
-              {promptSuggestions.map((suggestion) => <button type="button" key={suggestion[0]} onClick={() => submitQuestion(pick(suggestion))}>{pick(suggestion)}<NavArrowRight width={15} height={15} /></button>)}
+              {promptSuggestions.map((key) => <button type="button" key={key} onClick={() => submitQuestion(t(key))}>{t(key)}<NavArrowRight width={15} height={15} /></button>)}
             </div>
           )}
 
           <form className="aval-chat-composer" onSubmit={onSubmit}>
-            <input ref={inputRef} value={input} onChange={(event) => setInput(event.target.value)} placeholder={selectedModule ? copy(`Ask about ${selectedModule.label}…`, `Pregunta sobre ${selectedModule.label}…`) : copy("Ask about your portfolio…", "Pregunta sobre tu portafolio…")} aria-label={copy("Ask Aval", "Pregunta a Aval")} />
-            <button type="submit" disabled={!input.trim() || thinking} aria-label={copy("Send message", "Enviar mensaje")}><SendDiagonal width={18} height={18} /></button>
+            <input ref={inputRef} value={input} onChange={(event) => setInput(event.target.value)} placeholder={selectedModule ? t("AvalAssistant.askAboutModulePlaceholder", { module: selectedModule.label }) : t("AvalAssistant.askAboutYourPortfolio")} aria-label={t("AvalAssistant.askAval")} />
+            <button type="submit" disabled={!input.trim() || thinking} aria-label={t("AvalAssistant.sendMessage")}><SendDiagonal width={18} height={18} /></button>
           </form>
-          <p className="aval-chat-disclaimer">{copy("Aval shows its evidence and asks before taking action.", "Aval muestra evidencia y pide aprobación antes de actuar.")}</p>
+          <p className="aval-chat-disclaimer">{t("AvalAssistant.avalShowsItsEvidenceAndAsks")}</p>
         </section>
       )}
 
-      <button className="aval-assistant-launcher" type="button" onClick={toggleAssistant} aria-expanded={open} aria-label={open ? copy("Close Aval assistant", "Cerrar asistente de Aval") : copy("Ask Aval", "Pregunta a Aval")}>
+      <button className="aval-assistant-launcher" type="button" onClick={toggleAssistant} aria-expanded={open} aria-label={open ? t("AvalAssistant.closeAvalAssistant") : t("AvalAssistant.askAval")}>
         {open ? <Xmark width={22} height={22} /> : <ChatLines width={23} height={23} />}
         {!open && <span aria-hidden="true" />}
       </button>

@@ -2,16 +2,14 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
+import { useLocale } from "next-intl";
 
-type Locale = "en" | "latam";
 export type Market = "us" | "latam";
 type Theme = "light" | "dark";
 type SoundName = "tap" | "reveal" | "notify" | "success";
 type Toast = { id: number; title: string; detail?: string };
 
 type ExperienceValue = {
-  locale: Locale;
-  setLocale: (locale: Locale) => void;
   market: Market;
   setMarket: (market: Market) => void;
   theme: Theme;
@@ -21,7 +19,6 @@ type ExperienceValue = {
   play: (sound: SoundName) => void;
   notify: (title: string, detail?: string) => void;
   celebrate: (title: string, detail?: string) => void;
-  copy: (english: string, latam: string) => string;
 };
 
 const ExperienceContext = createContext<ExperienceValue | null>(null);
@@ -33,7 +30,6 @@ function readPreference<T extends string>(key: string, fallback: T): T {
 }
 
 export function ExperienceProvider({ children }: { children: ReactNode }) {
-  const [locale, setLocaleState] = useState<Locale>("en");
   const [market, setMarketState] = useState<Market>("us");
   const [theme, setThemeState] = useState<Theme>("light");
   const [sounds, setSoundsState] = useState(false);
@@ -77,11 +73,6 @@ export function ExperienceProvider({ children }: { children: ReactNode }) {
     play("success");
   }, [notify, play]);
 
-  const setLocale = useCallback((next: Locale) => {
-    setLocaleState(next);
-    window.localStorage.setItem("aval.locale", next);
-    document.documentElement.lang = next === "latam" ? "es-419" : "en";
-  }, []);
   const setMarket = useCallback((next: Market) => {
     setMarketState(next);
     window.localStorage.setItem("aval.market", next);
@@ -97,7 +88,6 @@ export function ExperienceProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     queueMicrotask(() => {
-      setLocaleState(readPreference<Locale>("aval.locale", "en"));
       setMarketState(readPreference<Market>("aval.market", "us"));
       setThemeState(readPreference<Theme>("aval.theme", "light"));
       setSoundsState(readPreference<string>("aval.sounds", "off") === "on");
@@ -108,10 +98,6 @@ export function ExperienceProvider({ children }: { children: ReactNode }) {
     document.documentElement.dataset.theme = theme;
     document.documentElement.style.colorScheme = theme;
   }, [theme]);
-
-  useEffect(() => {
-    document.documentElement.lang = locale === "latam" ? "es-419" : "en";
-  }, [locale]);
 
   useEffect(() => {
     const onPointer = (event: PointerEvent) => {
@@ -143,8 +129,6 @@ export function ExperienceProvider({ children }: { children: ReactNode }) {
   }, [play]);
 
   const value = useMemo<ExperienceValue>(() => ({
-    locale,
-    setLocale,
     market,
     setMarket,
     theme,
@@ -154,8 +138,7 @@ export function ExperienceProvider({ children }: { children: ReactNode }) {
     play,
     notify,
     celebrate,
-    copy: (english, latam) => locale === "latam" ? latam : english,
-  }), [celebrate, locale, market, notify, play, setLocale, setMarket, setSounds, setTheme, sounds, theme]);
+  }), [celebrate, market, notify, play, setMarket, setSounds, setTheme, sounds, theme]);
 
   return <ExperienceContext.Provider value={value}>{children}<div className="toast-stack" aria-live="polite">{toasts.map((toast) => <div className="app-toast" key={toast.id}><span/><div><strong>{toast.title}</strong>{toast.detail && <p>{toast.detail}</p>}</div></div>)}</div>{confetti > 0 && <Confetti key={confetti}/>}</ExperienceContext.Provider>;
 }
@@ -167,6 +150,7 @@ export function useExperience() {
 }
 
 export function AnimatedNumber({ value, prefix = "", suffix = "", decimals = 0 }: { value: number; prefix?: string; suffix?: string; decimals?: number }) {
+  const locale = useLocale();
   const [display, setDisplay] = useState(0);
   const element = useRef<HTMLSpanElement>(null);
   useEffect(() => {
@@ -189,7 +173,7 @@ export function AnimatedNumber({ value, prefix = "", suffix = "", decimals = 0 }
     observer.observe(node);
     return () => { observer.disconnect(); cancelAnimationFrame(animation); };
   }, [value]);
-  const formatted = display.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+  const formatted = display.toLocaleString(locale, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
   return <span ref={element}>{prefix}{formatted}{suffix}</span>;
 }
 

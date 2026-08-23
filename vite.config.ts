@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import { sites } from "@openai/sites-vite-plugin";
 import vinext from "vinext";
 import { defineConfig } from "vite";
@@ -47,6 +48,15 @@ export default defineConfig(async () => {
     server: isCodexSeatbeltSandbox
       ? { watch: { useFsEvents: false, usePolling: true } }
       : undefined,
+    resolve: {
+      alias: {
+        // Replicates what next-intl's Next.js config plugin does for real
+        // Next.js/webpack: point the internal `next-intl/config` module at the
+        // user's i18n/request.ts. There's no next.config.js here for the
+        // plugin to patch, so it's done directly at the Vite level instead.
+        "next-intl/config": fileURLToPath(new URL("./i18n/request.ts", import.meta.url)),
+      },
+    },
     plugins: [
       vinext(),
       sites(),

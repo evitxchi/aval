@@ -1,56 +1,56 @@
-export type Pair = readonly [string, string];
-
 export interface FunnelStage {
   key: "contacted" | "viewed" | "applied" | "signed";
-  label: Pair;
+  labelKey: string;
   count: number;
 }
 
 export interface CoverageRow {
   provider: string;
-  label: string;
-  detail: string;
+  labelKey: string;
+  detailKey: string;
   required: boolean;
 }
 
 export interface LedgerStep {
   provider: string;
-  text: Pair;
+  textKey: string;
 }
 
 /**
  * Every figure below is the single source of truth for the sample-mode Overview.
  * Nothing that is derivable (deltas, percentages, conversions) is stored as a
  * second, independently-authored value — it is computed by the derive* helpers
- * below and re-checked by assertSampleConsistency().
+ * below and re-checked by assertSampleConsistency(). Text lives in the message
+ * catalogs (messages/en.json, messages/es-mx.json) under the Overview
+ * namespace; fields below reference it by key, they don't carry copy.
  */
 export const sampleData = {
   updatedMinutesAgo: 4,
   portfolio: { units: 142, properties: 6 },
   noi: {
-    label: ["Net operating income", "Ingreso operativo neto"] as Pair,
-    detail: ["month to date", "mes a la fecha"] as Pair,
+    labelKey: "Overview.noiLabel",
+    detailKey: "Overview.noiDetail",
     value: 286410,
     priorValue: 273300,
     bars: [28, 38, 34, 51, 49, 62, 68],
   },
   economicOccupancy: {
-    label: ["Economic occupancy", "Ocupación económica"] as Pair,
-    detail: ["vs prior month", "vs mes anterior"] as Pair,
+    labelKey: "Overview.occupancyLabel",
+    detailKey: "Overview.occupancyDetail",
     value: 94.2,
     priorValue: 93.0,
     bars: [51, 48, 55, 57, 62, 67, 72],
   },
   rentCollected: {
-    label: ["Rent collected", "Renta cobrada"] as Pair,
-    detail: ["of August billing", "de facturación de agosto"] as Pair,
+    labelKey: "Overview.rentCollectedLabel",
+    detailKey: "Overview.rentCollectedDetail",
     value: 612800,
     billed: 661900,
     bars: [18, 31, 42, 49, 61, 72, 78],
   },
   openWorkOrders: {
-    label: ["Open work orders", "Órdenes abiertas"] as Pair,
-    detail: ["avg close", "cierre prom."] as Pair,
+    labelKey: "Overview.workOrdersLabel",
+    detailKey: "Overview.workOrdersDetail",
     value: 18,
     urgent: 4,
     avgCloseDays: 2.7,
@@ -58,25 +58,25 @@ export const sampleData = {
   },
   funnel: {
     stages: [
-      { key: "contacted", label: ["Leads contacted", "Contactados"] as Pair, count: 148 },
-      { key: "viewed", label: ["Viewed", "Visitaron"] as Pair, count: 82 },
-      { key: "applied", label: ["Applied", "Aplicaron"] as Pair, count: 37 },
-      { key: "signed", label: ["Signed", "Firmaron"] as Pair, count: 21 },
+      { key: "contacted", labelKey: "Overview.stageContacted", count: 148 },
+      { key: "viewed", labelKey: "Overview.stageViewed", count: 82 },
+      { key: "applied", labelKey: "Overview.stageApplied", count: 37 },
+      { key: "signed", labelKey: "Overview.stageSigned", count: 21 },
     ] satisfies FunnelStage[],
   },
   coverage: {
     rows: [
-      { provider: "quickbooks", label: "Accounting", detail: "QuickBooks or Xero", required: true },
-      { provider: "appfolio", label: "Leasing pipeline", detail: "AppFolio, Buildium, or PMS", required: true },
-      { provider: "whatsapp", label: "Resident channels", detail: "Messages, email, and calls", required: false },
+      { provider: "quickbooks", labelKey: "Overview.coverageAccountingLabel", detailKey: "Overview.coverageAccountingDetail", required: true },
+      { provider: "appfolio", labelKey: "Overview.coverageLeasingLabel", detailKey: "Overview.coverageLeasingDetail", required: true },
+      { provider: "whatsapp", labelKey: "Overview.coverageResidentLabel", detailKey: "Overview.coverageResidentDetail", required: false },
     ] satisfies CoverageRow[],
   },
   ledger: {
     steps: [
-      { provider: "whatsapp", text: ["Nightly delinquency sweep found 4 accounts past due.", "El barrido nocturno de morosidad encontró 4 cuentas vencidas."] as Pair },
-      { provider: "slack", text: ["Flags the accounts to the portfolio manager.", "Marca las cuentas para el administrador del portafolio."] as Pair },
-      { provider: "twilio", text: ["Calls the resident after approval.", "Llama al residente tras la aprobación."] as Pair },
-      { provider: "complete", text: ["Payment plan set up; secure link sent.", "Plan de pago creado; enlace seguro enviado."] as Pair },
+      { provider: "whatsapp", textKey: "Overview.ledgerSweep" },
+      { provider: "slack", textKey: "Overview.ledgerFlag" },
+      { provider: "twilio", textKey: "Overview.ledgerCall" },
+      { provider: "complete", textKey: "Overview.ledgerComplete" },
     ] satisfies LedgerStep[],
   },
 };

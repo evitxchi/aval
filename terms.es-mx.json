@@ -1,0 +1,26 @@
+{
+  "_readme": "Canonical es-MX terminology for this product. Translators/reviewers should match these terms rather than inventing synonyms — consistency matters more than any single word being 'more correct'. Two entries below deliberately diverge from the word list in docs/TASKS.md P1.3; see their notes.",
+  "aval": {
+    "term": "Aval",
+    "note": "Product name. Never translated, never lowercased mid-sentence."
+  },
+  "renta": {
+    "term": "renta",
+    "avoid": ["alquiler"],
+    "note": "Standard Mexican Spanish for rent (not the Spain-Spanish 'alquiler'). Used consistently in messages/es-mx.json (renta, rentar, renta facturada, renta cobrada)."
+  },
+  "mantenimiento": {
+    "term": "mantenimiento",
+    "note": "Maintenance. Used as-is throughout — no divergence."
+  },
+  "unidad": {
+    "term": "unidad / unidades",
+    "diverges_from_brief": "departamento",
+    "note": "The brief suggested 'departamento' (apartment). This product manages rental units broadly, not exclusively apartments, and 'unidad' is the term Mexican property-management SaaS products commonly use for that broader scope. Kept 'unidad' for that reason; 'departamento' is the right word for a stand-alone apartment listing if that ever appears as its own field."
+  },
+  "residente": {
+    "term": "residente",
+    "diverges_from_brief": "inquilino",
+    "note": "The brief suggested 'inquilino' (tenant, the legal/contractual term). The English copy throughout this app consistently says 'resident', not 'tenant' — a deliberate warmer, community tone (e.g. 'Resident channels', 'Resident context'). 'Residente' mirrors that same register; 'inquilino' would read as more formal/legal than the English original intends. Use 'inquilino' only in genuinely contractual/legal copy (e.g. a lease agreement), never in the app's operational UI."
+  }
+}
