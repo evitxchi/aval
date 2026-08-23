@@ -92,6 +92,43 @@ export interface AccountingFlowNode {
   amount: number;
 }
 
+// Where tapping a notification actually goes — a specific drafted review, a
+// specific sent-reminder receipt, a specific resident's reply thread, a
+// specific upstream connection, or the full activity log. Never a bare
+// "view" with nothing more precise behind it.
+export type NotificationTarget =
+  | { kind: "reviewDraft"; insightId: string }
+  | { kind: "reminderReceipt"; insightId: string }
+  | { kind: "inboxThread"; contactName: string }
+  | { kind: "connectionProvider"; providerId: string }
+  | { kind: "history" };
+
+export interface NotificationItem {
+  id: string;
+  provider: string;
+  titleKey: string;
+  detailKey: string;
+  detailParams?: Record<string, number | string>;
+  minutesAgo: number;
+  read: boolean;
+  target: NotificationTarget;
+}
+
+// Declared with an explicit element type (rather than `satisfies
+// NotificationItem[]` inline) so each item's optional detailParams shape is
+// checked directly against NotificationItem instead of TypeScript inferring
+// a union of the individual literal shapes.
+const notificationItems: NotificationItem[] = [
+  { id: "n1", provider: "whatsapp", titleKey: "Overview.insightCollectionsTitle", detailKey: "Overview.remindersSentDetail", detailParams: { count: 3, channels: "WhatsApp Business" }, minutesAgo: 9, read: false, target: { kind: "reminderReceipt", insightId: "collections-gap" } },
+  { id: "n2", provider: "whatsapp", titleKey: "InboxView.notifReplyDianaTitle", detailKey: "InboxView.notifReplyDianaDetail", minutesAgo: 15, read: false, target: { kind: "inboxThread", contactName: "Diana Ortiz" } },
+  { id: "n3", provider: "apple_messages", titleKey: "InboxView.notifReplyMarcusTitle", detailKey: "InboxView.notifReplyMarcusDetail", minutesAgo: 22, read: false, target: { kind: "inboxThread", contactName: "Marcus Lee" } },
+  { id: "n4", provider: "aval", titleKey: "Overview.insightMaintenanceTitle", detailKey: "Overview.notifDraftReadyDetail", minutesAgo: 31, read: false, target: { kind: "reviewDraft", insightId: "maintenance-sla" } },
+  { id: "n5", provider: "aval", titleKey: "Overview.insightVacancyTitle", detailKey: "Overview.notifDraftReadyDetail", minutesAgo: 46, read: true, target: { kind: "reviewDraft", insightId: "vacancy-pricing" } },
+  { id: "n6", provider: "quickbooks", titleKey: "DesktopApp.accountingSourceIncomplete", detailKey: "DesktopApp.notifAccountingDetail", detailParams: { minutes: 62 }, minutesAgo: 62, read: true, target: { kind: "connectionProvider", providerId: "quickbooks" } },
+  { id: "n7", provider: "aval", titleKey: "Overview.insightNoiTitle", detailKey: "Overview.notifDraftReadyDetail", minutesAgo: 90, read: true, target: { kind: "reviewDraft", insightId: "noi-variance" } },
+  { id: "n8", provider: "aval", titleKey: "Overview.notifWeeklySummaryTitle", detailKey: "Overview.notifWeeklySummaryDetail", minutesAgo: 130, read: true, target: { kind: "history" } },
+];
+
 /**
  * Every figure below is the single source of truth for the sample-mode Overview.
  * Nothing that is derivable (deltas, percentages, conversions) is stored as a
@@ -306,6 +343,13 @@ export const sampleData = {
         evidence: [],
       },
     ] satisfies InsightCandidate[],
+  },
+  // What tapping a notification opens. Every target names a specific record
+  // (an insight id, a resident, a provider) that must actually exist
+  // elsewhere in this file — checked in assertSampleConsistency() — rather
+  // than a generic "go to this tab" link with nothing underneath it.
+  notifications: {
+    items: notificationItems,
   },
   // Per-tab data for Properties/Leasing/Maintenance/Accounting. Every array
   // sums to a figure declared elsewhere (portfolio counts, the funnel
@@ -567,5 +611,20 @@ export function assertSampleConsistency(): void {
   const { totalRevenue, totalExpenses } = deriveAccountingTotals();
   if (totalRevenue - totalExpenses !== sampleData.noi.value) {
     throw new Error(`Accounting revenue (${totalRevenue}) minus expenses (${totalExpenses}) is ${totalRevenue - totalExpenses}, but does not equal noi.value (${sampleData.noi.value})`);
+  }
+
+  // Every notification that deep-links to a drafted review or a sent-reminder
+  // receipt must point at an insight that actually exists — a broken id would
+  // silently render an empty dialog instead of the promised content.
+  for (const item of sampleData.notifications.items) {
+    const target = item.target;
+    if (target.kind !== "reviewDraft" && target.kind !== "reminderReceipt") continue;
+    const insight = sampleData.insights.candidates.find((candidate) => candidate.id === target.insightId);
+    if (!insight) {
+      throw new Error(`Notification "${item.id}" targets insight "${target.insightId}" which does not exist`);
+    }
+    if (target.kind === "reminderReceipt" && insight.action?.type === "sendReminders" && typeof item.detailParams?.count === "number" && item.detailParams.count !== insight.action.recipients.length) {
+      throw new Error(`Notification "${item.id}" claims ${item.detailParams.count} recipients but insight "${insight.id}" has ${insight.action.recipients.length}`);
+    }
   }
 }

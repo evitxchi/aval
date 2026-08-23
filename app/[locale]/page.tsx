@@ -10,7 +10,7 @@ import {
   Archive, Attachment, Bell, Calendar, ChatLines, Check, CheckCircle, Clock,
   Coins, CoinsSwap, Dashboard, Database, FilterList, Flash, Globe, HalfMoon, HomeSimpleDoor, Key,
   Language, LogOut, NetworkLeft, NavArrowDown, NavArrowRight, Page, Pause,
-  Phone, Plus, Search, SendDiagonal, Settings, ShieldCheck, SmartphoneDevice,
+  Phone, Plus, ScaleFrameEnlarge, ScaleFrameReduce, Search, SendDiagonal, Settings, ShieldCheck, SmartphoneDevice,
   SoundHigh, SoundOff, StatsUpSquare, SunLight, TaskList, Tools, User,
   ViewColumns3, ViewGrid, Xmark,
 } from "iconoir-react";
@@ -18,7 +18,7 @@ import { siApple, siGmail, siNotion, siQuickbooks, siTelegram, siWhatsapp, siXer
 import { AnimatedNumber, ExperienceProvider, useExperience } from "@/app/components/experience";
 import { Link, useRouter, usePathname } from "./navigation";
 import { AvalAssistant } from "@/app/components/aval-assistant";
-import { derivedSample, derivePropertyTotals, deriveMaintenanceReported, rankInsights, sampleData, type InsightCandidate } from "@/app/data/sample";
+import { derivedSample, derivePropertyTotals, deriveMaintenanceReported, rankInsights, sampleData, type InsightCandidate, type InsightRecipient, type NotificationItem, type NotificationTarget } from "@/app/data/sample";
 import { AccountingSankey, LeasingTrendChart, MaintenanceRoseChart, PropertyOccupancyChart } from "@/app/components/charts";
 
 type View = "overview" | "tasks" | "inbox" | "properties" | "leasing" | "maintenance" | "accounting" | "connections" | "documents" | "settings";
@@ -90,7 +90,7 @@ function SlackMark() { return <svg viewBox="0 0 24 24" aria-label="Slack" role="
 function OutlookMark() { return <svg viewBox="0 0 24 24" aria-label="Microsoft Outlook" role="img"><path fill="#0A64C9" d="M1 4.8 11.1 3v18L1 19.2z"/><path fill="#1976D2" d="M12.3 5h10.3v14H12.3z"/><path fill="#fff" d="M12.3 8.3h10.3v1.2l-5.1 3.9-5.2-3.9zM4 8h4.2c2.3 0 3.6 1.6 3.6 4s-1.3 4-3.7 4H4zm2.2 1.8v4.4h1.7c1.1 0 1.7-.8 1.7-2.2s-.6-2.2-1.7-2.2z"/></svg>; }
 function TwilioMark() { return <svg viewBox="0 0 24 24" aria-label="Twilio" role="img"><circle cx="12" cy="12" r="10" fill="#F22F46"/><g fill="#fff"><circle cx="8.6" cy="8.6" r="2.1"/><circle cx="15.4" cy="8.6" r="2.1"/><circle cx="8.6" cy="15.4" r="2.1"/><circle cx="15.4" cy="15.4" r="2.1"/></g></svg>; }
 function BrandMark({ provider, small = false }: { provider: string; small?: boolean }) {
-  const inner = provider === "whatsapp" ? <SimpleMark icon={siWhatsapp}/> : provider === "apple_messages" ? <SimpleMark icon={siApple}/> : provider === "slack" ? <SlackMark/> : provider === "notion" ? <SimpleMark icon={siNotion}/> : provider === "outlook" ? <OutlookMark/> : provider === "gmail" ? <SimpleMark icon={siGmail}/> : provider === "telegram" ? <SimpleMark icon={siTelegram}/> : provider === "twilio" ? <TwilioMark/> : provider === "quickbooks" ? <SimpleMark icon={siQuickbooks}/> : provider === "xero" ? <SimpleMark icon={siXero}/> : provider === "appfolio" ? <span className="wordmark appfolio-mark">a</span> : provider === "buildium" ? <span className="wordmark buildium-mark">B</span> : provider === "granola" ? <span className="wordmark granola-mark">g</span> : provider === "contpaqi" ? <span className="wordmark contpaqi-mark">C</span> : provider === "alegra" ? <span className="wordmark alegra-mark">A</span> : <Database width={22} height={22}/>;
+  const inner = provider === "whatsapp" ? <SimpleMark icon={siWhatsapp}/> : provider === "apple_messages" ? <SimpleMark icon={siApple}/> : provider === "slack" ? <SlackMark/> : provider === "notion" ? <SimpleMark icon={siNotion}/> : provider === "outlook" ? <OutlookMark/> : provider === "gmail" ? <SimpleMark icon={siGmail}/> : provider === "telegram" ? <SimpleMark icon={siTelegram}/> : provider === "twilio" ? <TwilioMark/> : provider === "quickbooks" ? <SimpleMark icon={siQuickbooks}/> : provider === "xero" ? <SimpleMark icon={siXero}/> : provider === "appfolio" ? <span className="wordmark appfolio-mark">a</span> : provider === "buildium" ? <span className="wordmark buildium-mark">B</span> : provider === "granola" ? <span className="wordmark granola-mark">g</span> : provider === "contpaqi" ? <span className="wordmark contpaqi-mark">C</span> : provider === "alegra" ? <span className="wordmark alegra-mark">A</span> : provider === "aval" ? <span className="wordmark aval-mark">a</span> : <Database width={22} height={22}/>;
   return <span className={`brand-mark ${small ? "small" : ""} brand-${provider}`}>{inner}</span>;
 }
 function formatMinutesAgo(minutesAgo: number, locale: string): string {
@@ -142,7 +142,11 @@ const TILE_SOURCES: Record<(typeof metricTiles)[number]["key"] | "funnel", strin
   funnel: ["Leasing & PMS"],
 };
 
-function Overview({ openConnections, dataMode, providers }: { openConnections: () => void; dataMode: DataMode; providers: Provider[] }) {
+function Overview({ openConnections, dataMode, providers, pendingTarget, targetToken, pushNotification }: {
+  openConnections: () => void; dataMode: DataMode; providers: Provider[];
+  pendingTarget: NotificationTarget | null; targetToken: number;
+  pushNotification: (item: Omit<NotificationItem, "id" | "minutesAgo" | "read">) => void;
+}) {
   const { market, notify } = useExperience();
   const t = useTranslations();
   const currentLocale = useLocale();
@@ -151,6 +155,7 @@ function Overview({ openConnections, dataMode, providers }: { openConnections: (
   const [period, setPeriod] = useState("Aug 12–18");
   const [chipDismissed, setChipDismissed] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [draftExpanded, setDraftExpanded] = useState(false);
   const isSample = dataMode === "sample";
   const showChip = isSample && !chipDismissed;
   const connectedCategories = useMemo(() => new Set(providers.filter((provider) => provider.connection?.status === "connected").map((provider) => provider.category)), [providers]);
@@ -162,9 +167,33 @@ function Overview({ openConnections, dataMode, providers }: { openConnections: (
   const [reminderPreview, setReminderPreview] = useState<InsightCandidate | null>(null);
   const [removedRecipients, setRemovedRecipients] = useState<Set<string>>(new Set());
   const [reviewDraft, setReviewDraft] = useState<InsightCandidate | null>(null);
-  const [preparedInsights, setPreparedInsights] = useState<Record<string, boolean>>({});
+  const [receiptFor, setReceiptFor] = useState<InsightCandidate | null>(null);
+  const seededReceiptInsight = sampleData.insights.candidates.find((candidate) => candidate.id === "collections-gap");
+  const [sentReceipts, setSentReceipts] = useState<Record<string, InsightRecipient[]>>(
+    seededReceiptInsight?.action?.type === "sendReminders" ? { [seededReceiptInsight.id]: seededReceiptInsight.action.recipients } : {},
+  );
+  const [preparedInsights, setPreparedInsights] = useState<Record<string, boolean>>({ "collections-gap": true });
   const rankedInsights = useMemo(() => rankInsights(sampleData.insights.candidates), []);
   const money = (amount: number) => `${currencyPrefix}${Math.abs(amount).toLocaleString(currentLocale)}`;
+  const listFormatter = useMemo(() => new Intl.ListFormat(currentLocale, { style: "long", type: "conjunction" }), [currentLocale]);
+  const providerTitle = (id: string) => providers.find((provider) => provider.id === id)?.title ?? id;
+
+  // Deliberately not a useEffect: this reacts to a prop change by opening
+  // local state, so it's applied during render (React's documented pattern
+  // for "adjusting state when a prop changes") rather than after commit.
+  const [handledTargetToken, setHandledTargetToken] = useState(0);
+  if (pendingTarget && targetToken !== handledTargetToken) {
+    setHandledTargetToken(targetToken);
+    if (pendingTarget.kind === "reviewDraft" || pendingTarget.kind === "reminderReceipt") {
+      const insight = sampleData.insights.candidates.find((candidate) => candidate.id === pendingTarget.insightId);
+      if (insight) {
+        if (pendingTarget.kind === "reminderReceipt") setReceiptFor(insight);
+        else setReviewDraft(insight);
+      }
+    } else if (pendingTarget.kind === "history") {
+      setHistoryOpen(true);
+    }
+  }
 
   const insightActionLabel = (insight: InsightCandidate) => {
     if (!insight.action) return "";
@@ -186,6 +215,8 @@ function Overview({ openConnections, dataMode, providers }: { openConnections: (
     return t(insight.draftKey);
   };
 
+  const completedLabel = (insight: InsightCandidate) => insight.action?.type === "sendReminders" ? t("Overview.remindersSentBadge") : t("Overview.insightPrepared");
+
   const handleInsightAction = (insight: InsightCandidate) => {
     if (!insight.action) return;
     if (insight.action.type === "sendReminders") {
@@ -196,17 +227,39 @@ function Overview({ openConnections, dataMode, providers }: { openConnections: (
     setReviewDraft(insight);
   };
 
+  const openCompletedInsight = (insight: InsightCandidate) => {
+    if (insight.action?.type === "sendReminders") setReceiptFor(insight);
+    else setReviewDraft(insight);
+  };
+
   const approveReviewDraft = () => {
     if (!reviewDraft) return;
-    setPreparedInsights((current) => ({ ...current, [reviewDraft.id]: true }));
-    notify(t(reviewDraft.titleKey), t("Overview.insightPrepared"));
+    const insight = reviewDraft;
+    setPreparedInsights((current) => ({ ...current, [insight.id]: true }));
+    notify(t(insight.titleKey), t("Overview.insightPrepared"));
+    window.setTimeout(() => pushNotification({
+      provider: "aval",
+      titleKey: insight.titleKey,
+      detailKey: "Overview.notifApprovedDetail",
+      target: { kind: "reviewDraft", insightId: insight.id },
+    }), 1100);
     setReviewDraft(null);
   };
 
-  const confirmSendReminders = (recipientCount: number) => {
+  const confirmSendReminders = (recipients: InsightRecipient[]) => {
     if (!reminderPreview) return;
-    setPreparedInsights((current) => ({ ...current, [reminderPreview.id]: true }));
-    notify(t(reminderPreview.titleKey), t("Overview.remindersPrepared", { count: recipientCount }));
+    const insight = reminderPreview;
+    setPreparedInsights((current) => ({ ...current, [insight.id]: true }));
+    setSentReceipts((current) => ({ ...current, [insight.id]: recipients }));
+    const channels = listFormatter.format([...new Set(recipients.map((recipient) => providerTitle(recipient.channel)))]);
+    notify(t(insight.titleKey), t("Overview.remindersSentDetail", { count: recipients.length, channels }));
+    window.setTimeout(() => pushNotification({
+      provider: recipients[0]?.channel ?? "whatsapp",
+      titleKey: insight.titleKey,
+      detailKey: "Overview.remindersSentDetail",
+      detailParams: { count: recipients.length, channels },
+      target: { kind: "reminderReceipt", insightId: insight.id },
+    }), 1100);
     setReminderPreview(null);
   };
 
@@ -262,8 +315,8 @@ function Overview({ openConnections, dataMode, providers }: { openConnections: (
                 {insight.tileKey && <button className="text-button" onClick={() => setDrillDown(insight.tileKey)}>{t("Overview.viewEvidence")}<NavArrowRight width={14} height={14}/></button>}
               </div>
             </div>
-            <button className="insight-action" disabled={preparedInsights[insight.id]} onClick={() => handleInsightAction(insight)}>
-              {preparedInsights[insight.id] ? <><CheckCircle width={16} height={16}/>{t("Overview.insightPrepared")}</> : insightActionLabel(insight)}
+            <button className="insight-action" onClick={() => preparedInsights[insight.id] ? openCompletedInsight(insight) : handleInsightAction(insight)}>
+              {preparedInsights[insight.id] ? <><CheckCircle width={16} height={16}/>{completedLabel(insight)}</> : insightActionLabel(insight)}
             </button>
           </article>)}</div>
         : <p className="empty-copy">{t("Overview.insightsEmptyDescription")}</p>}
@@ -299,7 +352,7 @@ function Overview({ openConnections, dataMode, providers }: { openConnections: (
               </div>)}</div>
               <div className="dialog-actions">
                 <Dialog.Close className="soft-button">{t("Overview.cancel")}</Dialog.Close>
-                <button className="primary-button" disabled={visible.length === 0} onClick={() => confirmSendReminders(visible.length)}>{t("Overview.sendRemindersConfirm", { count: visible.length })}</button>
+                <button className="primary-button" disabled={visible.length === 0} onClick={() => confirmSendReminders(visible)}>{t("Overview.sendRemindersConfirm", { count: visible.length })}</button>
               </div>
             </>;
           })()}
@@ -307,23 +360,56 @@ function Overview({ openConnections, dataMode, providers }: { openConnections: (
       </Dialog.Portal>
     </Dialog.Root>
 
-    <Dialog.Root open={reviewDraft !== null} onOpenChange={(open) => !open && setReviewDraft(null)}>
+    <Dialog.Root open={reviewDraft !== null} onOpenChange={(open) => { if (!open) { setReviewDraft(null); setDraftExpanded(false); } }}>
       <Dialog.Portal>
         <Dialog.Overlay className="dialog-overlay"/>
-        <Dialog.Content className="small-dialog review-draft-dialog">
+        <Dialog.Content className={`small-dialog review-draft-dialog${draftExpanded ? " expanded" : ""}`}>
           {reviewDraft && <>
             <div className="dialog-top">
-              <div><p className="eyebrow">{t("Overview.draftedReviewEyebrow")}</p><Dialog.Title>{t(reviewDraft.titleKey)}</Dialog.Title></div>
-              <Dialog.Close className="icon-button" aria-label={t("Overview.close")}><Xmark width={20} height={20}/></Dialog.Close>
+              <div><p className="eyebrow">{preparedInsights[reviewDraft.id] ? t("Overview.approvedReviewEyebrow") : t("Overview.draftedReviewEyebrow")}</p><Dialog.Title>{t(reviewDraft.titleKey)}</Dialog.Title></div>
+              <div className="dialog-top-actions">
+                <button className="icon-button" onClick={() => setDraftExpanded((current) => !current)} aria-label={draftExpanded ? t("Overview.collapseDraft") : t("Overview.expandDraft")}>
+                  {draftExpanded ? <ScaleFrameReduce width={19} height={19}/> : <ScaleFrameEnlarge width={19} height={19}/>}
+                </button>
+                <Dialog.Close className="icon-button" aria-label={t("Overview.close")}><Xmark width={20} height={20}/></Dialog.Close>
+              </div>
             </div>
             {reviewDraft.tileKey === "noi" && <NoiWaterfall t={t} money={money}/>}
             {reviewDraft.evidence.length > 0 && <div className="evidence-rows">{reviewDraft.evidence.map((row) => <div className="evidence-row" key={row.labelKey}><div><strong>{t(row.labelKey)}</strong><small>{t(row.detailKey)}</small></div><span>{money(row.amount)}</span></div>)}</div>}
             <p className="review-draft-text">{draftText(reviewDraft)}</p>
             <div className="dialog-actions">
-              <Dialog.Close className="soft-button">{t("Overview.cancel")}</Dialog.Close>
-              <button className="primary-button" onClick={approveReviewDraft}>{t("Overview.approveDraft")}</button>
+              {preparedInsights[reviewDraft.id]
+                ? <span className="approved-badge"><CheckCircle width={15} height={15}/>{t("Overview.approvedBadge")}</span>
+                : <>
+                    <Dialog.Close className="soft-button">{t("Overview.cancel")}</Dialog.Close>
+                    <button className="primary-button" onClick={approveReviewDraft}>{t("Overview.approveDraft")}</button>
+                  </>}
             </div>
           </>}
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+
+    <Dialog.Root open={receiptFor !== null} onOpenChange={(open) => !open && setReceiptFor(null)}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="dialog-overlay"/>
+        <Dialog.Content className="small-dialog">
+          {receiptFor && (() => {
+            const recipients = sentReceipts[receiptFor.id] ?? [];
+            return <>
+              <div className="dialog-top">
+                <div><p className="eyebrow">{t("Overview.receiptEyebrow")}</p><Dialog.Title>{t(receiptFor.titleKey)}</Dialog.Title></div>
+                <Dialog.Close className="icon-button" aria-label={t("Overview.close")}><Xmark width={20} height={20}/></Dialog.Close>
+              </div>
+              <div className="recipient-list">{recipients.map((recipient) => <div className="recipient-row" key={recipient.name}>
+                <BrandMark provider={recipient.channel} small/>
+                <div><strong>{recipient.name}</strong><small>{t(recipient.detailKey)}</small></div>
+                <span>{money(recipient.amount)}</span>
+                <CheckCircle className="receipt-sent-icon" width={16} height={16}/>
+              </div>)}</div>
+              <div className="dialog-actions"><Dialog.Close className="soft-button">{t("Overview.close")}</Dialog.Close></div>
+            </>;
+          })()}
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
@@ -415,9 +501,16 @@ const inboxItems = [
   { name: "Alvarez Plumbing", unit: "Vendor · Maintenance", text: "Estimate attached for the boiler.", provider: "outlook", time: "24m", unread: 0 },
   { name: "Portfolio team", unit: "Slack · #operations", text: "Approved. Go ahead and send it.", provider: "slack", time: "41m", unread: 0 },
 ];
-function InboxView() {
+function InboxView({ pendingTarget, targetToken }: { pendingTarget: NotificationTarget | null; targetToken: number }) {
   const { notify } = useExperience();
   const t = useTranslations(); const [active, setActive] = useState(0); const current = inboxItems[active]; const [reply, setReply] = useState(""); const [sent, setSent] = useState<string[]>([]); const input = useRef<HTMLInputElement>(null); const file = useRef<HTMLInputElement>(null);
+  // Deliberately not a useEffect — see the matching comment in Overview.
+  const [handledTargetToken, setHandledTargetToken] = useState(0);
+  if (pendingTarget && pendingTarget.kind === "inboxThread" && targetToken !== handledTargetToken) {
+    setHandledTargetToken(targetToken);
+    const index = inboxItems.findIndex((item) => item.name === pendingTarget.contactName);
+    if (index >= 0) { setActive(index); setSent([]); }
+  }
   const send = () => { if (!reply.trim()) return; setSent((messages) => [...messages, reply.trim()]); setReply(""); notify(t("InboxView.messageSent"), `${t("InboxView.via")} ${current.provider.replace("_", " ")}`); };
   return <div className="view-wrap"><AppHeader title={t("InboxView.sharedInbox")} subtitle={t("InboxView.oneResidentTimelineAcrossEveryConnected")} actions={<button className="primary-button" onClick={() => input.current?.focus()}><Plus width={18} height={18}/>{t("InboxView.newMessage")}</button>}/><div className="inbox-window" data-reveal><aside className="conversation-list"><label className="search-field"><Search width={18} height={18}/><input placeholder={t("InboxView.searchConversations")}/></label>{inboxItems.map((item, index) => <button className={`conversation-row ${active === index ? "active" : ""}`} onClick={() => { setActive(index); setSent([]); }} key={item.name}><BrandMark provider={item.provider} small/><span><strong>{item.name}</strong><small>{item.unit}</small><em>{item.text}</em></span><i>{item.time}</i>{item.unread > 0 && <b>{item.unread}</b>}</button>)}</aside><section className="message-thread"><header><div><BrandMark provider={current.provider} small/><div><strong>{current.name}</strong><span>{current.unit}</span></div></div><button className="icon-button" onClick={() => notify(t("InboxView.calling"), `${current.name} · Twilio`)} aria-label={t("InboxView.call")}><Phone width={20} height={20}/></button></header><div className="message-canvas"><div className="date-divider">{t("InboxView.today")}</div><div className="message received"><p>{t("InboxView.mockQuestionAboutNextStep")}</p><span>14:18</span></div><div className="message sent"><p>{t("InboxView.mockViewingHeld")}</p><span>14:19 · {t("InboxView.mockDraftApproved")}</span></div><div className="message received"><p>{current.text}</p><span>14:21</span></div>{sent.map((message, index) => <div className="message sent" key={`${message}-${index}`}><p>{message}</p><span>{t("InboxView.nowDelivered")}</span></div>)}</div><footer className="composer"><input ref={file} type="file" hidden onChange={() => notify(t("InboxView.attachmentReady"), file.current?.files?.[0]?.name)}/><button className="icon-button" onClick={() => file.current?.click()} aria-label={t("InboxView.attach")}><Attachment width={19} height={19}/></button><input ref={input} value={reply} onChange={(event) => setReply(event.target.value)} onKeyDown={(event) => event.key === "Enter" && send()} placeholder={t("InboxView.writeAReplyOrAskAval")}/><button className="primary-button" onClick={send}><SendDiagonal width={17} height={17}/>{t("InboxView.send")}</button></footer></section><aside className="contact-panel"><p className="eyebrow">{t("InboxView.residentContext")}</p><div className="profile-block"><span className="initials">{current.name.split(" ").map((part) => part[0]).join("")}</span><h3>{current.name}</h3><p>{current.unit}</p></div><dl><div><dt>{t("InboxView.stage")}</dt><dd>{t("InboxView.viewingBooked")}</dd></div><div><dt>{t("InboxView.source")}</dt><dd>{current.provider.replace("_", " ")}</dd></div><div><dt>{t("InboxView.owner")}</dt><dd>{t("InboxView.leasingTeam")}</dd></div></dl><button className="wide-button" onClick={() => notify(t("InboxView.residentRecordOpened"), current.name)}>{t("InboxView.openResidentRecord")}<NavArrowRight width={17} height={17}/></button></aside></div></div>;
 }
@@ -509,6 +602,11 @@ function NoiWaterfall({ t, money }: { t: ReturnType<typeof useTranslations>; mon
 
   const peak = Math.max(...bars.map((bar) => Math.max(bar.from, bar.to)));
   const chartHeight = 132;
+  // Reserved space above the tallest bar for its value label (previously 0 —
+  // the label for the tallest bar rendered above y=0 and got clipped by the
+  // SVG's own edge) and below the chart for the category labels.
+  const topMargin = 24;
+  const bottomMargin = 34;
   const scale = chartHeight / (peak * 1.08);
   const barWidth = 68;
   const gap = 18;
@@ -516,12 +614,12 @@ function NoiWaterfall({ t, money }: { t: ReturnType<typeof useTranslations>; mon
 
   return (
     <div className="waterfall" data-reveal data-sound-reveal>
-      <svg viewBox={`0 0 ${chartWidth} ${chartHeight + 34}`} width="100%" role="img" aria-label={t("Overview.waterfallAriaLabel")}>
+      <svg viewBox={`0 0 ${chartWidth} ${topMargin + chartHeight + bottomMargin}`} width="100%" role="img" aria-label={t("Overview.waterfallAriaLabel")}>
         {bars.map((bar) => {
           const x = bar.index * (barWidth + gap);
           const topValue = Math.max(bar.from, bar.to);
           const bottomValue = Math.min(bar.from, bar.to);
-          const y = chartHeight - topValue * scale;
+          const y = topMargin + (chartHeight - topValue * scale);
           const barHeight = Math.max(2, (topValue - bottomValue) * scale);
           const isPositive = bar.kind === "total" || bar.delta >= 0;
           return (
@@ -529,7 +627,7 @@ function NoiWaterfall({ t, money }: { t: ReturnType<typeof useTranslations>; mon
               {bar.index > 0 && bar.kind === "delta" && (
                 <line
                   x1={x - gap} x2={x}
-                  y1={chartHeight - bar.from * scale} y2={chartHeight - bar.from * scale}
+                  y1={topMargin + (chartHeight - bar.from * scale)} y2={topMargin + (chartHeight - bar.from * scale)}
                   className="waterfall-connector"
                 />
               )}
@@ -537,7 +635,7 @@ function NoiWaterfall({ t, money }: { t: ReturnType<typeof useTranslations>; mon
               <text x={x + barWidth / 2} y={y - 8} textAnchor="middle" className="waterfall-value">
                 {bar.kind === "total" ? money(bar.to) : `${bar.delta >= 0 ? "+" : "−"}${money(bar.delta)}`}
               </text>
-              <text x={x + barWidth / 2} y={chartHeight + 20} textAnchor="middle" className="waterfall-label">
+              <text x={x + barWidth / 2} y={topMargin + chartHeight + 20} textAnchor="middle" className="waterfall-label">
                 {t(bar.labelKey)}
               </text>
             </g>
@@ -562,14 +660,29 @@ function DesktopApp() {
   const currentLocale = useLocale();
   const router = useRouter();
   const pathname = usePathname();
-  const switchLocale = (nextLocale: "en" | "es-mx") => router.replace(pathname, { locale: nextLocale }); const [view, setView] = useState<View>(() => { if (typeof window === "undefined") return "overview"; const requested = new URLSearchParams(window.location.search).get("view") as View | null; return requested && navGroups.some((group) => group.items.some((item) => item.id === requested)) ? requested : "overview"; }); const [dataMode] = useState<DataMode>(() => { if (typeof window === "undefined") return "sample"; const requested = new URLSearchParams(window.location.search).get("data"); return requested === "empty" || requested === "live" ? requested : "sample"; }); const [providers, setProviders] = useState<Provider[]>(fallbackProviders); const [loading, setLoading] = useState(true); const [selectedProvider, setSelectedProvider] = useState<Provider | null>(null); const [collapsed, setCollapsed] = useState(false); const [profile, setProfile] = useState(false); const [notifications, setNotifications] = useState(false); const [notificationCount, setNotificationCount] = useState(3);
+  const switchLocale = (nextLocale: "en" | "es-mx") => router.replace(pathname, { locale: nextLocale }); const [view, setView] = useState<View>(() => { if (typeof window === "undefined") return "overview"; const requested = new URLSearchParams(window.location.search).get("view") as View | null; return requested && navGroups.some((group) => group.items.some((item) => item.id === requested)) ? requested : "overview"; }); const [dataMode] = useState<DataMode>(() => { if (typeof window === "undefined") return "sample"; const requested = new URLSearchParams(window.location.search).get("data"); return requested === "empty" || requested === "live" ? requested : "sample"; }); const [providers, setProviders] = useState<Provider[]>(fallbackProviders); const [loading, setLoading] = useState(true); const [selectedProvider, setSelectedProvider] = useState<Provider | null>(null); const [collapsed, setCollapsed] = useState(false); const [profile, setProfile] = useState(false); const [notifications, setNotifications] = useState(false); const [notificationItems, setNotificationItems] = useState<NotificationItem[]>(sampleData.notifications.items); const [pendingTarget, setPendingTarget] = useState<NotificationTarget | null>(null); const [targetToken, setTargetToken] = useState(0); const unreadCount = notificationItems.filter((item) => !item.read).length; const accountingProviderId = market === "latam" ? "contpaqi" : "quickbooks";
   const loadProviders = async () => { try { const response = await fetch("/api/integrations"); const data = await response.json() as { providers?: Provider[] }; if (data.providers?.length) setProviders(data.providers); } catch { /* local preview stays usable */ } setLoading(false); };
   useEffect(() => { queueMicrotask(() => void loadProviders()); const show = () => setNotifications(true); window.addEventListener("aval:notifications", show); const connected = new URLSearchParams(window.location.search).get("connected"); if (connected) { window.setTimeout(() => celebrate(t("DesktopApp.connectionAuthorized"), connected), 250); const url = new URL(window.location.href); url.searchParams.delete("connected"); window.history.replaceState({}, "", url); } return () => window.removeEventListener("aval:notifications", show); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const setActiveView = (next: View) => { setView(next); setProfile(false); const url = new URL(window.location.href); url.searchParams.set("view", next); window.history.replaceState({}, "", url); window.scrollTo({ top: 0, behavior: "smooth" }); }; const openConnections = () => setActiveView("connections"); const openProvider = (id: string) => setSelectedProvider(providers.find((provider) => provider.id === id) ?? null); const titleKey = useMemo<string>(() => navGroups.flatMap((group) => group.items).find((item) => item.id === view)?.labelKey ?? "DesktopApp.avalFallback", [view]);
+  const resolveNotificationProvider = (item: NotificationItem) => item.provider === "quickbooks" && market === "latam" ? accountingProviderId : item.provider;
+  const pushNotification = (item: Omit<NotificationItem, "id" | "minutesAgo" | "read">) => setNotificationItems((current) => [{ ...item, id: `live-${current.length}-${Date.now()}`, minutesAgo: 0, read: false }, ...current]);
+  const openNotification = (item: NotificationItem) => {
+    setNotificationItems((current) => current.map((entry) => entry.id === item.id ? { ...entry, read: true } : entry));
+    setNotifications(false);
+    const target = item.target;
+    if (target.kind === "connectionProvider") {
+      setActiveView("connections");
+      openProvider(target.providerId === "quickbooks" ? accountingProviderId : target.providerId);
+      return;
+    }
+    setActiveView(target.kind === "inboxThread" ? "inbox" : "overview");
+    setPendingTarget(target);
+    setTargetToken((token) => token + 1);
+  };
   return <main className={`app-shell ${collapsed ? "sidebar-is-collapsed" : ""}`}><aside className="sidebar"><div className="brand-lockup"><span className="brand-symbol">a</span><div><strong>aval</strong><small>{t("DesktopApp.propertyOperations")}</small></div><button className="icon-button sidebar-collapse" onClick={() => setCollapsed(!collapsed)} aria-label={t("DesktopApp.collapseSidebar")}><ViewColumns3 width={18} height={18}/></button></div><nav>{navGroups.map((group) => <div className="nav-group" key={group.labelKey}><p>{t(group.labelKey)}</p>{group.items.map((item) => { const Icon = item.icon; return <button className={view === item.id ? "active" : ""} onClick={() => setActiveView(item.id)} key={item.id} title={t(item.labelKey)}><Icon width={20} height={20}/><span>{t(item.labelKey)}</span>{item.count && <b>{item.count}</b>}{view === item.id && <NavArrowRight className="nav-chevron" width={16} height={16}/>}</button>; })}</div>)}</nav><button className="workspace-card" onClick={() => setProfile(!profile)}><span className="initials">AC</span><span><strong>Acme Residential</strong><small>Camila Reyes</small></span><span className="icon-button"><NavArrowDown width={16} height={16}/></span></button>{profile && <div className="profile-menu"><div><span className="initials">CR</span><span><strong>Camila Reyes</strong><small>{t("DesktopApp.administratorRole")}</small></span></div><button onClick={() => setActiveView("settings")}><Settings width={17} height={17}/>{t("DesktopApp.profileSettings")}</button><button onClick={() => switchLocale(currentLocale === "en" ? "es-mx" : "en")}><Language width={17} height={17}/>{currentLocale === "en" ? "Español (México)" : "English"}</button><button onClick={() => setMarket(market === "us" ? "latam" : "us")}><Globe width={17} height={17}/>{market === "us" ? t("DesktopApp.marketUnitedStates") : t("DesktopApp.marketLatam")}</button><button onClick={() => setTheme(theme === "light" ? "dark" : "light")}>{theme === "light" ? <HalfMoon width={17} height={17}/> : <SunLight width={17} height={17}/>} {theme === "light" ? t("DesktopApp.darkMode") : t("DesktopApp.lightMode")}</button><button onClick={() => setSounds(!sounds)}>{sounds ? <SoundHigh width={17} height={17}/> : <SoundOff width={17} height={17}/>} {sounds ? t("DesktopApp.soundsOn") : t("DesktopApp.soundsOff")}</button><Link href="/mobile"><SmartphoneDevice width={17} height={17}/>{t("DesktopApp.openMobileApp")}</Link>
       {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- external platform sign-out route, not part of this app router */}
       <a href="/signout-with-chatgpt?return_to=/"><LogOut width={17} height={17}/>{t("DesktopApp.signOut")}</a>
-      </div>}</aside><section className="content-shell" aria-label={t(titleKey)}>{view === "overview" && <Overview openConnections={openConnections} dataMode={dataMode} providers={providers}/>} {view === "tasks" && <TasksView/>} {view === "inbox" && <InboxView/>} {view === "connections" && <ConnectionsView providers={providers} loading={loading} onOpen={openProvider}/>} {view === "settings" && <SettingsView openConnections={openConnections}/>} {(["properties", "leasing", "maintenance", "accounting", "documents"] as View[]).includes(view) && <OperationsView view={view} openConnections={openConnections} dataMode={dataMode} providers={providers}/>}</section>{selectedProvider && <ConnectionDialog provider={selectedProvider} onClose={() => setSelectedProvider(null)} onRefresh={loadProviders}/>}<Dialog.Root open={notifications} onOpenChange={setNotifications}><Dialog.Portal><Dialog.Overlay className="dialog-overlay subtle"/><Dialog.Content className="notification-drawer"><div className="drawer-heading"><div><p className="eyebrow">{t("DesktopApp.liveWorkspace")}</p><Dialog.Title>{t("DesktopApp.notifications")}</Dialog.Title></div><Dialog.Close className="icon-button"><Xmark width={20} height={20}/></Dialog.Close></div><div className="notification-list"><button onClick={() => { setActiveView("tasks"); setNotifications(false); }}><span className="presence-dot"/><span><strong>{t("DesktopApp.draftNeedsApproval")}</strong><small>{t("DesktopApp.notifDraftDetail", { minutes: 9 })}</small></span></button><button onClick={() => { setActiveView("connections"); setNotifications(false); }}><span className="presence-dot"/><span><strong>{t("DesktopApp.accountingSourceIncomplete")}</strong><small>{t("DesktopApp.notifAccountingDetail", { minutes: 24 })}</small></span></button><button onClick={() => { setActiveView("inbox"); setNotifications(false); }}><span className="presence-dot"/><span><strong>{t("DesktopApp.twoResidentReplies")}</strong><small>{t("DesktopApp.notifRepliesDetail", { minutes: 31 })}</small></span></button></div><button className="wide-button" onClick={() => setNotificationCount(0)}><Check width={17} height={17}/>{notificationCount ? t("DesktopApp.markAllAsRead") : t("DesktopApp.allCaughtUp")}</button></Dialog.Content></Dialog.Portal></Dialog.Root><AvalAssistant view={view}/></main>;
+      </div>}</aside><section className="content-shell" aria-label={t(titleKey)}>{view === "overview" && <Overview openConnections={openConnections} dataMode={dataMode} providers={providers} pendingTarget={pendingTarget} targetToken={targetToken} pushNotification={pushNotification}/>} {view === "tasks" && <TasksView/>} {view === "inbox" && <InboxView pendingTarget={pendingTarget} targetToken={targetToken}/>} {view === "connections" && <ConnectionsView providers={providers} loading={loading} onOpen={openProvider}/>} {view === "settings" && <SettingsView openConnections={openConnections}/>} {(["properties", "leasing", "maintenance", "accounting", "documents"] as View[]).includes(view) && <OperationsView view={view} openConnections={openConnections} dataMode={dataMode} providers={providers}/>}</section>{selectedProvider && <ConnectionDialog provider={selectedProvider} onClose={() => setSelectedProvider(null)} onRefresh={loadProviders}/>}<Dialog.Root open={notifications} onOpenChange={setNotifications}><Dialog.Portal><Dialog.Overlay className="dialog-overlay subtle"/><Dialog.Content className="notification-drawer"><div className="drawer-heading"><div><p className="eyebrow">{t("DesktopApp.liveWorkspace")}</p><Dialog.Title>{t("DesktopApp.notifications")}</Dialog.Title></div><Dialog.Close className="icon-button" aria-label={t("Overview.close")}><Xmark width={20} height={20}/></Dialog.Close></div><div className="notification-list">{notificationItems.map((item) => <button key={item.id} className={item.read ? "" : "unread"} onClick={() => openNotification(item)}><BrandMark provider={resolveNotificationProvider(item)} small/><span><strong>{t(item.titleKey)}</strong><small>{t(item.detailKey, item.detailParams)}</small></span><span className="notif-trailing">{!item.read && <i className="unread-dot"/>}<time>{formatMinutesAgo(item.minutesAgo, currentLocale)}</time></span></button>)}</div><button className="wide-button" onClick={() => setNotificationItems((current) => current.map((item) => ({ ...item, read: true })))}><Check width={17} height={17}/>{unreadCount ? t("DesktopApp.markAllAsRead") : t("DesktopApp.allCaughtUp")}</button></Dialog.Content></Dialog.Portal></Dialog.Root><AvalAssistant view={view}/></main>;
 }
 
 export default function Home() { return <ExperienceProvider><DesktopApp/></ExperienceProvider>; }
