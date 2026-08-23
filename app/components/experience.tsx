@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { CSSProperties, ReactNode } from "react";
 
 type Locale = "en" | "latam";
+export type Market = "us" | "latam";
 type Theme = "light" | "dark";
 type SoundName = "tap" | "reveal" | "notify" | "success";
 type Toast = { id: number; title: string; detail?: string };
@@ -11,6 +12,8 @@ type Toast = { id: number; title: string; detail?: string };
 type ExperienceValue = {
   locale: Locale;
   setLocale: (locale: Locale) => void;
+  market: Market;
+  setMarket: (market: Market) => void;
   theme: Theme;
   setTheme: (theme: Theme) => void;
   sounds: boolean;
@@ -31,6 +34,7 @@ function readPreference<T extends string>(key: string, fallback: T): T {
 
 export function ExperienceProvider({ children }: { children: ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>("en");
+  const [market, setMarketState] = useState<Market>("us");
   const [theme, setThemeState] = useState<Theme>("light");
   const [sounds, setSoundsState] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -78,6 +82,10 @@ export function ExperienceProvider({ children }: { children: ReactNode }) {
     window.localStorage.setItem("aval.locale", next);
     document.documentElement.lang = next === "latam" ? "es-419" : "en";
   }, []);
+  const setMarket = useCallback((next: Market) => {
+    setMarketState(next);
+    window.localStorage.setItem("aval.market", next);
+  }, []);
   const setTheme = useCallback((next: Theme) => {
     setThemeState(next);
     window.localStorage.setItem("aval.theme", next);
@@ -90,6 +98,7 @@ export function ExperienceProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     queueMicrotask(() => {
       setLocaleState(readPreference<Locale>("aval.locale", "en"));
+      setMarketState(readPreference<Market>("aval.market", "us"));
       setThemeState(readPreference<Theme>("aval.theme", "light"));
       setSoundsState(readPreference<string>("aval.sounds", "off") === "on");
     });
@@ -136,6 +145,8 @@ export function ExperienceProvider({ children }: { children: ReactNode }) {
   const value = useMemo<ExperienceValue>(() => ({
     locale,
     setLocale,
+    market,
+    setMarket,
     theme,
     setTheme,
     sounds,
@@ -144,7 +155,7 @@ export function ExperienceProvider({ children }: { children: ReactNode }) {
     notify,
     celebrate,
     copy: (english, latam) => locale === "latam" ? latam : english,
-  }), [celebrate, locale, notify, play, setLocale, setSounds, setTheme, sounds, theme]);
+  }), [celebrate, locale, market, notify, play, setLocale, setMarket, setSounds, setTheme, sounds, theme]);
 
   return <ExperienceContext.Provider value={value}>{children}<div className="toast-stack" aria-live="polite">{toasts.map((toast) => <div className="app-toast" key={toast.id}><span/><div><strong>{toast.title}</strong>{toast.detail && <p>{toast.detail}</p>}</div></div>)}</div>{confetti > 0 && <Confetti key={confetti}/>}</ExperienceContext.Provider>;
 }

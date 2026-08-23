@@ -153,6 +153,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--ink); outli
 .appfolio-mark { background: #0a79bf; font-weight: 400; }
 .buildium-mark { background: #1f54a4; font-size: 16px; }
 .granola-mark { background: #6f5845; font-family: Georgia, serif; }
+.contpaqi-mark { background: #009688; font-weight: 600; }
+.alegra-mark { background: #6c3ce0; font-weight: 600; }
 
 .task-toolbar { padding: 15px 0; display: grid; grid-template-columns: minmax(240px, 430px) auto auto; justify-content: end; gap: 8px; }
 .search-field { height: 42px; display: flex; align-items: center; gap: 9px; padding: 0 12px; border: 1px solid var(--line); border-radius: 13px; background: white; color: var(--quiet); }
