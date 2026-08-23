@@ -562,7 +562,7 @@ function OperationsView({ view, openConnections, dataMode, providers }: { view: 
     </article>)}</section>
     {isSample
       ? <section className="panel operations-chart-panel" data-reveal>
-          {view === "properties" && <PropertyOccupancyChart t={t}/>}
+          {view === "properties" && <PropertyOccupancyChart t={t} locale={currentLocale}/>}
           {view === "leasing" && <LeasingTrendChart t={t}/>}
           {view === "maintenance" && <MaintenanceRoseChart t={t} locale={currentLocale}/>}
           {view === "accounting" && <AccountingSankey t={t} money={money}/>}
