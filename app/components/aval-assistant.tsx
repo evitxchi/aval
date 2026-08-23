@@ -2,27 +2,81 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { ChatLines, CheckCircle, Database, NavArrowRight, SendDiagonal, StatsUpSquare, ViewGrid, Xmark } from "iconoir-react";
 import { useExperience } from "@/app/components/experience";
 
 type EvidenceRow = { label: string; value: string };
-type Stat = { label: string; value: string };
+// value can be a pre-formatted string (the local sample-mode fallback
+// already bakes in currency/percent formatting) or a raw number with a unit
+// (what the live model returns, via its render_answer tool) — rendered
+// differently below depending on which one arrives.
+type Metric = { label: string; value: number | string; unit?: "currency" | "percent" | "count" | "days"; delta?: number };
+type ChartPoint = { x: string; y: number };
+type AnswerChart = { metric?: string; title?: string; points: ChartPoint[] };
 type Answer = {
   headline: string;
-  summary: string;
-  stats: Stat[];
-  evidence: EvidenceRow[];
+  narrative: string;
+  metrics: Metric[];
+  evidence?: EvidenceRow[];
+  evidence_ids?: string[];
+  chart?: AnswerChart;
+  document?: string;
   action?: string;
   actionDetail?: string;
+  confidence?: "high" | "medium" | "low";
 };
 type ChatMessage = {
   id: number;
   role: "user" | "assistant";
   text?: string;
   answer?: Answer;
+  // Whether this answer came from a real Claude call or the local sample-mode
+  // fallback (no API key configured, or the request failed) — always shown,
+  // never presented as "real analysis" when it was actually pattern-matched.
+  live?: boolean;
 };
+function isAnswerShaped(value: unknown): value is Answer {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<Answer>;
+  return typeof candidate.headline === "string" && typeof candidate.narrative === "string" && Array.isArray(candidate.metrics);
+}
 type SelectedModule = { label: string; snapshot: string };
+
+function formatMetricValue(metric: Metric): string {
+  if (typeof metric.value === "string") return metric.value;
+  if (metric.unit === "currency") return `$${metric.value.toLocaleString()}`;
+  if (metric.unit === "percent") return `${metric.value}%`;
+  if (metric.unit === "days") return `${metric.value}d`;
+  return metric.value.toLocaleString();
+}
+
+/** A small inline line chart for a live answer's get_metric_series result — real tool output only, never hand-drawn from prose. */
+function AvalChatChart({ chart }: { chart: AnswerChart }) {
+  const width = 300;
+  const height = 96;
+  const padding = { top: 8, right: 8, bottom: 8, left: 8 };
+  const plotW = width - padding.left - padding.right;
+  const plotH = height - padding.top - padding.bottom;
+  const values = chart.points.map((point) => point.y);
+  const maxY = Math.max(...values, 1);
+  const minY = Math.min(...values, 0);
+  const range = maxY - minY || 1;
+  const stepX = chart.points.length > 1 ? plotW / (chart.points.length - 1) : 0;
+  const x = (index: number) => padding.left + index * stepX;
+  const y = (value: number) => padding.top + plotH - ((value - minY) / range) * plotH;
+  const linePath = chart.points.map((point, index) => `${index === 0 ? "M" : "L"}${x(index)},${y(point.y)}`).join(" ");
+  return (
+    <div className="aval-chat-chart">
+      {chart.title && <p>{chart.title}</p>}
+      <svg viewBox={`0 0 ${width} ${height}`} width="100%" role="img" aria-label={chart.title ?? chart.metric ?? "Chart"}>
+        <path d={linePath} className="aval-chat-chart-line" />
+        {chart.points.map((point, index) => <circle key={`${point.x}-${index}`} cx={x(index)} cy={y(point.y)} r={2.5} className="aval-chat-chart-dot" />)}
+      </svg>
+      <div className="aval-chat-chart-labels">{chart.points.map((point, index) => <span key={`${point.x}-${index}`}>{point.x}</span>)}</div>
+    </div>
+  );
+}
 
 const viewNameKeys: Record<string, string> = {
   overview: "Nav.portfolioOverview",
@@ -70,71 +124,78 @@ function analyzeQuestion(t: ReturnType<typeof useTranslations>, question: string
   if (/net operating income|ingreso operativo neto|\bnoi\b/.test(normalized)) {
     return {
       headline: t("AvalAssistant.answerNoiHeadline"),
-      summary: t("AvalAssistant.answerNoiSummary"),
-      stats: [{ label: t("AvalAssistant.answerNoiStat1"), value: "MX$286,410" }, { label: t("AvalAssistant.answerNoiStat2"), value: "+4.8%" }, { label: t("AvalAssistant.answerNoiStat3"), value: "MX$438,900" }],
+      narrative: t("AvalAssistant.answerNoiSummary"),
+      metrics: [{ label: t("AvalAssistant.answerNoiStat1"), value: "MX$286,410" }, { label: t("AvalAssistant.answerNoiStat2"), value: "+4.8%" }, { label: t("AvalAssistant.answerNoiStat3"), value: "MX$438,900" }],
       evidence: [{ label: t("AvalAssistant.answerNoiEvidence1"), value: "+MX$18,600" }, { label: t("AvalAssistant.answerNoiEvidence2"), value: "−MX$7,200" }, { label: t("AvalAssistant.answerNoiEvidence3"), value: "+MX$4,100" }],
       action: t("AvalAssistant.answerNoiAction"),
       actionDetail: t("AvalAssistant.answerNoiActionDetail"),
+      confidence: "medium" as const,
     };
   }
   if (/data coverage|cobertura de datos|source|fuente/.test(normalized)) {
     return {
       headline: t("AvalAssistant.answerCoverageHeadline"),
-      summary: t("AvalAssistant.answerCoverageSummary"),
-      stats: [{ label: t("AvalAssistant.answerCoverageStat1"), value: "2" }, { label: t("AvalAssistant.answerCoverageStat2"), value: "0" }, { label: t("AvalAssistant.answerCoverageStat3"), value: "1" }],
+      narrative: t("AvalAssistant.answerCoverageSummary"),
+      metrics: [{ label: t("AvalAssistant.answerCoverageStat1"), value: "2" }, { label: t("AvalAssistant.answerCoverageStat2"), value: "0" }, { label: t("AvalAssistant.answerCoverageStat3"), value: "1" }],
       evidence: [{ label: t("AvalAssistant.answerCoverageEvidence1"), value: "QuickBooks or Xero" }, { label: t("AvalAssistant.answerCoverageEvidence2"), value: "AppFolio, Buildium, or PMS" }, { label: t("AvalAssistant.answerCoverageEvidence3"), value: "Optional" }],
       action: t("AvalAssistant.answerCoverageAction"),
       actionDetail: t("AvalAssistant.answerCoverageActionDetail"),
+      confidence: "medium" as const,
     };
   }
   if (/lead-to-lease|funnel|embudo|prospecto|contacted|contactados/.test(normalized)) {
     return {
       headline: t("AvalAssistant.answerFunnelHeadline"),
-      summary: t("AvalAssistant.answerFunnelSummary"),
-      stats: [{ label: t("AvalAssistant.answerFunnelStat1"), value: "148" }, { label: t("AvalAssistant.answerFunnelStat2"), value: "82" }, { label: t("AvalAssistant.answerFunnelStat3"), value: "21" }],
+      narrative: t("AvalAssistant.answerFunnelSummary"),
+      metrics: [{ label: t("AvalAssistant.answerFunnelStat1"), value: "148" }, { label: t("AvalAssistant.answerFunnelStat2"), value: "82" }, { label: t("AvalAssistant.answerFunnelStat3"), value: "21" }],
       evidence: [{ label: t("AvalAssistant.answerFunnelEvidence1"), value: "55.4%" }, { label: t("AvalAssistant.answerFunnelEvidence2"), value: "45.1%" }, { label: t("AvalAssistant.answerFunnelEvidence3"), value: "56.8%" }],
       action: t("AvalAssistant.answerFunnelAction"),
       actionDetail: t("AvalAssistant.answerFunnelActionDetail"),
+      confidence: "medium" as const,
     };
   }
   if (/collect|rent|delinquen|payment|cobran|renta|pago|moros/.test(normalized)) {
     return {
       headline: t("AvalAssistant.answerCollectionsHeadline"),
-      summary: t("AvalAssistant.answerCollectionsSummary"),
-      stats: [{ label: t("AvalAssistant.answerCollectionsStat1"), value: "92.6%" }, { label: t("AvalAssistant.answerCollectionsStat2"), value: "MX$28,500" }, { label: t("AvalAssistant.answerCollectionsStat3"), value: "3 of 84" }],
+      narrative: t("AvalAssistant.answerCollectionsSummary"),
+      metrics: [{ label: t("AvalAssistant.answerCollectionsStat1"), value: "92.6%" }, { label: t("AvalAssistant.answerCollectionsStat2"), value: "MX$28,500" }, { label: t("AvalAssistant.answerCollectionsStat3"), value: "3 of 84" }],
       evidence: [{ label: t("AvalAssistant.answerCollectionsEvidence1"), value: "38 days · MX$12,000" }, { label: t("AvalAssistant.answerCollectionsEvidence2"), value: "Promise broken · MX$9,500" }, { label: t("AvalAssistant.answerCollectionsEvidence3"), value: "32 days · MX$7,000" }],
       action: t("AvalAssistant.answerCollectionsAction"),
       actionDetail: t("AvalAssistant.answerCollectionsActionDetail"),
+      confidence: "medium" as const,
     };
   }
   if (/maintenance|work order|repair|ticket|mantenimiento|reparaci|orden/.test(normalized)) {
     return {
       headline: t("AvalAssistant.answerMaintenanceHeadline"),
-      summary: t("AvalAssistant.answerMaintenanceSummary"),
-      stats: [{ label: t("AvalAssistant.answerMaintenanceStat1"), value: "18" }, { label: t("AvalAssistant.answerMaintenanceStat2"), value: "4" }, { label: t("AvalAssistant.answerMaintenanceStat3"), value: "3h" }],
+      narrative: t("AvalAssistant.answerMaintenanceSummary"),
+      metrics: [{ label: t("AvalAssistant.answerMaintenanceStat1"), value: "18" }, { label: t("AvalAssistant.answerMaintenanceStat2"), value: "4" }, { label: t("AvalAssistant.answerMaintenanceStat3"), value: "3h" }],
       evidence: [{ label: t("AvalAssistant.answerMaintenanceEvidence1"), value: "Active leak · 3h" }, { label: t("AvalAssistant.answerMaintenanceEvidence2"), value: "No hot water · 7h" }, { label: t("AvalAssistant.answerMaintenanceEvidence3"), value: "Lighting · 11h" }],
       action: t("AvalAssistant.answerMaintenanceAction"),
       actionDetail: t("AvalAssistant.answerMaintenanceActionDetail"),
+      confidence: "medium" as const,
     };
   }
   if (/vacan|leasing|lease|occup|unit|arrend|ocup|unidad/.test(normalized)) {
     return {
       headline: t("AvalAssistant.answerVacancyHeadline"),
-      summary: t("AvalAssistant.answerVacancySummary"),
-      stats: [{ label: t("AvalAssistant.answerVacancyStat1"), value: "94.2%" }, { label: t("AvalAssistant.answerVacancyStat2"), value: "5" }, { label: t("AvalAssistant.answerVacancyStat3"), value: "MX$41,200" }],
+      narrative: t("AvalAssistant.answerVacancySummary"),
+      metrics: [{ label: t("AvalAssistant.answerVacancyStat1"), value: "94.2%" }, { label: t("AvalAssistant.answerVacancyStat2"), value: "5" }, { label: t("AvalAssistant.answerVacancyStat3"), value: "MX$41,200" }],
       evidence: [{ label: t("AvalAssistant.answerVacancyEvidence1"), value: "31 days · +9.1% vs comps" }, { label: t("AvalAssistant.answerVacancyEvidence2"), value: "27 days · +7.3% vs comps" }],
       action: t("AvalAssistant.answerVacancyAction"),
       actionDetail: t("AvalAssistant.answerVacancyActionDetail"),
+      confidence: "medium" as const,
     };
   }
   if (/today|attention|priority|risk|hoy|atenci|prioridad|riesgo/.test(normalized)) {
     return {
       headline: t("AvalAssistant.answerTodayHeadline"),
-      summary: t("AvalAssistant.answerTodaySummary"),
-      stats: [{ label: t("AvalAssistant.answerTodayStat1"), value: "MX$28,500" }, { label: t("AvalAssistant.answerTodayStat2"), value: "4" }, { label: t("AvalAssistant.answerTodayStat3"), value: "MX$41,200" }],
+      narrative: t("AvalAssistant.answerTodaySummary"),
+      metrics: [{ label: t("AvalAssistant.answerTodayStat1"), value: "MX$28,500" }, { label: t("AvalAssistant.answerTodayStat2"), value: "4" }, { label: t("AvalAssistant.answerTodayStat3"), value: "MX$41,200" }],
       evidence: [{ label: t("AvalAssistant.answerTodayEvidence1"), value: "3 reachable accounts" }, { label: t("AvalAssistant.answerTodayEvidence2"), value: "SLA breach in 3h" }, { label: t("AvalAssistant.answerTodayEvidence3"), value: "27–31 days" }],
       action: t("AvalAssistant.answerTodayAction"),
       actionDetail: t("AvalAssistant.answerTodayActionDetail"),
+      confidence: "medium" as const,
     };
   }
 
@@ -142,8 +203,8 @@ function analyzeQuestion(t: ReturnType<typeof useTranslations>, question: string
   const subject = selectedModule ? t("AvalAssistant.generalSubjectModule", { label: selectedModule.label }) : t(currentViewKey);
   return {
     headline: t("AvalAssistant.answerGeneralHeadlineModule", { subject }),
-    summary: t("AvalAssistant.answerGeneralSummary"),
-    stats: [
+    narrative: t("AvalAssistant.answerGeneralSummary"),
+    metrics: [
       { label: t("AvalAssistant.answerGeneralStat1"), value: "142" },
       { label: t("AvalAssistant.answerGeneralStat2"), value: "6" },
       { label: t("AvalAssistant.answerGeneralStat3"), value: "3" },
@@ -152,12 +213,14 @@ function analyzeQuestion(t: ReturnType<typeof useTranslations>, question: string
       { label: t("AvalAssistant.answerGeneralEvidence1"), value: t("AvalAssistant.dataFreshness4MinAgo") },
       { label: t("AvalAssistant.answerGeneralEvidence2"), value: "Acme Residential" },
     ],
+    confidence: "medium" as const,
   };
 }
 
 export function AvalAssistant({ view }: { view: string }) {
   const { notify } = useExperience();
   const t = useTranslations();
+  const locale = useLocale();
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
   const [thinking, setThinking] = useState(false);
@@ -175,7 +238,6 @@ export function AvalAssistant({ view }: { view: string }) {
   const streamRef = useRef<HTMLDivElement>(null);
   const selectedElementRef = useRef<HTMLElement | null>(null);
   const nextId = useRef(2);
-  const timer = useRef<number | null>(null);
   const currentContext = useMemo(() => t(viewNameKeys[view] ?? viewNameKeys.overview), [t, view]);
 
   useEffect(() => {
@@ -253,13 +315,14 @@ export function AvalAssistant({ view }: { view: string }) {
       setSelectedModule(null);
     };
     window.addEventListener("keydown", closeOnEscape);
-    return () => {
-      window.removeEventListener("keydown", closeOnEscape);
-      if (timer.current) window.clearTimeout(timer.current);
-    };
+    return () => window.removeEventListener("keydown", closeOnEscape);
   }, [pickingModule]);
 
-  const submitQuestion = (question: string) => {
+  // Tries the real Claude API first, grounded in the same dashboard data the
+  // page shows. Falls back to the local sample-mode analyzer — and says so —
+  // if no key is configured yet or the request fails, so the assistant
+  // never silently claims a canned pattern-match was live analysis.
+  const submitQuestion = async (question: string) => {
     const trimmed = question.trim();
     if (!trimmed || thinking) return;
     const focusedModule = selectedModule;
@@ -267,11 +330,21 @@ export function AvalAssistant({ view }: { view: string }) {
     setMessages((current) => [...current, userMessage]);
     setInput("");
     setThinking(true);
-    timer.current = window.setTimeout(() => {
-      setMessages((current) => [...current, { id: nextId.current++, role: "assistant", answer: analyzeQuestion(t, trimmed, view, focusedModule) }]);
+    try {
+      const response = await fetch("/api/assistant/ask", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ question: trimmed, view, moduleLabel: focusedModule?.label, moduleSnapshot: focusedModule?.snapshot, locale }),
+      });
+      const data = await response.json() as { answer?: unknown; error?: string };
+      const answer = data.answer;
+      if (!response.ok || !isAnswerShaped(answer)) throw new Error(data.error ?? "The assistant is unavailable right now.");
+      setMessages((current) => [...current, { id: nextId.current++, role: "assistant", answer, live: true }]);
+    } catch {
+      setMessages((current) => [...current, { id: nextId.current++, role: "assistant", answer: analyzeQuestion(t, trimmed, view, focusedModule), live: false }]);
+    } finally {
       setThinking(false);
-      timer.current = null;
-    }, 520);
+    }
   };
 
   const onSubmit = (event: FormEvent) => {
@@ -339,16 +412,29 @@ export function AvalAssistant({ view }: { view: string }) {
                 {message.text && <p>{message.text}</p>}
                 {message.answer && (
                   <div className="aval-chat-answer">
-                    <div className="aval-chat-answer-heading"><StatsUpSquare width={18} height={18} /><strong>{message.answer.headline}</strong></div>
-                    <p>{message.answer.summary}</p>
-                    <div className="aval-chat-stats">
-                      {message.answer.stats.map((stat) => <span key={stat.label}><small>{stat.label}</small><strong>{stat.value}</strong></span>)}
+                    <div className="aval-chat-answer-heading">
+                      <StatsUpSquare width={18} height={18} />
+                      <strong>{message.answer.headline}</strong>
+                      {message.answer.confidence && <span className={`aval-chat-confidence ${message.answer.confidence}`}>{t(`AvalAssistant.confidence${message.answer.confidence[0].toUpperCase()}${message.answer.confidence.slice(1)}`)}</span>}
                     </div>
-                    <details className="aval-chat-evidence">
-                      <summary>{t("AvalAssistant.viewEvidence")}<NavArrowRight width={15} height={15} /></summary>
-                      <div>{message.answer.evidence.map((row) => <span key={row.label}><small>{row.label}</small><strong>{row.value}</strong></span>)}</div>
-                      <p><CheckCircle width={14} height={14} />{t("AvalAssistant.calculatedFromTheDashboardSnapshotUpdated")}</p>
-                    </details>
+                    <p>{message.answer.narrative}</p>
+                    {message.answer.metrics.length > 0 && (
+                      <div className="aval-chat-stats">
+                        {message.answer.metrics.map((metric) => <span key={metric.label}><small>{metric.label}</small><strong>{formatMetricValue(metric)}</strong></span>)}
+                      </div>
+                    )}
+                    {message.answer.chart && message.answer.chart.points.length > 0 && <AvalChatChart chart={message.answer.chart} />}
+                    {message.answer.document && <div className="aval-chat-document">{message.answer.document}</div>}
+                    {(message.answer.evidence?.length || message.answer.evidence_ids?.length) ? (
+                      <details className="aval-chat-evidence">
+                        <summary>{t("AvalAssistant.viewEvidence")}<NavArrowRight width={15} height={15} /></summary>
+                        <div>
+                          {message.answer.evidence?.map((row) => <span key={row.label}><small>{row.label}</small><strong>{row.value}</strong></span>)}
+                          {!message.answer.evidence && message.answer.evidence_ids?.map((id) => <span key={id}><small>{id}</small></span>)}
+                        </div>
+                        <p><CheckCircle width={14} height={14} />{t("AvalAssistant.calculatedFromTheDashboardSnapshotUpdated")}</p>
+                      </details>
+                    ) : null}
                     {message.answer.action && (
                       <button className="aval-chat-action" type="button" disabled={prepared[message.id]} onClick={() => prepareAction(message)}>
                         {prepared[message.id] ? <CheckCircle width={17} height={17} /> : <SendDiagonal width={17} height={17} />}
@@ -356,6 +442,7 @@ export function AvalAssistant({ view }: { view: string }) {
                         {!prepared[message.id] && <NavArrowRight width={17} height={17} />}
                       </button>
                     )}
+                    {message.live === false && <p className="aval-chat-sample-note">{t("AvalAssistant.sampleModeAnswer")}</p>}
                   </div>
                 )}
               </div>

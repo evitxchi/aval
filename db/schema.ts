@@ -153,3 +153,20 @@ export const funnelSnapshots = sqliteTable(
   },
   (table) => [index("funnel_snapshots_org_captured_idx").on(table.organizationId, table.capturedAt)],
 );
+
+// Ask Aval's daily spend guard: one row per model call, so a per-org daily
+// cap can be enforced by counting rows for today rather than trusting an
+// in-memory counter that a Worker isolate wouldn't reliably persist anyway.
+export const aiUsage = sqliteTable(
+  "ai_usage",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id").notNull().references(() => organizations.id),
+    userId: text("user_id").notNull(),
+    day: text("day").notNull(),
+    inputTokens: integer("input_tokens").notNull().default(0),
+    outputTokens: integer("output_tokens").notNull().default(0),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [index("ai_usage_org_day_idx").on(table.organizationId, table.day)],
+);

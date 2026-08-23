@@ -733,10 +733,20 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--ink); outli
 .aval-chat-message.assistant > p { padding: 11px 12px; border: 1px solid var(--line); border-radius: 15px 15px 15px 5px; background: var(--surface); color: var(--muted); }
 
 .aval-chat-answer { display: grid; gap: 11px; }
-.aval-chat-answer-heading { display: grid; grid-template-columns: 20px 1fr; align-items: start; gap: 8px; }
+.aval-chat-answer-heading { display: grid; grid-template-columns: 20px 1fr auto; align-items: start; gap: 8px; }
 .aval-chat-answer-heading svg { margin-top: 1px; }
 .aval-chat-answer-heading strong { font-size: 13px; font-weight: 400; letter-spacing: -.25px; line-height: 1.35; }
+.aval-chat-confidence { padding: 3px 7px; border-radius: 7px; background: var(--surface-soft); color: var(--quiet); font-size: 7px; text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; }
+.aval-chat-confidence.high { color: var(--viz-green); }
+.aval-chat-confidence.low { color: var(--viz-amber); }
 .aval-chat-answer > p { margin: 0; color: var(--muted); font-size: 9px; line-height: 1.55; }
+.aval-chat-document { padding: 11px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-soft); color: var(--muted); font-size: 9.5px; line-height: 1.6; white-space: pre-wrap; max-height: 260px; overflow-y: auto; }
+.aval-chat-answer > p.aval-chat-sample-note { margin: 2px 0 0; color: var(--quiet); font-size: 7.5px; font-style: italic; }
+.aval-chat-chart { display: grid; gap: 5px; }
+.aval-chat-chart > p { margin: 0; color: var(--quiet); font-size: 8px; text-transform: uppercase; letter-spacing: .04em; }
+.aval-chat-chart-line { fill: none; stroke: var(--ink); stroke-width: 1.5; }
+.aval-chat-chart-dot { fill: var(--ink); }
+.aval-chat-chart-labels { display: flex; justify-content: space-between; color: var(--quiet); font-size: 7px; }
 .aval-chat-stats { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 6px; }
 .aval-chat-stats > span { min-width: 0; padding: 9px; display: grid; gap: 4px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface-soft); }
 .aval-chat-stats small { color: var(--quiet); font-size: 7px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
