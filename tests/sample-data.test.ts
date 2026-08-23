@@ -24,6 +24,12 @@ test("NOI and occupancy deltas match the published copy in the brief", () => {
   assert.equal(derivedSample.occupancyDeltaPct.toFixed(1), "1.2");
 });
 
+test("deriveRelativeDeltaPct is a plain percent-change of value over priorValue", () => {
+  assert.equal(deriveRelativeDeltaPct(110, 100), 10);
+  assert.equal(deriveRelativeDeltaPct(90, 100), -10);
+  assert.equal(deriveRelativeDeltaPct(sampleData.noi.value, sampleData.noi.priorValue), derivedSample.noiDeltaPct);
+});
+
 test("assertSampleConsistency throws when a derived figure drifts from its inputs", () => {
   const original = derivedSample.noiDeltaPct;
   (derivedSample as { noiDeltaPct: number }).noiDeltaPct = original + 5;
