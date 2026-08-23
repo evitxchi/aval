@@ -52,6 +52,33 @@ export interface InsightCandidate {
   evidence: EvidenceRow[];
 }
 
+export interface PropertyRow {
+  nameKey: string;
+  units: number;
+  occupied: number;
+  readyForLeasing: number;
+}
+
+export interface LeasingTrendWeek {
+  labelKey: string;
+  contacted: number;
+  viewed: number;
+  applied: number;
+  signed: number;
+}
+
+export interface MaintenanceCategoryRow {
+  categoryKey: string;
+  // One count per entry in sampleData.maintenance.months, same order.
+  countsByMonth: number[];
+}
+
+export interface AccountingFlowNode {
+  key: string;
+  labelKey: string;
+  amount: number;
+}
+
 /**
  * Every figure below is the single source of truth for the sample-mode Overview.
  * Nothing that is derivable (deltas, percentages, conversions) is stored as a
@@ -239,6 +266,73 @@ export const sampleData = {
       },
     ] satisfies InsightCandidate[],
   },
+  // Per-tab data for Properties/Leasing/Maintenance/Accounting. Every array
+  // sums to a figure declared elsewhere (portfolio counts, the funnel
+  // snapshot, the maintenance "reported" count, or NOI) — checked in
+  // assertSampleConsistency() rather than trusted by inspection.
+  properties: {
+    list: [
+      { nameKey: "OperationsView.propertyFranklinHouse", units: 22, occupied: 21, readyForLeasing: 1 },
+      { nameKey: "OperationsView.propertyMonroeCourt", units: 30, occupied: 29, readyForLeasing: 1 },
+      { nameKey: "OperationsView.propertyUnionCourt", units: 18, occupied: 17, readyForLeasing: 1 },
+      { nameKey: "OperationsView.propertyRomaSur", units: 26, occupied: 23, readyForLeasing: 2 },
+      { nameKey: "OperationsView.propertyPaseoNorte", units: 24, occupied: 24, readyForLeasing: 0 },
+      { nameKey: "OperationsView.propertyJardines22", units: 22, occupied: 20, readyForLeasing: 0 },
+    ] satisfies PropertyRow[],
+  },
+  leasing: {
+    // Six weeks, oldest first. The last week must equal the funnel snapshot
+    // above — the funnel is this trend's most recent point, not a separate
+    // figure someone could let drift.
+    trend: [
+      { labelKey: "OperationsView.week1", contacted: 118, viewed: 61, applied: 24, signed: 12 },
+      { labelKey: "OperationsView.week2", contacted: 126, viewed: 68, applied: 27, signed: 14 },
+      { labelKey: "OperationsView.week3", contacted: 131, viewed: 70, applied: 29, signed: 15 },
+      { labelKey: "OperationsView.week4", contacted: 137, viewed: 74, applied: 31, signed: 17 },
+      { labelKey: "OperationsView.week5", contacted: 142, viewed: 78, applied: 34, signed: 19 },
+      { labelKey: "OperationsView.week6", contacted: 148, viewed: 82, applied: 37, signed: 21 },
+    ] satisfies LeasingTrendWeek[],
+  },
+  maintenance: {
+    // Four months, oldest first, as {year, month} rather than display text —
+    // formatted client-side with Intl.DateTimeFormat against the active
+    // locale instead of a hardcoded set of month-name message keys.
+    months: [
+      { year: 2026, month: 5 },
+      { year: 2026, month: 6 },
+      { year: 2026, month: 7 },
+      { year: 2026, month: 8 },
+    ],
+    // Every countsByMonth array must have one entry per month above, and the
+    // grand total across all categories and months must equal the "Reported"
+    // figure derived below (31) — not a second, separately-typed 31.
+    categories: [
+      { categoryKey: "OperationsView.categoryPlumbing", countsByMonth: [2, 1, 2, 1] },
+      { categoryKey: "OperationsView.categoryElectrical", countsByMonth: [1, 2, 1, 1] },
+      { categoryKey: "OperationsView.categoryHvac", countsByMonth: [3, 2, 3, 2] },
+      { categoryKey: "OperationsView.categoryAppliance", countsByMonth: [1, 1, 1, 1] },
+      { categoryKey: "OperationsView.categoryStructural", countsByMonth: [1, 2, 1, 2] },
+    ] satisfies MaintenanceCategoryRow[],
+    assigned: 24,
+    workDone: 18,
+    completed: 16,
+  },
+  accounting: {
+    // Total revenue splits into NOI plus every expense category below —
+    // checked to reconcile exactly, the same discipline as noi.attribution.
+    otherIncome: 24500,
+    revenueSources: [
+      { key: "rentBilled", labelKey: "OperationsView.revenueRentBilled", amount: 661900 },
+      { key: "otherIncome", labelKey: "OperationsView.revenueOtherIncome", amount: 24500 },
+    ] satisfies AccountingFlowNode[],
+    expenses: [
+      { key: "maintenance", labelKey: "OperationsView.expenseMaintenance", amount: 154000 },
+      { key: "utilities", labelKey: "OperationsView.expenseUtilities", amount: 86000 },
+      { key: "management", labelKey: "OperationsView.expenseManagement", amount: 65990 },
+      { key: "taxes", labelKey: "OperationsView.expenseTaxes", amount: 52000 },
+      { key: "insurance", labelKey: "OperationsView.expenseInsurance", amount: 42000 },
+    ] satisfies AccountingFlowNode[],
+  },
 };
 
 export function deriveRelativeDeltaPct(value: number, priorValue: number): number {
@@ -281,6 +375,25 @@ export function rankInsights(candidates: readonly InsightCandidate[]): InsightCa
 
 export function sumAmounts(rows: readonly { amount: number }[]): number {
   return rows.reduce((total, row) => total + row.amount, 0);
+}
+
+export function derivePropertyTotals(list: readonly PropertyRow[]) {
+  return {
+    properties: list.length,
+    units: list.reduce((total, row) => total + row.units, 0),
+    occupied: list.reduce((total, row) => total + row.occupied, 0),
+    readyForLeasing: list.reduce((total, row) => total + row.readyForLeasing, 0),
+  };
+}
+
+export function deriveMaintenanceReported(categories: readonly MaintenanceCategoryRow[]): number {
+  return categories.reduce((total, row) => total + row.countsByMonth.reduce((sum, count) => sum + count, 0), 0);
+}
+
+export function deriveAccountingTotals() {
+  const totalRevenue = sumAmounts(sampleData.accounting.revenueSources);
+  const totalExpenses = sumAmounts(sampleData.accounting.expenses);
+  return { totalRevenue, totalExpenses };
 }
 
 export const derivedSample = {
@@ -363,5 +476,55 @@ export function assertSampleConsistency(): void {
     if (JSON.stringify(tileEvidence) !== JSON.stringify(candidate.evidence)) {
       throw new Error(`Insight "${candidate.id}" evidence has drifted from sampleData.${candidate.tileKey}.evidenceRows`);
     }
+  }
+
+  // Properties tab: the per-property roster must sum to the portfolio
+  // counts already declared in sampleData.portfolio, not a second figure.
+  const propertyTotals = derivePropertyTotals(sampleData.properties.list);
+  if (propertyTotals.units !== sampleData.portfolio.units) {
+    throw new Error(`Properties list sums to ${propertyTotals.units} units but portfolio.units is ${sampleData.portfolio.units}`);
+  }
+  if (propertyTotals.properties !== sampleData.portfolio.properties) {
+    throw new Error(`Properties list has ${propertyTotals.properties} entries but portfolio.properties is ${sampleData.portfolio.properties}`);
+  }
+
+  // Leasing tab trend: the most recent week is the funnel snapshot itself,
+  // not an independently-authored figure that could quietly diverge from it.
+  const latestWeek = sampleData.leasing.trend.at(-1)!;
+  const funnelByKey = Object.fromEntries(sampleData.funnel.stages.map((stage) => [stage.key, stage.count]));
+  if (
+    latestWeek.contacted !== funnelByKey.contacted ||
+    latestWeek.viewed !== funnelByKey.viewed ||
+    latestWeek.applied !== funnelByKey.applied ||
+    latestWeek.signed !== funnelByKey.signed
+  ) {
+    throw new Error("Leasing trend's latest week does not match the funnel snapshot in sampleData.funnel.stages");
+  }
+  for (const week of sampleData.leasing.trend) {
+    if (!(week.contacted >= week.viewed && week.viewed >= week.applied && week.applied >= week.signed)) {
+      throw new Error(`Leasing trend week "${week.labelKey}" is not monotonically decreasing (contacted >= viewed >= applied >= signed)`);
+    }
+  }
+
+  // Maintenance tab: the category-by-month matrix must have one count per
+  // declared month, and its grand total is what "reported" actually means —
+  // not a separate hand-typed number.
+  for (const category of sampleData.maintenance.categories) {
+    if (category.countsByMonth.length !== sampleData.maintenance.months.length) {
+      throw new Error(`Maintenance category "${category.categoryKey}" has ${category.countsByMonth.length} month entries but there are ${sampleData.maintenance.months.length} declared months`);
+    }
+  }
+  const reported = deriveMaintenanceReported(sampleData.maintenance.categories);
+  if (!(reported >= sampleData.maintenance.assigned && sampleData.maintenance.assigned >= sampleData.maintenance.workDone && sampleData.maintenance.workDone >= sampleData.maintenance.completed)) {
+    throw new Error("Maintenance funnel is not monotonically decreasing (reported >= assigned >= workDone >= completed)");
+  }
+
+  // Accounting tab: total revenue must equal NOI plus every expense
+  // category — the same reconciliation discipline as noi.attribution, so
+  // the Sankey's nodes can't silently stop summing to the numbers already
+  // shown on the Overview.
+  const { totalRevenue, totalExpenses } = deriveAccountingTotals();
+  if (totalRevenue - totalExpenses !== sampleData.noi.value) {
+    throw new Error(`Accounting revenue (${totalRevenue}) minus expenses (${totalExpenses}) is ${totalRevenue - totalExpenses}, but does not equal noi.value (${sampleData.noi.value})`);
   }
 }
