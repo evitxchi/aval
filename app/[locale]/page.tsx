@@ -7,21 +7,21 @@ import { useLocale, useTranslations } from "next-intl";
 import * as Dialog from "@radix-ui/react-dialog";
 import * as Tabs from "@radix-ui/react-tabs";
 import {
-  Archive, Attachment, Bell, Calendar, ChatLines, Check, CheckCircle, Clock,
+  Archive, Attachment, Bell, Calendar, ChatLines, Check, CheckCircle, ClipboardCheck, Clock,
   Coins, CoinsSwap, Dashboard, Database, FilterList, Flash, Globe, HalfMoon, HomeSimpleDoor, Key,
   Language, LogOut, NetworkLeft, NavArrowDown, NavArrowRight, Page, Pause,
   Phone, Plus, ScaleFrameEnlarge, ScaleFrameReduce, Search, SendDiagonal, Settings, ShieldCheck, SmartphoneDevice,
   SoundHigh, SoundOff, StatsUpSquare, SunLight, TaskList, Tools, User,
-  ViewColumns3, ViewGrid, Xmark,
+  ViewColumns3, ViewGrid, Xmark, XmarkCircle,
 } from "iconoir-react";
 import { siApple, siGmail, siNotion, siQuickbooks, siTelegram, siWhatsapp, siXero } from "simple-icons";
 import { AnimatedNumber, ExperienceProvider, useExperience } from "@/app/components/experience";
 import { Link, useRouter, usePathname } from "./navigation";
 import { AvalAssistant } from "@/app/components/aval-assistant";
-import { derivedSample, derivePropertyTotals, deriveMaintenanceReported, rankInsights, sampleData, type InsightCandidate, type InsightRecipient, type NotificationItem, type NotificationTarget } from "@/app/data/sample";
+import { derivedSample, derivePropertyTotals, deriveMaintenanceReported, rankInsights, sampleData, type InsightCandidate, type InsightRecipient, type NotificationItem, type NotificationTarget, type ReviewStatus } from "@/app/data/sample";
 import { AccountingSankey, LeasingTrendChart, MaintenanceRoseChart, PropertyOccupancyChart } from "@/app/components/charts";
 
-type View = "overview" | "tasks" | "inbox" | "properties" | "leasing" | "maintenance" | "accounting" | "connections" | "documents" | "settings";
+type View = "overview" | "tasks" | "reviewCenter" | "inbox" | "properties" | "leasing" | "maintenance" | "accounting" | "connections" | "documents" | "settings";
 type DataMode = "sample" | "empty" | "live";
 type Provider = {
   id: string; title: string; category: string; description: string; authMode: string;
@@ -30,11 +30,13 @@ type Provider = {
   connection?: { id?: string; status: string; externalAccountName?: string | null; lastSyncAt?: string | null } | null;
 };
 type IconComponent = ComponentType<{ width?: number; height?: number; className?: string }>;
+type T = ReturnType<typeof useTranslations>;
 
 const navGroups: { labelKey: string; items: { id: View; labelKey: string; icon: IconComponent; count?: number }[] }[] = [
   { labelKey: "Nav.agent", items: [
     { id: "overview", labelKey: "Nav.portfolioOverview", icon: Dashboard },
     { id: "tasks", labelKey: "Nav.avalTasks", icon: TaskList, count: 4 },
+    { id: "reviewCenter", labelKey: "Nav.reviewCenter", icon: ClipboardCheck },
     { id: "inbox", labelKey: "Nav.sharedInbox", icon: ChatLines, count: 7 },
   ]},
   { labelKey: "Nav.operations", items: [
@@ -142,12 +144,152 @@ const TILE_SOURCES: Record<(typeof metricTiles)[number]["key"] | "funnel", strin
   funnel: ["Leasing & PMS"],
 };
 
-function Overview({ openConnections, dataMode, providers, pendingTarget, targetToken, pushNotification }: {
+// Static for now — this is the seam where a connected model would draft the
+// actual review text instead. The numbers it references are always real
+// (moneyAtStake, the NOI delta), never invented for the draft. Shared by
+// Overview's insight queue and the Review Center so the exact same draft
+// text is shown wherever an insight is opened.
+function draftText(insight: InsightCandidate, t: T, money: (amount: number) => string): string {
+  if (!insight.draftKey) return "";
+  if (insight.id === "vacancy-pricing") return t(insight.draftKey, { amount: money(insight.moneyAtStake) });
+  if (insight.id === "noi-variance") return t(insight.draftKey, { delta: `+${derivedSample.noiDeltaPct.toFixed(1)}%` });
+  return t(insight.draftKey);
+}
+
+const REVIEW_STATUS_ICON: Record<ReviewStatus, IconComponent> = {
+  pending: Clock, approved: CheckCircle, sent: CheckCircle, denied: XmarkCircle,
+};
+const REVIEW_STATUS_LABEL_KEY: Record<ReviewStatus, string> = {
+  pending: "ReviewCenter.statusPending", approved: "ReviewCenter.statusApproved",
+  sent: "ReviewCenter.statusSent", denied: "ReviewCenter.statusDenied",
+};
+
+/**
+ * The drafted-review dialog: NOI waterfall or evidence rows, the drafted
+ * text, and Approve/Deny while pending — or a read-only status badge once
+ * decided. Used both from Overview's insight queue (via a notification or
+ * the queue itself) and from the Review Center, so a decision made in
+ * either place is reflected identically in the other.
+ */
+function ReviewDraftDialog({ insight, status, expanded, onToggleExpand, onOpenChange, onApprove, onDeny, t, money }: {
+  insight: InsightCandidate | null; status: ReviewStatus | undefined; expanded: boolean;
+  onToggleExpand: () => void; onOpenChange: (open: boolean) => void; onApprove: () => void; onDeny: () => void;
+  t: T; money: (amount: number) => string;
+}) {
+  return (
+    <Dialog.Root open={insight !== null} onOpenChange={onOpenChange}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="dialog-overlay"/>
+        <Dialog.Content className={`small-dialog review-draft-dialog${expanded ? " expanded" : ""}`}>
+          {insight && <>
+            <div className="dialog-top">
+              <div>
+                <p className="eyebrow">{status === "approved" ? t("Overview.approvedReviewEyebrow") : status === "denied" ? t("Overview.deniedReviewEyebrow") : t("Overview.draftedReviewEyebrow")}</p>
+                <Dialog.Title>{t(insight.titleKey)}</Dialog.Title>
+              </div>
+              <div className="dialog-top-actions">
+                <button className="icon-button" onClick={onToggleExpand} aria-label={expanded ? t("Overview.collapseDraft") : t("Overview.expandDraft")}>
+                  {expanded ? <ScaleFrameReduce width={19} height={19}/> : <ScaleFrameEnlarge width={19} height={19}/>}
+                </button>
+                <Dialog.Close className="icon-button" aria-label={t("Overview.close")}><Xmark width={20} height={20}/></Dialog.Close>
+              </div>
+            </div>
+            {insight.tileKey === "noi" && <NoiWaterfall t={t} money={money}/>}
+            {insight.evidence.length > 0 && <div className="evidence-rows">{insight.evidence.map((row) => <div className="evidence-row" key={row.labelKey}><div><strong>{t(row.labelKey)}</strong><small>{t(row.detailKey)}</small></div><span>{money(row.amount)}</span></div>)}</div>}
+            <p className="review-draft-text">{draftText(insight, t, money)}</p>
+            <div className="dialog-actions">
+              {status === "approved"
+                ? <span className="approved-badge"><CheckCircle width={15} height={15}/>{t("Overview.approvedBadge")}</span>
+                : status === "denied"
+                ? <span className="denied-badge"><XmarkCircle width={15} height={15}/>{t("Overview.deniedBadge")}</span>
+                : <>
+                    <button className="soft-button" onClick={onDeny}>{t("Overview.denyDraft")}</button>
+                    <Dialog.Close className="soft-button">{t("Overview.cancel")}</Dialog.Close>
+                    <button className="primary-button" onClick={onApprove}>{t("Overview.approveDraft")}</button>
+                  </>}
+            </div>
+          </>}
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
+
+/** Read-only receipt for an already-sent reminder batch: who got it, via which channel, and the message they actually received. */
+function ReviewReceiptDialog({ insight, recipients, onOpenChange, t, money }: {
+  insight: InsightCandidate | null; recipients: InsightRecipient[]; onOpenChange: (open: boolean) => void; t: T; money: (amount: number) => string;
+}) {
+  const messageKey = insight?.action?.type === "sendReminders" ? insight.action.messageKey : undefined;
+  return (
+    <Dialog.Root open={insight !== null} onOpenChange={onOpenChange}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="dialog-overlay"/>
+        <Dialog.Content className="small-dialog">
+          {insight && <>
+            <div className="dialog-top">
+              <div><p className="eyebrow">{t("Overview.receiptEyebrow")}</p><Dialog.Title>{t(insight.titleKey)}</Dialog.Title></div>
+              <Dialog.Close className="icon-button" aria-label={t("Overview.close")}><Xmark width={20} height={20}/></Dialog.Close>
+            </div>
+            {messageKey && recipients[0] && <div className="review-message-preview">
+              <p className="eyebrow">{t("Overview.messageSentEyebrow")}</p>
+              <p>{t(messageKey, { name: recipients[0].name, amount: money(recipients[0].amount) })}</p>
+            </div>}
+            <div className="recipient-list">{recipients.map((recipient) => <div className="recipient-row" key={recipient.name}>
+              <BrandMark provider={recipient.channel} small/>
+              <div><strong>{recipient.name}</strong><small>{t(recipient.detailKey)}</small></div>
+              <span>{money(recipient.amount)}</span>
+              <CheckCircle className="receipt-sent-icon" width={16} height={16}/>
+            </div>)}</div>
+            <div className="dialog-actions"><Dialog.Close className="soft-button">{t("Overview.close")}</Dialog.Close></div>
+          </>}
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
+
+/** The pending reminder-batch compose flow: remove a recipient from the batch, then Deny it outright or Send it. */
+function ReminderPreviewDialog({ insight, removedRecipients, onRemoveRecipient, onOpenChange, onSend, onDeny, t, money }: {
+  insight: InsightCandidate | null; removedRecipients: Set<string>; onRemoveRecipient: (name: string) => void;
+  onOpenChange: (open: boolean) => void; onSend: (recipients: InsightRecipient[]) => void; onDeny: () => void;
+  t: T; money: (amount: number) => string;
+}) {
+  return (
+    <Dialog.Root open={insight !== null} onOpenChange={onOpenChange}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="dialog-overlay"/>
+        <Dialog.Content className="small-dialog">
+          {insight && insight.action?.type === "sendReminders" && (() => {
+            const visible = insight.action.recipients.filter((recipient) => !removedRecipients.has(recipient.name));
+            return <>
+              <div className="dialog-top"><Dialog.Title>{t("Overview.sendRemindersTitle", { count: visible.length })}</Dialog.Title><Dialog.Close className="icon-button" aria-label={t("Overview.close")}><Xmark width={20} height={20}/></Dialog.Close></div>
+              <div className="recipient-list">{visible.map((recipient) => <div className="recipient-row" key={recipient.name}>
+                <BrandMark provider={recipient.channel} small/>
+                <div><strong>{recipient.name}</strong><small>{t(recipient.detailKey)}</small></div>
+                <span>{money(recipient.amount)}</span>
+                <button className="icon-button" onClick={() => onRemoveRecipient(recipient.name)} aria-label={t("Overview.removeRecipient")}><Xmark width={15} height={15}/></button>
+              </div>)}</div>
+              <div className="dialog-actions">
+                <button className="soft-button" onClick={onDeny}>{t("Overview.denyDraft")}</button>
+                <Dialog.Close className="soft-button">{t("Overview.cancel")}</Dialog.Close>
+                <button className="primary-button" disabled={visible.length === 0} onClick={() => onSend(visible)}>{t("Overview.sendRemindersConfirm", { count: visible.length })}</button>
+              </div>
+            </>;
+          })()}
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
+
+function Overview({ openConnections, dataMode, providers, pendingTarget, targetToken, reviewStatuses, sentReceipts, onApprove, onDeny, onSendReminders }: {
   openConnections: () => void; dataMode: DataMode; providers: Provider[];
   pendingTarget: NotificationTarget | null; targetToken: number;
-  pushNotification: (item: Omit<NotificationItem, "id" | "minutesAgo" | "read">) => void;
+  reviewStatuses: Record<string, ReviewStatus>; sentReceipts: Record<string, InsightRecipient[]>;
+  onApprove: (insight: InsightCandidate) => void; onDeny: (insight: InsightCandidate) => void;
+  onSendReminders: (insight: InsightCandidate, recipients: InsightRecipient[]) => void;
 }) {
-  const { market, notify } = useExperience();
+  const { market } = useExperience();
   const t = useTranslations();
   const currentLocale = useLocale();
   const currencyPrefix = market === "latam" ? "MX$" : "$";
@@ -168,15 +310,8 @@ function Overview({ openConnections, dataMode, providers, pendingTarget, targetT
   const [removedRecipients, setRemovedRecipients] = useState<Set<string>>(new Set());
   const [reviewDraft, setReviewDraft] = useState<InsightCandidate | null>(null);
   const [receiptFor, setReceiptFor] = useState<InsightCandidate | null>(null);
-  const seededReceiptInsight = sampleData.insights.candidates.find((candidate) => candidate.id === "collections-gap");
-  const [sentReceipts, setSentReceipts] = useState<Record<string, InsightRecipient[]>>(
-    seededReceiptInsight?.action?.type === "sendReminders" ? { [seededReceiptInsight.id]: seededReceiptInsight.action.recipients } : {},
-  );
-  const [preparedInsights, setPreparedInsights] = useState<Record<string, boolean>>({ "collections-gap": true });
   const rankedInsights = useMemo(() => rankInsights(sampleData.insights.candidates), []);
   const money = (amount: number) => `${currencyPrefix}${Math.abs(amount).toLocaleString(currentLocale)}`;
-  const listFormatter = useMemo(() => new Intl.ListFormat(currentLocale, { style: "long", type: "conjunction" }), [currentLocale]);
-  const providerTitle = (id: string) => providers.find((provider) => provider.id === id)?.title ?? id;
 
   // Deliberately not a useEffect: this reacts to a prop change by opening
   // local state, so it's applied during render (React's documented pattern
@@ -205,62 +340,15 @@ function Overview({ openConnections, dataMode, providers, pendingTarget, targetT
     }
   };
 
-  // Static for now — this is the seam where a connected model would draft
-  // the actual review text instead. The numbers it references are always
-  // real (moneyAtStake, the NOI delta), never invented for the draft.
-  const draftText = (insight: InsightCandidate) => {
-    if (!insight.draftKey) return "";
-    if (insight.id === "vacancy-pricing") return t(insight.draftKey, { amount: money(insight.moneyAtStake) });
-    if (insight.id === "noi-variance") return t(insight.draftKey, { delta: `+${derivedSample.noiDeltaPct.toFixed(1)}%` });
-    return t(insight.draftKey);
-  };
-
-  const completedLabel = (insight: InsightCandidate) => insight.action?.type === "sendReminders" ? t("Overview.remindersSentBadge") : t("Overview.insightPrepared");
-
-  const handleInsightAction = (insight: InsightCandidate) => {
-    if (!insight.action) return;
-    if (insight.action.type === "sendReminders") {
-      setRemovedRecipients(new Set());
-      setReminderPreview(insight);
-      return;
-    }
+  // The single entry point for opening any insight, whatever its status:
+  // a pending reminder batch opens the compose flow, an already-sent batch
+  // opens its read-only receipt, and everything else opens the draft dialog
+  // (which shows Approve/Deny while pending, or a status badge once decided).
+  const openInsight = (insight: InsightCandidate) => {
+    const status = reviewStatuses[insight.id];
+    if (status === "sent") { setReceiptFor(insight); return; }
+    if (status === "pending" && insight.action?.type === "sendReminders") { setRemovedRecipients(new Set()); setReminderPreview(insight); return; }
     setReviewDraft(insight);
-  };
-
-  const openCompletedInsight = (insight: InsightCandidate) => {
-    if (insight.action?.type === "sendReminders") setReceiptFor(insight);
-    else setReviewDraft(insight);
-  };
-
-  const approveReviewDraft = () => {
-    if (!reviewDraft) return;
-    const insight = reviewDraft;
-    setPreparedInsights((current) => ({ ...current, [insight.id]: true }));
-    notify(t(insight.titleKey), t("Overview.insightPrepared"));
-    window.setTimeout(() => pushNotification({
-      provider: "aval",
-      titleKey: insight.titleKey,
-      detailKey: "Overview.notifApprovedDetail",
-      target: { kind: "reviewDraft", insightId: insight.id },
-    }), 1100);
-    setReviewDraft(null);
-  };
-
-  const confirmSendReminders = (recipients: InsightRecipient[]) => {
-    if (!reminderPreview) return;
-    const insight = reminderPreview;
-    setPreparedInsights((current) => ({ ...current, [insight.id]: true }));
-    setSentReceipts((current) => ({ ...current, [insight.id]: recipients }));
-    const channels = listFormatter.format([...new Set(recipients.map((recipient) => providerTitle(recipient.channel)))]);
-    notify(t(insight.titleKey), t("Overview.remindersSentDetail", { count: recipients.length, channels }));
-    window.setTimeout(() => pushNotification({
-      provider: recipients[0]?.channel ?? "whatsapp",
-      titleKey: insight.titleKey,
-      detailKey: "Overview.remindersSentDetail",
-      detailParams: { count: recipients.length, channels },
-      target: { kind: "reminderReceipt", insightId: insight.id },
-    }), 1100);
-    setReminderPreview(null);
   };
 
   return <div className="view-wrap">
@@ -315,8 +403,14 @@ function Overview({ openConnections, dataMode, providers, pendingTarget, targetT
                 {insight.tileKey && <button className="text-button" onClick={() => setDrillDown(insight.tileKey)}>{t("Overview.viewEvidence")}<NavArrowRight width={14} height={14}/></button>}
               </div>
             </div>
-            <button className="insight-action" onClick={() => preparedInsights[insight.id] ? openCompletedInsight(insight) : handleInsightAction(insight)}>
-              {preparedInsights[insight.id] ? <><CheckCircle width={16} height={16}/>{completedLabel(insight)}</> : insightActionLabel(insight)}
+            <button className="insight-action" onClick={() => openInsight(insight)}>
+              {(() => {
+                const status = reviewStatuses[insight.id];
+                if (status === "denied") return <><XmarkCircle width={16} height={16}/>{t("Overview.deniedBadge")}</>;
+                if (status === "sent") return <><CheckCircle width={16} height={16}/>{t("Overview.remindersSentBadge")}</>;
+                if (status === "approved") return <><CheckCircle width={16} height={16}/>{t("Overview.approvedBadge")}</>;
+                return insightActionLabel(insight);
+              })()}
             </button>
           </article>)}</div>
         : <p className="empty-copy">{t("Overview.insightsEmptyDescription")}</p>}
@@ -336,83 +430,33 @@ function Overview({ openConnections, dataMode, providers, pendingTarget, targetT
       </Dialog.Portal>
     </Dialog.Root>
 
-    <Dialog.Root open={reminderPreview !== null} onOpenChange={(open) => !open && setReminderPreview(null)}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="dialog-overlay"/>
-        <Dialog.Content className="small-dialog">
-          {reminderPreview && reminderPreview.action?.type === "sendReminders" && (() => {
-            const visible = reminderPreview.action.recipients.filter((recipient) => !removedRecipients.has(recipient.name));
-            return <>
-              <div className="dialog-top"><Dialog.Title>{t("Overview.sendRemindersTitle", { count: visible.length })}</Dialog.Title><Dialog.Close className="icon-button" aria-label={t("Overview.close")}><Xmark width={20} height={20}/></Dialog.Close></div>
-              <div className="recipient-list">{visible.map((recipient) => <div className="recipient-row" key={recipient.name}>
-                <BrandMark provider={recipient.channel} small/>
-                <div><strong>{recipient.name}</strong><small>{t(recipient.detailKey)}</small></div>
-                <span>{money(recipient.amount)}</span>
-                <button className="icon-button" onClick={() => setRemovedRecipients((current) => new Set(current).add(recipient.name))} aria-label={t("Overview.removeRecipient")}><Xmark width={15} height={15}/></button>
-              </div>)}</div>
-              <div className="dialog-actions">
-                <Dialog.Close className="soft-button">{t("Overview.cancel")}</Dialog.Close>
-                <button className="primary-button" disabled={visible.length === 0} onClick={() => confirmSendReminders(visible)}>{t("Overview.sendRemindersConfirm", { count: visible.length })}</button>
-              </div>
-            </>;
-          })()}
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+    <ReminderPreviewDialog
+      insight={reminderPreview}
+      removedRecipients={removedRecipients}
+      onRemoveRecipient={(name) => setRemovedRecipients((current) => new Set(current).add(name))}
+      onOpenChange={(open) => !open && setReminderPreview(null)}
+      onSend={(recipients) => { onSendReminders(reminderPreview!, recipients); setReminderPreview(null); }}
+      onDeny={() => { onDeny(reminderPreview!); setReminderPreview(null); }}
+      t={t} money={money}
+    />
 
-    <Dialog.Root open={reviewDraft !== null} onOpenChange={(open) => { if (!open) { setReviewDraft(null); setDraftExpanded(false); } }}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="dialog-overlay"/>
-        <Dialog.Content className={`small-dialog review-draft-dialog${draftExpanded ? " expanded" : ""}`}>
-          {reviewDraft && <>
-            <div className="dialog-top">
-              <div><p className="eyebrow">{preparedInsights[reviewDraft.id] ? t("Overview.approvedReviewEyebrow") : t("Overview.draftedReviewEyebrow")}</p><Dialog.Title>{t(reviewDraft.titleKey)}</Dialog.Title></div>
-              <div className="dialog-top-actions">
-                <button className="icon-button" onClick={() => setDraftExpanded((current) => !current)} aria-label={draftExpanded ? t("Overview.collapseDraft") : t("Overview.expandDraft")}>
-                  {draftExpanded ? <ScaleFrameReduce width={19} height={19}/> : <ScaleFrameEnlarge width={19} height={19}/>}
-                </button>
-                <Dialog.Close className="icon-button" aria-label={t("Overview.close")}><Xmark width={20} height={20}/></Dialog.Close>
-              </div>
-            </div>
-            {reviewDraft.tileKey === "noi" && <NoiWaterfall t={t} money={money}/>}
-            {reviewDraft.evidence.length > 0 && <div className="evidence-rows">{reviewDraft.evidence.map((row) => <div className="evidence-row" key={row.labelKey}><div><strong>{t(row.labelKey)}</strong><small>{t(row.detailKey)}</small></div><span>{money(row.amount)}</span></div>)}</div>}
-            <p className="review-draft-text">{draftText(reviewDraft)}</p>
-            <div className="dialog-actions">
-              {preparedInsights[reviewDraft.id]
-                ? <span className="approved-badge"><CheckCircle width={15} height={15}/>{t("Overview.approvedBadge")}</span>
-                : <>
-                    <Dialog.Close className="soft-button">{t("Overview.cancel")}</Dialog.Close>
-                    <button className="primary-button" onClick={approveReviewDraft}>{t("Overview.approveDraft")}</button>
-                  </>}
-            </div>
-          </>}
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+    <ReviewDraftDialog
+      insight={reviewDraft}
+      status={reviewDraft ? reviewStatuses[reviewDraft.id] : undefined}
+      expanded={draftExpanded}
+      onToggleExpand={() => setDraftExpanded((current) => !current)}
+      onOpenChange={(open) => { if (!open) { setReviewDraft(null); setDraftExpanded(false); } }}
+      onApprove={() => { onApprove(reviewDraft!); setReviewDraft(null); }}
+      onDeny={() => { onDeny(reviewDraft!); setReviewDraft(null); }}
+      t={t} money={money}
+    />
 
-    <Dialog.Root open={receiptFor !== null} onOpenChange={(open) => !open && setReceiptFor(null)}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="dialog-overlay"/>
-        <Dialog.Content className="small-dialog">
-          {receiptFor && (() => {
-            const recipients = sentReceipts[receiptFor.id] ?? [];
-            return <>
-              <div className="dialog-top">
-                <div><p className="eyebrow">{t("Overview.receiptEyebrow")}</p><Dialog.Title>{t(receiptFor.titleKey)}</Dialog.Title></div>
-                <Dialog.Close className="icon-button" aria-label={t("Overview.close")}><Xmark width={20} height={20}/></Dialog.Close>
-              </div>
-              <div className="recipient-list">{recipients.map((recipient) => <div className="recipient-row" key={recipient.name}>
-                <BrandMark provider={recipient.channel} small/>
-                <div><strong>{recipient.name}</strong><small>{t(recipient.detailKey)}</small></div>
-                <span>{money(recipient.amount)}</span>
-                <CheckCircle className="receipt-sent-icon" width={16} height={16}/>
-              </div>)}</div>
-              <div className="dialog-actions"><Dialog.Close className="soft-button">{t("Overview.close")}</Dialog.Close></div>
-            </>;
-          })()}
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+    <ReviewReceiptDialog
+      insight={receiptFor}
+      recipients={receiptFor ? sentReceipts[receiptFor.id] ?? [] : []}
+      onOpenChange={(open) => !open && setReceiptFor(null)}
+      t={t} money={money}
+    />
 
     <Dialog.Root open={historyOpen} onOpenChange={setHistoryOpen}>
       <Dialog.Portal>
@@ -474,6 +518,115 @@ function Overview({ openConnections, dataMode, providers, pendingTarget, targetT
         ? <div className="activity-flow">{sampleData.ledger.steps.map((step, index) => <span className="activity-segment" key={step.provider}>{index > 0 && <i className="flow-arrow">→</i>}<span className={`activity-card ${step.provider === "complete" ? "complete" : ""}`}><span>{step.provider === "complete" ? <CheckCircle width={24} height={24}/> : <BrandMark provider={step.provider} small/>}</span><p>{t(step.textKey)}</p></span></span>)}</div>
         : <p className="empty-copy">{t("Overview.noVerifiedActionsYetAvalWill")}</p>}
     </section>
+  </div>;
+}
+
+const REVIEW_STATUS_ORDER: ReviewStatus[] = ["pending", "approved", "sent", "denied"];
+
+/**
+ * Every drafted review and reminder batch in one place — pending, approved,
+ * sent, or denied — with the same drafts, evidence, recipients, and sent
+ * messages the Overview queue shows, just uncapped and filterable instead
+ * of limited to the top 5 by money × urgency.
+ */
+function ReviewCenterView({ reviewStatuses, sentReceipts, onApprove, onDeny, onSendReminders }: {
+  reviewStatuses: Record<string, ReviewStatus>; sentReceipts: Record<string, InsightRecipient[]>;
+  onApprove: (insight: InsightCandidate) => void; onDeny: (insight: InsightCandidate) => void;
+  onSendReminders: (insight: InsightCandidate, recipients: InsightRecipient[]) => void;
+}) {
+  const { market } = useExperience();
+  const t = useTranslations();
+  const currentLocale = useLocale();
+  const currencyPrefix = market === "latam" ? "MX$" : "$";
+  const money = (amount: number) => `${currencyPrefix}${Math.abs(amount).toLocaleString(currentLocale)}`;
+  const [activeFilter, setActiveFilter] = useState<"all" | ReviewStatus>("all");
+  const [draftExpanded, setDraftExpanded] = useState(false);
+  const [reviewDraft, setReviewDraft] = useState<InsightCandidate | null>(null);
+  const [receiptFor, setReceiptFor] = useState<InsightCandidate | null>(null);
+  const [reminderPreview, setReminderPreview] = useState<InsightCandidate | null>(null);
+  const [removedRecipients, setRemovedRecipients] = useState<Set<string>>(new Set());
+
+  const allReviewable = sampleData.insights.candidates.filter((candidate) => candidate.actionable && candidate.action !== null);
+  const statusCounts = REVIEW_STATUS_ORDER.reduce((counts, status) => ({ ...counts, [status]: allReviewable.filter((insight) => reviewStatuses[insight.id] === status).length }), {} as Record<ReviewStatus, number>);
+  const sorted = [...allReviewable].sort((a, b) => {
+    const aPending = reviewStatuses[a.id] === "pending";
+    const bPending = reviewStatuses[b.id] === "pending";
+    if (aPending !== bPending) return aPending ? -1 : 1;
+    return b.moneyAtStake * b.urgency - a.moneyAtStake * a.urgency;
+  });
+  const visible = activeFilter === "all" ? sorted : sorted.filter((insight) => reviewStatuses[insight.id] === activeFilter);
+
+  const openInsight = (insight: InsightCandidate) => {
+    const status = reviewStatuses[insight.id];
+    if (status === "sent") { setReceiptFor(insight); return; }
+    if (status === "pending" && insight.action?.type === "sendReminders") { setRemovedRecipients(new Set()); setReminderPreview(insight); return; }
+    setReviewDraft(insight);
+  };
+
+  return <div className="view-wrap">
+    <AppHeader title={t("Nav.reviewCenter")} subtitle={t("ReviewCenter.subtitle")}/>
+
+    <section className="metric-grid compact-metrics" data-reveal>
+      {REVIEW_STATUS_ORDER.map((status) => <article className="metric-card" key={status}>
+        <span>{t(REVIEW_STATUS_LABEL_KEY[status])}</span>
+        <strong><AnimatedNumber value={statusCounts[status]}/></strong>
+      </article>)}
+    </section>
+
+    <div className="segmented text review-filter" data-reveal>
+      <button className={activeFilter === "all" ? "active" : ""} onClick={() => setActiveFilter("all")}>{t("ReviewCenter.filterAll", { count: allReviewable.length })}</button>
+      {REVIEW_STATUS_ORDER.map((status) => <button className={activeFilter === status ? "active" : ""} onClick={() => setActiveFilter(status)} key={status}>{t(REVIEW_STATUS_LABEL_KEY[status])} · {statusCounts[status]}</button>)}
+    </div>
+
+    <section className="panel review-list-panel" data-reveal>
+      {visible.length === 0
+        ? <p className="empty-copy">{t("ReviewCenter.emptyFilter")}</p>
+        : <div className="review-list">{visible.map((insight) => {
+            const status = reviewStatuses[insight.id];
+            const StatusIcon = REVIEW_STATUS_ICON[status];
+            const sentCount = status === "sent" && insight.action?.type === "sendReminders" ? (sentReceipts[insight.id] ?? insight.action.recipients).length : null;
+            return <article className="review-row" key={insight.id}>
+              <span className={`review-status-icon status-${status}`}><StatusIcon width={18} height={18}/></span>
+              <div className="review-row-body">
+                <div className="review-row-top"><h3>{t(insight.titleKey)}</h3><span className="review-status-label">{t(REVIEW_STATUS_LABEL_KEY[status])}</span></div>
+                <p>{t(insight.detailKey)}</p>
+                <div className="review-row-meta">
+                  <span className="insight-stake"><Coins width={13} height={13}/>{t("Overview.moneyAtStake")}<b>{money(insight.moneyAtStake)}</b></span>
+                  {sentCount !== null && <span>{t("ReviewCenter.sentToCount", { count: sentCount })}</span>}
+                </div>
+              </div>
+              <button className="soft-button" onClick={() => openInsight(insight)}>{t("ReviewCenter.viewDetails")}<NavArrowRight width={16} height={16}/></button>
+            </article>;
+          })}</div>}
+    </section>
+
+    <ReminderPreviewDialog
+      insight={reminderPreview}
+      removedRecipients={removedRecipients}
+      onRemoveRecipient={(name) => setRemovedRecipients((current) => new Set(current).add(name))}
+      onOpenChange={(open) => !open && setReminderPreview(null)}
+      onSend={(recipients) => { onSendReminders(reminderPreview!, recipients); setReminderPreview(null); }}
+      onDeny={() => { onDeny(reminderPreview!); setReminderPreview(null); }}
+      t={t} money={money}
+    />
+
+    <ReviewDraftDialog
+      insight={reviewDraft}
+      status={reviewDraft ? reviewStatuses[reviewDraft.id] : undefined}
+      expanded={draftExpanded}
+      onToggleExpand={() => setDraftExpanded((current) => !current)}
+      onOpenChange={(open) => { if (!open) { setReviewDraft(null); setDraftExpanded(false); } }}
+      onApprove={() => { onApprove(reviewDraft!); setReviewDraft(null); }}
+      onDeny={() => { onDeny(reviewDraft!); setReviewDraft(null); }}
+      t={t} money={money}
+    />
+
+    <ReviewReceiptDialog
+      insight={receiptFor}
+      recipients={receiptFor ? sentReceipts[receiptFor.id] ?? [] : []}
+      onOpenChange={(open) => !open && setReceiptFor(null)}
+      t={t} money={money}
+    />
   </div>;
 }
 
@@ -655,17 +808,66 @@ function ConnectionDialog({ provider, onClose, onRefresh }: { provider: Provider
 }
 
 function DesktopApp() {
-  const { market, setMarket, theme, setTheme, sounds, setSounds, celebrate } = useExperience();
+  const { market, setMarket, theme, setTheme, sounds, setSounds, celebrate, notify } = useExperience();
   const t = useTranslations();
   const currentLocale = useLocale();
   const router = useRouter();
   const pathname = usePathname();
   const switchLocale = (nextLocale: "en" | "es-mx") => router.replace(pathname, { locale: nextLocale }); const [view, setView] = useState<View>(() => { if (typeof window === "undefined") return "overview"; const requested = new URLSearchParams(window.location.search).get("view") as View | null; return requested && navGroups.some((group) => group.items.some((item) => item.id === requested)) ? requested : "overview"; }); const [dataMode] = useState<DataMode>(() => { if (typeof window === "undefined") return "sample"; const requested = new URLSearchParams(window.location.search).get("data"); return requested === "empty" || requested === "live" ? requested : "sample"; }); const [providers, setProviders] = useState<Provider[]>(fallbackProviders); const [loading, setLoading] = useState(true); const [selectedProvider, setSelectedProvider] = useState<Provider | null>(null); const [collapsed, setCollapsed] = useState(false); const [profile, setProfile] = useState(false); const [notifications, setNotifications] = useState(false); const [notificationItems, setNotificationItems] = useState<NotificationItem[]>(sampleData.notifications.items); const [pendingTarget, setPendingTarget] = useState<NotificationTarget | null>(null); const [targetToken, setTargetToken] = useState(0); const unreadCount = notificationItems.filter((item) => !item.read).length; const accountingProviderId = market === "latam" ? "contpaqi" : "quickbooks";
+  const [reviewStatuses, setReviewStatuses] = useState<Record<string, ReviewStatus>>(() => Object.fromEntries(sampleData.insights.candidates.map((candidate) => [candidate.id, candidate.initialStatus ?? "pending"])));
+  const [sentReceipts, setSentReceipts] = useState<Record<string, InsightRecipient[]>>(() => {
+    const receipts: Record<string, InsightRecipient[]> = {};
+    for (const candidate of sampleData.insights.candidates) {
+      if (candidate.initialStatus === "sent" && candidate.action?.type === "sendReminders") {
+        receipts[candidate.id] = candidate.action.recipients;
+      }
+    }
+    return receipts;
+  });
+  const pendingReviewCount = sampleData.insights.candidates.filter((insight) => insight.actionable && insight.action !== null && reviewStatuses[insight.id] === "pending").length;
+  const listFormatter = useMemo(() => new Intl.ListFormat(currentLocale, { style: "long", type: "conjunction" }), [currentLocale]);
+  const providerTitle = (id: string) => providers.find((provider) => provider.id === id)?.title ?? id;
   const loadProviders = async () => { try { const response = await fetch("/api/integrations"); const data = await response.json() as { providers?: Provider[] }; if (data.providers?.length) setProviders(data.providers); } catch { /* local preview stays usable */ } setLoading(false); };
   useEffect(() => { queueMicrotask(() => void loadProviders()); const show = () => setNotifications(true); window.addEventListener("aval:notifications", show); const connected = new URLSearchParams(window.location.search).get("connected"); if (connected) { window.setTimeout(() => celebrate(t("DesktopApp.connectionAuthorized"), connected), 250); const url = new URL(window.location.href); url.searchParams.delete("connected"); window.history.replaceState({}, "", url); } return () => window.removeEventListener("aval:notifications", show); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const setActiveView = (next: View) => { setView(next); setProfile(false); const url = new URL(window.location.href); url.searchParams.set("view", next); window.history.replaceState({}, "", url); window.scrollTo({ top: 0, behavior: "smooth" }); }; const openConnections = () => setActiveView("connections"); const openProvider = (id: string) => setSelectedProvider(providers.find((provider) => provider.id === id) ?? null); const titleKey = useMemo<string>(() => navGroups.flatMap((group) => group.items).find((item) => item.id === view)?.labelKey ?? "DesktopApp.avalFallback", [view]);
   const resolveNotificationProvider = (item: NotificationItem) => item.provider === "quickbooks" && market === "latam" ? accountingProviderId : item.provider;
   const pushNotification = (item: Omit<NotificationItem, "id" | "minutesAgo" | "read">) => setNotificationItems((current) => [{ ...item, id: `live-${current.length}-${Date.now()}`, minutesAgo: 0, read: false }, ...current]);
+  // Single source of truth for every review decision — called from both
+  // Overview's insight queue and the Review Center, so a decision made in
+  // either place is reflected identically in the other.
+  const approveInsight = (insight: InsightCandidate) => {
+    setReviewStatuses((current) => ({ ...current, [insight.id]: "approved" }));
+    notify(t(insight.titleKey), t("Overview.insightPrepared"));
+    window.setTimeout(() => pushNotification({
+      provider: "aval",
+      titleKey: insight.titleKey,
+      detailKey: "Overview.notifApprovedDetail",
+      target: { kind: "reviewDraft", insightId: insight.id },
+    }), 1100);
+  };
+  const denyInsight = (insight: InsightCandidate) => {
+    setReviewStatuses((current) => ({ ...current, [insight.id]: "denied" }));
+    notify(t(insight.titleKey), t("Overview.insightDenied"));
+    window.setTimeout(() => pushNotification({
+      provider: "aval",
+      titleKey: insight.titleKey,
+      detailKey: "Overview.notifDeniedDetail",
+      target: { kind: "reviewDraft", insightId: insight.id },
+    }), 1100);
+  };
+  const sendReminderBatch = (insight: InsightCandidate, recipients: InsightRecipient[]) => {
+    setReviewStatuses((current) => ({ ...current, [insight.id]: "sent" }));
+    setSentReceipts((current) => ({ ...current, [insight.id]: recipients }));
+    const channels = listFormatter.format([...new Set(recipients.map((recipient) => providerTitle(recipient.channel)))]);
+    notify(t(insight.titleKey), t("Overview.remindersSentDetail", { count: recipients.length, channels }));
+    window.setTimeout(() => pushNotification({
+      provider: recipients[0]?.channel ?? "whatsapp",
+      titleKey: insight.titleKey,
+      detailKey: "Overview.remindersSentDetail",
+      detailParams: { count: recipients.length, channels },
+      target: { kind: "reminderReceipt", insightId: insight.id },
+    }), 1100);
+  };
   const openNotification = (item: NotificationItem) => {
     setNotificationItems((current) => current.map((entry) => entry.id === item.id ? { ...entry, read: true } : entry));
     setNotifications(false);
@@ -679,10 +881,11 @@ function DesktopApp() {
     setPendingTarget(target);
     setTargetToken((token) => token + 1);
   };
-  return <main className={`app-shell ${collapsed ? "sidebar-is-collapsed" : ""}`}><aside className="sidebar"><div className="brand-lockup"><span className="brand-symbol">a</span><div><strong>aval</strong><small>{t("DesktopApp.propertyOperations")}</small></div><button className="icon-button sidebar-collapse" onClick={() => setCollapsed(!collapsed)} aria-label={t("DesktopApp.collapseSidebar")}><ViewColumns3 width={18} height={18}/></button></div><nav>{navGroups.map((group) => <div className="nav-group" key={group.labelKey}><p>{t(group.labelKey)}</p>{group.items.map((item) => { const Icon = item.icon; return <button className={view === item.id ? "active" : ""} onClick={() => setActiveView(item.id)} key={item.id} title={t(item.labelKey)}><Icon width={20} height={20}/><span>{t(item.labelKey)}</span>{item.count && <b>{item.count}</b>}{view === item.id && <NavArrowRight className="nav-chevron" width={16} height={16}/>}</button>; })}</div>)}</nav><button className="workspace-card" onClick={() => setProfile(!profile)}><span className="initials">AC</span><span><strong>Acme Residential</strong><small>Camila Reyes</small></span><span className="icon-button"><NavArrowDown width={16} height={16}/></span></button>{profile && <div className="profile-menu"><div><span className="initials">CR</span><span><strong>Camila Reyes</strong><small>{t("DesktopApp.administratorRole")}</small></span></div><button onClick={() => setActiveView("settings")}><Settings width={17} height={17}/>{t("DesktopApp.profileSettings")}</button><button onClick={() => switchLocale(currentLocale === "en" ? "es-mx" : "en")}><Language width={17} height={17}/>{currentLocale === "en" ? "Español (México)" : "English"}</button><button onClick={() => setMarket(market === "us" ? "latam" : "us")}><Globe width={17} height={17}/>{market === "us" ? t("DesktopApp.marketUnitedStates") : t("DesktopApp.marketLatam")}</button><button onClick={() => setTheme(theme === "light" ? "dark" : "light")}>{theme === "light" ? <HalfMoon width={17} height={17}/> : <SunLight width={17} height={17}/>} {theme === "light" ? t("DesktopApp.darkMode") : t("DesktopApp.lightMode")}</button><button onClick={() => setSounds(!sounds)}>{sounds ? <SoundHigh width={17} height={17}/> : <SoundOff width={17} height={17}/>} {sounds ? t("DesktopApp.soundsOn") : t("DesktopApp.soundsOff")}</button><Link href="/mobile"><SmartphoneDevice width={17} height={17}/>{t("DesktopApp.openMobileApp")}</Link>
+  const navCounts: Partial<Record<View, number>> = { reviewCenter: pendingReviewCount };
+  return <main className={`app-shell ${collapsed ? "sidebar-is-collapsed" : ""}`}><aside className="sidebar"><div className="brand-lockup"><span className="brand-symbol">a</span><div><strong>aval</strong><small>{t("DesktopApp.propertyOperations")}</small></div><button className="icon-button sidebar-collapse" onClick={() => setCollapsed(!collapsed)} aria-label={t("DesktopApp.collapseSidebar")}><ViewColumns3 width={18} height={18}/></button></div><nav>{navGroups.map((group) => <div className="nav-group" key={group.labelKey}><p>{t(group.labelKey)}</p>{group.items.map((item) => { const Icon = item.icon; const count = navCounts[item.id] ?? item.count; return <button className={view === item.id ? "active" : ""} onClick={() => setActiveView(item.id)} key={item.id} title={t(item.labelKey)}><Icon width={20} height={20}/><span>{t(item.labelKey)}</span>{Boolean(count) && <b>{count}</b>}{view === item.id && <NavArrowRight className="nav-chevron" width={16} height={16}/>}</button>; })}</div>)}</nav><button className="workspace-card" onClick={() => setProfile(!profile)}><span className="initials">AC</span><span><strong>Acme Residential</strong><small>Camila Reyes</small></span><span className="icon-button"><NavArrowDown width={16} height={16}/></span></button>{profile && <div className="profile-menu"><div><span className="initials">CR</span><span><strong>Camila Reyes</strong><small>{t("DesktopApp.administratorRole")}</small></span></div><button onClick={() => setActiveView("settings")}><Settings width={17} height={17}/>{t("DesktopApp.profileSettings")}</button><button onClick={() => switchLocale(currentLocale === "en" ? "es-mx" : "en")}><Language width={17} height={17}/>{currentLocale === "en" ? "Español (México)" : "English"}</button><button onClick={() => setMarket(market === "us" ? "latam" : "us")}><Globe width={17} height={17}/>{market === "us" ? t("DesktopApp.marketUnitedStates") : t("DesktopApp.marketLatam")}</button><button onClick={() => setTheme(theme === "light" ? "dark" : "light")}>{theme === "light" ? <HalfMoon width={17} height={17}/> : <SunLight width={17} height={17}/>} {theme === "light" ? t("DesktopApp.darkMode") : t("DesktopApp.lightMode")}</button><button onClick={() => setSounds(!sounds)}>{sounds ? <SoundHigh width={17} height={17}/> : <SoundOff width={17} height={17}/>} {sounds ? t("DesktopApp.soundsOn") : t("DesktopApp.soundsOff")}</button><Link href="/mobile"><SmartphoneDevice width={17} height={17}/>{t("DesktopApp.openMobileApp")}</Link>
       {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- external platform sign-out route, not part of this app router */}
       <a href="/signout-with-chatgpt?return_to=/"><LogOut width={17} height={17}/>{t("DesktopApp.signOut")}</a>
-      </div>}</aside><section className="content-shell" aria-label={t(titleKey)}>{view === "overview" && <Overview openConnections={openConnections} dataMode={dataMode} providers={providers} pendingTarget={pendingTarget} targetToken={targetToken} pushNotification={pushNotification}/>} {view === "tasks" && <TasksView/>} {view === "inbox" && <InboxView pendingTarget={pendingTarget} targetToken={targetToken}/>} {view === "connections" && <ConnectionsView providers={providers} loading={loading} onOpen={openProvider}/>} {view === "settings" && <SettingsView openConnections={openConnections}/>} {(["properties", "leasing", "maintenance", "accounting", "documents"] as View[]).includes(view) && <OperationsView view={view} openConnections={openConnections} dataMode={dataMode} providers={providers}/>}</section>{selectedProvider && <ConnectionDialog provider={selectedProvider} onClose={() => setSelectedProvider(null)} onRefresh={loadProviders}/>}<Dialog.Root open={notifications} onOpenChange={setNotifications}><Dialog.Portal><Dialog.Overlay className="dialog-overlay subtle"/><Dialog.Content className="notification-drawer"><div className="drawer-heading"><div><p className="eyebrow">{t("DesktopApp.liveWorkspace")}</p><Dialog.Title>{t("DesktopApp.notifications")}</Dialog.Title></div><Dialog.Close className="icon-button" aria-label={t("Overview.close")}><Xmark width={20} height={20}/></Dialog.Close></div><div className="notification-list">{notificationItems.map((item) => <button key={item.id} className={item.read ? "" : "unread"} onClick={() => openNotification(item)}><BrandMark provider={resolveNotificationProvider(item)} small/><span><strong>{t(item.titleKey)}</strong><small>{t(item.detailKey, item.detailParams)}</small></span><span className="notif-trailing">{!item.read && <i className="unread-dot"/>}<time>{formatMinutesAgo(item.minutesAgo, currentLocale)}</time></span></button>)}</div><button className="wide-button" onClick={() => setNotificationItems((current) => current.map((item) => ({ ...item, read: true })))}><Check width={17} height={17}/>{unreadCount ? t("DesktopApp.markAllAsRead") : t("DesktopApp.allCaughtUp")}</button></Dialog.Content></Dialog.Portal></Dialog.Root><AvalAssistant view={view}/></main>;
+      </div>}</aside><section className="content-shell" aria-label={t(titleKey)}>{view === "overview" && <Overview openConnections={openConnections} dataMode={dataMode} providers={providers} pendingTarget={pendingTarget} targetToken={targetToken} reviewStatuses={reviewStatuses} sentReceipts={sentReceipts} onApprove={approveInsight} onDeny={denyInsight} onSendReminders={sendReminderBatch}/>} {view === "tasks" && <TasksView/>} {view === "reviewCenter" && <ReviewCenterView reviewStatuses={reviewStatuses} sentReceipts={sentReceipts} onApprove={approveInsight} onDeny={denyInsight} onSendReminders={sendReminderBatch}/>} {view === "inbox" && <InboxView pendingTarget={pendingTarget} targetToken={targetToken}/>} {view === "connections" && <ConnectionsView providers={providers} loading={loading} onOpen={openProvider}/>} {view === "settings" && <SettingsView openConnections={openConnections}/>} {(["properties", "leasing", "maintenance", "accounting", "documents"] as View[]).includes(view) && <OperationsView view={view} openConnections={openConnections} dataMode={dataMode} providers={providers}/>}</section>{selectedProvider && <ConnectionDialog provider={selectedProvider} onClose={() => setSelectedProvider(null)} onRefresh={loadProviders}/>}<Dialog.Root open={notifications} onOpenChange={setNotifications}><Dialog.Portal><Dialog.Overlay className="dialog-overlay subtle"/><Dialog.Content className="notification-drawer"><div className="drawer-heading"><div><p className="eyebrow">{t("DesktopApp.liveWorkspace")}</p><Dialog.Title>{t("DesktopApp.notifications")}</Dialog.Title></div><Dialog.Close className="icon-button" aria-label={t("Overview.close")}><Xmark width={20} height={20}/></Dialog.Close></div><div className="notification-list">{notificationItems.map((item) => <button key={item.id} className={item.read ? "" : "unread"} onClick={() => openNotification(item)}><BrandMark provider={resolveNotificationProvider(item)} small/><span><strong>{t(item.titleKey)}</strong><small>{t(item.detailKey, item.detailParams)}</small></span><span className="notif-trailing">{!item.read && <i className="unread-dot"/>}<time>{formatMinutesAgo(item.minutesAgo, currentLocale)}</time></span></button>)}</div><button className="wide-button" onClick={() => setNotificationItems((current) => current.map((item) => ({ ...item, read: true })))}><Check width={17} height={17}/>{unreadCount ? t("DesktopApp.markAllAsRead") : t("DesktopApp.allCaughtUp")}</button></Dialog.Content></Dialog.Portal></Dialog.Root><AvalAssistant view={view}/></main>;
 }
 
 export default function Home() { return <ExperienceProvider><DesktopApp/></ExperienceProvider>; }

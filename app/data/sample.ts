@@ -42,10 +42,16 @@ export interface InsightRecipient {
 }
 
 export type InsightAction =
-  | { type: "sendReminders"; recipients: InsightRecipient[] }
+  | { type: "sendReminders"; recipients: InsightRecipient[]; messageKey: string }
   | { type: "escalateMaintenance" }
   | { type: "draftPricingReview" }
   | { type: "openReview" };
+
+// Every reviewable item's lifecycle. "sent" is the sendReminders equivalent
+// of "approved" — the batch went out rather than a document being signed
+// off — kept as its own state (not folded into "approved") so the Review
+// Center can say what actually happened instead of a generic status.
+export type ReviewStatus = "pending" | "approved" | "denied" | "sent";
 
 export interface InsightCandidate {
   id: string;
@@ -63,6 +69,9 @@ export interface InsightCandidate {
   // now, grounded in this insight's own evidence/moneyAtStake — the seam
   // where a real model call replaces the static draft later.
   draftKey?: string;
+  // Seeds the Review Center with a mix of already-decided items instead of
+  // everything starting pending. Defaults to "pending" when omitted.
+  initialStatus?: ReviewStatus;
 }
 
 export interface PropertyRow {
@@ -251,12 +260,17 @@ export const sampleData = {
             { name: "Mateo S.", detailKey: "Overview.collectionsUnit5aDetail", amount: 9500, channel: "whatsapp" },
             { name: "Nora V.", detailKey: "Overview.collectionsUnit7cDetail", amount: 7000, channel: "whatsapp" },
           ],
+          messageKey: "Overview.reminderMessageTemplate",
         },
         evidence: [
           { labelKey: "Overview.collectionsUnit3b", detailKey: "Overview.collectionsUnit3bDetail", amount: 12000 },
           { labelKey: "Overview.collectionsUnit5a", detailKey: "Overview.collectionsUnit5aDetail", amount: 9500 },
           { labelKey: "Overview.collectionsUnit7c", detailKey: "Overview.collectionsUnit7cDetail", amount: 7000 },
         ],
+        // Already sent before this session opens, so the Review Center has
+        // at least one "sent" record (with a receipt) instead of every item
+        // starting pending.
+        initialStatus: "sent",
       },
       {
         id: "vacancy-pricing",
@@ -316,6 +330,9 @@ export const sampleData = {
           { labelKey: "Overview.depositAug19", detailKey: "Overview.depositAug19Detail", amount: 1800 },
           { labelKey: "Overview.depositAug27", detailKey: "Overview.depositAug27Detail", amount: 2000 },
         ],
+        // Already approved before this session opens — the Review Center's
+        // demo content needs a decided draft, not only a pending one.
+        initialStatus: "approved",
       },
       {
         id: "lease-renewal",
@@ -328,6 +345,9 @@ export const sampleData = {
         action: { type: "openReview" },
         draftKey: "Overview.draftLeaseRenewal",
         evidence: [],
+        // Already denied before this session opens, so the Review Center
+        // has a real denial to show, not just pending/approved/sent.
+        initialStatus: "denied",
       },
       {
         // Not actionable — a chart, not an insight. Excluded by the hard gate
@@ -611,6 +631,14 @@ export function assertSampleConsistency(): void {
   const { totalRevenue, totalExpenses } = deriveAccountingTotals();
   if (totalRevenue - totalExpenses !== sampleData.noi.value) {
     throw new Error(`Accounting revenue (${totalRevenue}) minus expenses (${totalExpenses}) is ${totalRevenue - totalExpenses}, but does not equal noi.value (${sampleData.noi.value})`);
+  }
+
+  // "sent" is only a meaningful lifecycle state for a reminder batch — a
+  // drafted document is "approved" or "denied", never "sent".
+  for (const candidate of sampleData.insights.candidates) {
+    if (candidate.initialStatus === "sent" && candidate.action?.type !== "sendReminders") {
+      throw new Error(`Insight "${candidate.id}" has initialStatus "sent" but its action is not sendReminders`);
+    }
   }
 
   // Every notification that deep-links to a drafted review or a sent-reminder
