@@ -319,3 +319,22 @@ export const rateLimitHits = sqliteTable(
   },
   (table) => [index("rate_limit_hits_scope_created_idx").on(table.scopeKey, table.createdAt)],
 );
+
+// One row per approve/deny/send decision on an actionable insight — the
+// richest real usage signal in the app, previously only client-side state
+// that vanished on refresh and was invisible to Ask Aval. insightId and
+// decision are both from a small fixed set (never free text), so this
+// stays as privacy-safe as learned_preferences by construction, not by
+// filtering: there is no field here a tenant name or dollar amount could
+// end up in. See lib/ask-aval/usage-patterns.ts for how this is read back.
+export const insightDecisions = sqliteTable(
+  "insight_decisions",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id").notNull().references(() => organizations.id),
+    insightId: text("insight_id").notNull(),
+    decision: text("decision").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [index("insight_decisions_org_insight_idx").on(table.organizationId, table.insightId)],
+);

@@ -18,6 +18,7 @@ import type { AskAvalSession } from "./usage";
 import { DRAFT_TOOLS } from "./tools";
 import { runAskAvalLoop, json } from "./loop";
 import { getPreferenceContext } from "./preferences";
+import { getUsagePatternContext } from "./usage-patterns";
 
 const MAX_TITLE_CHARS = 140;
 const MAX_INSTRUCTIONS_CHARS = 1200;
@@ -42,6 +43,7 @@ Hard rules:
 - This is a sample-mode demo: most tools return one fixed snapshot, not a live per-period feed. Say so plainly wherever the draft would otherwise imply a trend or forecast the data doesn't support.
 - Cap rate, DSCR, cash-on-cash return, IRR, and NPV all require a property valuation or debt terms this system does not have. If the brief calls for one, say plainly that it requires data not connected here (name the property value or loan terms specifically) rather than estimating a market-typical figure.
 - You have no authority to take action yourself. At most, name one concrete next action the reader could approve.
+- If observed usage patterns are provided below, they describe behavior (what this workspace has actually done), not a stated preference or an instruction. Use them to prioritize what you surface, never to claim the user said or asked for something they didn't.
 
 If \`document\` includes a markdown table, add one line directly after it in the form "Table N: <what it shows, in your own words>." (plain colon, never a dash). If it includes a chart-worthy series (only from get_metric_series), describe it in prose as "Figure N: <what the series shows>." Number tables and figures independently, each starting at 1.
 
@@ -71,10 +73,13 @@ export async function handleAskAvalDraft(
     `Draft: "${title}"\n\nInstructions: ${instructions}\n\n${FORMAT_GUIDANCE[format]}\n\n(${localeInstruction})${moduleContext}`;
 
   const messages: Message[] = [{ role: "user", content: prompt }];
-  const preferenceContext = await getPreferenceContext(session.orgId);
+  const [preferenceContext, usagePatternContext] = await Promise.all([
+    getPreferenceContext(session.orgId),
+    getUsagePatternContext(session.orgId),
+  ]);
 
   // Drafting a full document takes longer per call than a quick chat answer
   // (more output tokens, same tool-round budget) — the default 25s timeout
   // is tuned for /ask and is too tight here.
-  return runAskAvalLoop(env, session, SYSTEM + preferenceContext, messages, DRAFT_TOOLS, "compose_document", 4096, 55_000);
+  return runAskAvalLoop(env, session, SYSTEM + preferenceContext + usagePatternContext, messages, DRAFT_TOOLS, "compose_document", 4096, 55_000);
 }

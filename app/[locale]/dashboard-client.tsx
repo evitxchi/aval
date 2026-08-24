@@ -1052,11 +1052,19 @@ function DesktopApp({ authMode, displayName, email }: { authMode: AuthMode; disp
   const setActiveView = (next: View) => { setView(next); setProfile(false); const url = new URL(window.location.href); url.searchParams.set("view", next); window.history.replaceState({}, "", url); window.scrollTo({ top: 0, behavior: "smooth" }); }; const openConnections = () => setActiveView("connections"); const openProvider = (id: string) => setSelectedProvider(providers.find((provider) => provider.id === id) ?? null); const titleKey = useMemo<string>(() => navGroups.flatMap((group) => group.items).find((item) => item.id === view)?.labelKey ?? "DesktopApp.avalFallback", [view]);
   const resolveNotificationProvider = (item: NotificationItem) => item.provider === "quickbooks" && market === "latam" ? accountingProviderId : item.provider;
   const pushNotification = (item: Omit<NotificationItem, "id" | "minutesAgo" | "read">) => setNotificationItems((current) => [{ ...item, id: `live-${current.length}-${Date.now()}`, minutesAgo: 0, read: false }, ...current]);
+  // Fire-and-forget: persists the decision so Ask Aval can learn from real
+  // usage over time (lib/ask-aval/usage-patterns.ts). Never blocks the UI
+  // and never surfaces its own failure — reviewStatuses above is still the
+  // source of truth for what the user sees right now.
+  const recordInsightDecision = (insightId: string, decision: "approved" | "denied" | "sent") => {
+    fetch("/api/insights/decision", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ insightId, decision }) }).catch(() => {});
+  };
   // Single source of truth for every review decision — called from both
   // Overview's insight queue and the Review Center, so a decision made in
   // either place is reflected identically in the other.
   const approveInsight = (insight: InsightCandidate) => {
     setReviewStatuses((current) => ({ ...current, [insight.id]: "approved" }));
+    recordInsightDecision(insight.id, "approved");
     notify(t(insight.titleKey), t("Overview.insightPrepared"));
     window.setTimeout(() => pushNotification({
       provider: "aval",
@@ -1067,6 +1075,7 @@ function DesktopApp({ authMode, displayName, email }: { authMode: AuthMode; disp
   };
   const denyInsight = (insight: InsightCandidate) => {
     setReviewStatuses((current) => ({ ...current, [insight.id]: "denied" }));
+    recordInsightDecision(insight.id, "denied");
     notify(t(insight.titleKey), t("Overview.insightDenied"));
     window.setTimeout(() => pushNotification({
       provider: "aval",
@@ -1077,6 +1086,7 @@ function DesktopApp({ authMode, displayName, email }: { authMode: AuthMode; disp
   };
   const sendReminderBatch = (insight: InsightCandidate, recipients: InsightRecipient[]) => {
     setReviewStatuses((current) => ({ ...current, [insight.id]: "sent" }));
+    recordInsightDecision(insight.id, "sent");
     setSentReceipts((current) => ({ ...current, [insight.id]: recipients }));
     const channels = listFormatter.format([...new Set(recipients.map((recipient) => providerTitle(recipient.channel)))]);
     notify(t(insight.titleKey), t("Overview.remindersSentDetail", { count: recipients.length, channels }));
