@@ -75,7 +75,6 @@ export async function callClaude(
     tools?: ToolSchema[];
     tool_choice?: { type: "auto" | "any" | "tool"; name?: string };
     max_tokens?: number;
-    temperature?: number;
   },
 ): Promise<MessagesResponse> {
   if (!env.ANTHROPIC_API_KEY) {
@@ -97,7 +96,6 @@ export async function callClaude(
       body: JSON.stringify({
         model: env.ANTHROPIC_MODEL ?? DEFAULT_MODEL,
         max_tokens: params.max_tokens ?? 2048,
-        temperature: params.temperature ?? 0,
         system: params.system,
         messages: params.messages,
         ...(params.tools ? { tools: params.tools } : {}),

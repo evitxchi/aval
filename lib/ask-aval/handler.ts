@@ -82,7 +82,6 @@ export async function handleAskAval(
         // On the last round, force the model to conclude.
         tool_choice: round === MAX_ROUNDS - 1 ? { type: "tool", name: "render_answer" } : { type: "auto" },
         max_tokens: 2048,
-        temperature: 0,
       });
 
       inputTokens += res.usage.input_tokens;
@@ -93,7 +92,7 @@ export async function handleAskAval(
 
       if (final) {
         const answer = final.input;
-        const gate = checkFaithfulness(answer, seenNumbers);
+        const gate = checkFaithfulness(answer, withDerivedNumbers(seenNumbers));
         if (!gate.ok) {
           console.error("ask_aval_faithfulness_violation", { orgId: session.orgId, unsupported: gate.unsupported });
           await recordUsage(session, day, inputTokens, outputTokens);
@@ -141,9 +140,34 @@ export async function handleAskAval(
 /* ── faithfulness gate ──────────────────────────────────────────────────── */
 
 /**
+ * The system prompt explicitly permits "arithmetic decomposition" (e.g.
+ * billed minus collected, a share expressed as a percentage) as long as it's
+ * hedged as computed rather than asserted as a new fact. A literal-match-only
+ * gate would reject those correct, real, derived figures just as readily as
+ * an invented one — so every pairwise sum, absolute difference, and percent
+ * ratio between two already-verified numbers is added before the check runs.
+ * This stays bounded (still traceable to real tool output, not open-ended)
+ * while no longer flagging ordinary subtraction as a violation.
+ */
+function withDerivedNumbers(seen: Set<number>): Set<number> {
+  const base = [...seen];
+  const expanded = new Set(seen);
+  for (const a of base) {
+    for (const b of base) {
+      if (a === b) continue;
+      expanded.add(round2(a + b));
+      expanded.add(round2(Math.abs(a - b)));
+      if (b !== 0) expanded.add(round2((a / b) * 100));
+    }
+  }
+  return expanded;
+}
+
+/**
  * Every numeral in the narrative, document, and metric/chart values must
- * have appeared in a tool result. Fails closed: a violation withholds the
- * answer rather than shipping an invented figure to a property manager.
+ * have appeared in a tool result (directly or via withDerivedNumbers above).
+ * Fails closed: a violation withholds the answer rather than shipping an
+ * invented figure to a property manager.
  */
 export function checkFaithfulness(answer: Record<string, unknown>, seen: Set<number>): { ok: true } | { ok: false; unsupported: number[] } {
   const text = [answer.narrative, answer.headline, answer.document].filter((value) => typeof value === "string").join(" ");
