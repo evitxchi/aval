@@ -5,6 +5,8 @@
  * webhook signature).
  */
 
+import { constantTimeEqual } from "@/lib/security/constant-time";
+
 export interface BillingEnv {
   STRIPE_SECRET_KEY: string | undefined;
   STRIPE_WEBHOOK_SECRET: string | undefined;
@@ -100,5 +102,9 @@ export async function verifyStripeWebhook(payload: string, signatureHeader: stri
   const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   const signatureBytes = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(`${timestamp}.${payload}`));
   const expected = Array.from(new Uint8Array(signatureBytes), (byte) => byte.toString(16).padStart(2, "0")).join("");
-  return signatures.some((signature) => signature === expected);
+  // Constant-time: a plain `===` short-circuits on the first mismatched
+  // character, which leaks how much of a forged signature was already
+  // correct — the seam an attacker would use to forge a billing event
+  // (e.g. a fake checkout.session.completed granting themselves tokens).
+  return signatures.some((signature) => constantTimeEqual(signature, expected));
 }

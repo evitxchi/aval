@@ -302,3 +302,20 @@ export const automationSteps = sqliteTable(
   },
   (table) => [index("automation_steps_run_idx").on(table.runId)],
 );
+
+// One row per rate-limited attempt (signup, login), never per-window —
+// counted by querying rows within the window, the same idiom ai_usage
+// already uses for the daily model-call cap, so the limiter needs no
+// separate counter that a Worker isolate wouldn't reliably persist anyway.
+// scopeKey encodes both the action and the identity being limited (e.g.
+// "signup:ip:203.0.113.4" or "login:email:a@b.com") so IP-based and
+// account-based limits can coexist without cross-contaminating.
+export const rateLimitHits = sqliteTable(
+  "rate_limit_hits",
+  {
+    id: text("id").primaryKey(),
+    scopeKey: text("scope_key").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [index("rate_limit_hits_scope_created_idx").on(table.scopeKey, table.createdAt)],
+);

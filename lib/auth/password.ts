@@ -5,7 +5,12 @@
  * iteration count can be raised later without invalidating old hashes.
  */
 
-const ITERATIONS = 100_000;
+// OWASP's current minimum for PBKDF2-HMAC-SHA256 (raised from 100k, an
+// older, now-too-weak baseline). The stored format is versioned by
+// iteration count (`pbkdf2$<iterations>$...`), so this only affects hashes
+// created from now on — existing accounts keep verifying against whatever
+// count their hash was created with.
+const ITERATIONS = 600_000;
 const KEY_LENGTH_BITS = 256;
 
 function toHex(bytes: Uint8Array): string {

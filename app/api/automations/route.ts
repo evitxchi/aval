@@ -136,19 +136,23 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => ({}))) as { action?: string; runId?: string; insightId?: string };
 
   if (body.action === "approve" && body.runId) {
-    const [run] = await db.select().from(automationRuns).where(eq(automationRuns.id, body.runId));
-    const config = run ? AUTOMATIONS[run.insightId] : undefined;
+    // Scoped by organizationId, not just id — an unscoped lookup here would let
+    // any authenticated user approve (and thus mutate) another org's automation
+    // run by guessing or observing its id, a cross-tenant write.
+    const [run] = await db.select().from(automationRuns).where(and(eq(automationRuns.id, body.runId), eq(automationRuns.organizationId, identity.organizationId)));
+    if (!run) return Response.json({ error: "Automation run not found" }, { status: 404 });
+    const config = AUTOMATIONS[run.insightId];
     const now = new Date();
     await db.insert(automationSteps).values({
       id: crypto.randomUUID(),
-      runId: body.runId,
+      runId: run.id,
       kind: "resolved",
       actorLabel: identity.displayName,
       summary: config?.kind === "internal" ? "Approved and marked resolved." : "Approved. Outreach sent and the ticket is marked resolved.",
       payloadJson: withChannel(config?.kind === "internal" ? "aval" : config?.channel ?? "aval"),
       createdAt: now,
     });
-    await db.update(automationRuns).set({ status: "resolved", updatedAt: now }).where(eq(automationRuns.id, body.runId));
+    await db.update(automationRuns).set({ status: "resolved", updatedAt: now }).where(eq(automationRuns.id, run.id));
     return Response.json({ triggers: await loadTriggers(identity.organizationId) });
   }
 
