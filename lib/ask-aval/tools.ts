@@ -15,6 +15,7 @@
 
 import type { ToolSchema } from "./anthropic";
 import { derivedSample, sampleData, sumAmounts, type InsightRecipient } from "@/app/data/sample";
+import { PREFERENCE_TOPICS, recordPreference, describePreference, type PreferenceTopic } from "./preferences";
 
 /** Every numeric value a tool exposed, collected for the faithfulness gate. */
 export interface ToolOutput {
@@ -91,6 +92,21 @@ const DATA_TOOLS: ToolSchema[] = [
     name: "get_accounting_breakdown",
     description: "Revenue sources, expense categories, and NOI margin for the current period. Use for cost, margin, or budget questions.",
     input_schema: { type: "object", properties: {} },
+  },
+  {
+    name: "record_preference",
+    description:
+      "Call this when the user gives an explicit standing correction or instruction about how you should behave going forward (not a one-off answer to this question). " +
+      "You may only pick from the fixed topic/statement pairs listed below, verbatim, matching whichever is closest to what the user actually said. " +
+      "Never invent a new statement, and never include any tenant name, address, dollar amount, or other specific business detail here — this is a behavioral tag, not a note.",
+    input_schema: {
+      type: "object",
+      properties: {
+        topic: { type: "string", enum: Object.keys(PREFERENCE_TOPICS) },
+        statement: { type: "string", enum: Object.values(PREFERENCE_TOPICS).flat() },
+      },
+      required: ["topic", "statement"],
+    },
   },
 ];
 
@@ -189,7 +205,7 @@ function collectNumbers(v: unknown, out: number[] = []): number[] {
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const clamp = (n: number, lo: number, hi: number) => (Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : lo);
 
-export async function runTool(name: string, input: Record<string, unknown>): Promise<ToolOutput> {
+export async function runTool(name: string, input: Record<string, unknown>, organizationId?: string): Promise<ToolOutput> {
   switch (name) {
     case "get_portfolio_metrics": {
       const propertyId = typeof input.property_id === "string" ? input.property_id : null;
@@ -320,6 +336,17 @@ export async function runTool(name: string, input: Record<string, unknown>): Pro
         note: "Sample mode has no property valuation or debt data, so cap rate, DSCR, cash-on-cash return, and IRR cannot be computed here. Do not estimate them.",
       };
       return { json, numbers: collectNumbers(json) };
+    }
+
+    case "record_preference": {
+      const topic = String(input.topic ?? "") as PreferenceTopic;
+      const statement = String(input.statement ?? "");
+      const allowed: readonly string[] = PREFERENCE_TOPICS[topic] ?? [];
+      if (!organizationId || !allowed.includes(statement)) {
+        return { json: { error: "Not a recognized topic/statement pair. Nothing was recorded." }, numbers: [] };
+      }
+      await recordPreference(organizationId, topic, statement);
+      return { json: { recorded: describePreference(topic, statement) }, numbers: [] };
     }
 
     default:

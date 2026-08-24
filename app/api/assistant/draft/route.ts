@@ -3,6 +3,8 @@ import { getApiIdentity } from "@/lib/integrations/session";
 import { ensureOrganization } from "@/lib/integrations/organizations";
 import { handleAskAvalDraft, type DraftFormat } from "@/lib/ask-aval/draft";
 import type { AskAvalEnv } from "@/lib/ask-aval/anthropic";
+import { getDb } from "@/db";
+import { draftDocuments } from "@/db/schema";
 
 export async function POST(request: Request) {
   const identity = await getApiIdentity(request);
@@ -23,11 +25,44 @@ export async function POST(request: Request) {
   const locale = body.locale === "es-mx" ? "es-mx" : "en";
   const focusedModule = body.moduleLabel ? { label: body.moduleLabel, snapshot: body.moduleSnapshot ?? "" } : undefined;
 
-  return handleAskAvalDraft(
+  const response = await handleAskAvalDraft(
     { title, instructions, format },
     env as unknown as AskAvalEnv,
     { orgId: identity.organizationId, userId: identity.userId },
     locale,
     focusedModule,
   );
+
+  // Persist the result (success or failure) so a page refresh doesn't lose
+  // it — the client's job state otherwise lives only in memory. Read the
+  // body rather than re-deriving it so this never has to know the shape of
+  // a faithfulness-gate rejection vs. a real answer; either way, whatever
+  // the caller sees is exactly what gets saved.
+  try {
+    const data = (await response.clone().json()) as Record<string, unknown> & { error?: string; document?: string };
+    const db = getDb();
+    const now = new Date();
+    const isSuccess = response.ok && typeof data.document === "string";
+    await db.insert(draftDocuments).values({
+      id: crypto.randomUUID(),
+      organizationId: identity.organizationId,
+      userId: identity.userId,
+      title,
+      instructions,
+      format,
+      status: isSuccess ? "done" : "error",
+      headline: isSuccess ? (data.headline as string | undefined) ?? null : null,
+      documentMarkdown: isSuccess ? (data.document as string) : null,
+      metricsJson: isSuccess ? JSON.stringify(data.metrics ?? []) : "[]",
+      confidence: isSuccess ? (data.confidence as string | undefined) ?? null : null,
+      errorMessage: isSuccess ? null : data.error ?? "The draft could not be generated.",
+      moduleLabel: focusedModule?.label ?? null,
+      createdAt: now,
+      updatedAt: now,
+    });
+  } catch (err) {
+    console.error("draft_document_persist_failed", err);
+  }
+
+  return response;
 }

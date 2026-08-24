@@ -140,6 +140,30 @@ export function useDraftJobs(locale: string) {
     })();
   }, [locale, patchJob, startReveal]);
 
+  useEffect(() => {
+    (async () => {
+      try {
+        const response = await fetch("/api/assistant/documents");
+        const data = (await response.json()) as { documents?: Array<{ id: string; title: string; instructions: string; format: DraftFormat; status: string; headline?: string; document?: string; metrics?: DraftMetric[]; confidence?: DraftJob["confidence"]; error?: string; sentTo?: string; createdAt: number }> };
+        const persisted = (data.documents ?? []).map((row): DraftJob => ({
+          id: row.id,
+          input: { title: row.title, instructions: row.instructions, format: row.format },
+          status: row.status === "done" ? "done" : "error",
+          content: row.document ?? "",
+          fullText: row.document ?? "",
+          headline: row.headline,
+          metrics: row.metrics,
+          confidence: row.confidence,
+          error: row.error,
+          progress: row.status === "done" ? 100 : 0,
+          createdAt: row.createdAt,
+          sentTo: row.sentTo,
+        }));
+        if (persisted.length > 0) setJobs((current) => [...persisted, ...current]);
+      } catch { /* not fatal, the section just starts empty */ }
+    })();
+  }, []);
+
   const createJob = useCallback((input: CreateDraftInput): string => {
     const id = crypto.randomUUID();
     const job: DraftJob = { id, input, status: "queued", content: "", fullText: "", progress: 0, createdAt: Date.now() };
@@ -182,6 +206,7 @@ export function useDraftJobs(locale: string) {
 
   const sendJob = useCallback((id: string, recipient: string) => {
     patchJob(id, { sentTo: recipient });
+    fetch("/api/assistant/documents", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id, sentTo: recipient }) }).catch(() => {});
   }, [patchJob]);
 
   useEffect(() => () => {

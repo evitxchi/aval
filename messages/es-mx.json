@@ -51,6 +51,14 @@
     "signUpTitle": "Crea tu espacio de trabajo",
     "somethingWentWrong": "Algo salió mal. Inténtalo de nuevo."
   },
+  "AutomationTimeline": {
+    "approve": "Aprobar y enviar",
+    "empty": "Aún no hay automatizaciones en curso.",
+    "resolved": "Resuelto.",
+    "start": "Ejecutar escalamiento de mantenimiento",
+    "subtitle": "Un flujo real: un problema de mantenimiento marcado, triado y redactado como contacto a un proveedor, sujeto a tu aprobación antes de considerarse enviado.",
+    "title": "Automatizaciones"
+  },
   "AvalAssistant": {
     "actionPreparedForReview": "Acción preparada para revisión",
     "analyzingDashboardData": "Analizando datos del tablero",
@@ -662,6 +670,12 @@
     "profileEditorOpened": "Editor de perfil abierto",
     "quietTapRevealNotificationAndSuccess": "Tonos discretos para toques, avisos y éxitos.",
     "reviewScopesConnectionHealthAndRevocation": "Revisa permisos, salud y revocación en un solo lugar.",
+    "securityFaithfulnessGate": "Cada cifra que Ask Aval menciona se verifica contra el resultado real de las herramientas antes de mostrarse; las cifras no verificadas se retienen, no se adivinan.",
+    "securityNoCertificationClaim": "Aval no cuenta actualmente con certificación SOC 2, ISO 27001 ni GDPR. Estas son las prácticas reales y verificables vigentes hoy, no una declaración de cumplimiento.",
+    "securityOrgIsolation": "Cada registro está delimitado a tu organización; no hay acceso a datos entre organizaciones.",
+    "securityPasswordHashing": "Las contraseñas se cifran con PBKDF2 y nunca se almacenan ni se registran en texto plano.",
+    "securityPreferenceMemory": "Las preferencias aprendidas se guardan como un pequeño conjunto de etiquetas de comportamiento genéricas, nunca datos de inquilinos o finanzas, y nunca se usan para entrenar ningún modelo.",
+    "securitySessionSigning": "Las sesiones se firman y verifican en el servidor; un token de sesión no puede falsificarse sin la clave de firma.",
     "separateMobileExperience": "Experiencia móvil separada",
     "settings": "Ajustes",
     "tactileSounds": "Sonidos táctiles",

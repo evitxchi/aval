@@ -51,6 +51,14 @@
     "signUpTitle": "Create your workspace",
     "somethingWentWrong": "Something went wrong. Try again."
   },
+  "AutomationTimeline": {
+    "approve": "Approve and send",
+    "empty": "No automation runs yet.",
+    "resolved": "Resolved.",
+    "start": "Run maintenance escalation",
+    "subtitle": "One real workflow: a flagged maintenance issue, triaged and drafted into vendor outreach, gated on your approval before anything is considered sent.",
+    "title": "Automations"
+  },
   "AvalAssistant": {
     "actionPreparedForReview": "Action prepared for review",
     "analyzingDashboardData": "Analyzing dashboard data",
@@ -662,6 +670,12 @@
     "profileEditorOpened": "Profile editor opened",
     "quietTapRevealNotificationAndSuccess": "Quiet tap, reveal, notification, and success tones.",
     "reviewScopesConnectionHealthAndRevocation": "Review scopes, connection health, and revocation in one place.",
+    "securityFaithfulnessGate": "Every number Ask Aval states is checked against real tool output before it reaches you; unverified figures are withheld, not guessed.",
+    "securityNoCertificationClaim": "Aval is not currently SOC 2, ISO 27001, or GDPR certified. These are the real, verifiable practices in place today, not a compliance claim.",
+    "securityOrgIsolation": "Every record is scoped to your organization; there is no cross-organization data access.",
+    "securityPasswordHashing": "Passwords are hashed with PBKDF2 and never stored or logged in plain text.",
+    "securityPreferenceMemory": "Learned preferences are stored as a small set of generic behavior tags, never raw tenant or financial details, and are never used to train any model.",
+    "securitySessionSigning": "Sessions are signed and verified server-side; a session token cannot be forged without the signing secret.",
     "separateMobileExperience": "Separate mobile experience",
     "settings": "Settings",
     "tactileSounds": "Tactile sounds",

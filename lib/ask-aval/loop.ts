@@ -75,7 +75,7 @@ export async function runAskAvalLoop(
       for (const use of toolUses) {
         toolsUsed.push(use.name);
         try {
-          const out = await runTool(use.name, use.input);
+          const out = await runTool(use.name, use.input, session.orgId);
           out.numbers.forEach((n) => seenNumbers.add(round2(n)));
           results.push({ type: "tool_result", tool_use_id: use.id, content: JSON.stringify(out.json) });
         } catch (err) {

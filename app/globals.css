@@ -909,3 +909,20 @@ html.aval-module-picking .content-shell { cursor: crosshair; }
 .billing-packs { display: flex; flex-wrap: wrap; gap: 8px; }
 
 [data-theme="dark"] .billing-plan-card { background: var(--surface-raised); }
+
+/* ── Automations timeline ────────────────────────────────────────────────── */
+
+.automation-timeline-card { margin-top: 14px; }
+.automation-timeline-steps { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+.automation-step { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-raised); }
+.automation-step-icon { width: 28px; height: 28px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 9px; background: var(--surface-soft); color: var(--muted); }
+.automation-step strong { display: block; font-size: 10px; font-weight: 500; margin-bottom: 2px; }
+.automation-step p { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
+
+/* ── Security practice list (Settings) ──────────────────────────────────── */
+
+.security-practice-list { margin: 12px 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.security-practice-list li { padding-left: 14px; position: relative; color: var(--muted); font-size: 9.5px; line-height: 1.5; }
+.security-practice-list li::before { content: ""; position: absolute; left: 0; top: 6px; width: 5px; height: 5px; border-radius: 50%; background: var(--quiet); }
+.security-disclaimer { margin: 0 0 12px; color: var(--quiet); font-size: 9px; line-height: 1.5; font-style: italic; }
+.security-card { min-height: 0; }

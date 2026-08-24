@@ -16,6 +16,7 @@
 import type { AskAvalEnv, Message } from "./anthropic";
 import type { AskAvalSession } from "./usage";
 import { runAskAvalLoop, json } from "./loop";
+import { getPreferenceContext } from "./preferences";
 
 export type { AskAvalSession } from "./usage";
 
@@ -33,6 +34,7 @@ Hard rules:
 - This is a sample-mode demo: most tools return one fixed snapshot, not a live per-period feed. Read each tool's own notes about what it can and can't answer, and be upfront with the user about that limitation when it's relevant to their question.
 - Cap rate, DSCR, cash-on-cash return, IRR, and NPV all require a property valuation or debt terms this system does not have. If asked for one, say plainly that it requires data not connected here (name the property value or loan terms specifically) rather than estimating a market-typical figure.
 - You have no authority to take action yourself. At most, name one concrete next action the user could approve.
+- If the user gives an explicit standing correction about how you should work going forward (not just an answer to this question), call record_preference with the closest matching fixed topic/statement pair. Never write anything else there.
 
 Finish by calling render_answer exactly once. Write no prose outside it.
 Tone: plain and specific. No greeting, no sign-off, no exclamation marks, no em dashes (use a period, comma, or colon instead).`;
@@ -53,6 +55,7 @@ export async function handleAskAval(
     ? `\n\n(The user focused this question on a dashboard module titled "${focusedModule.label}". Its visible on-screen text: ${JSON.stringify(focusedModule.snapshot)}. Still use the tools for any figures you cite — the snapshot text is context, not a verified source.)`
     : "";
   const messages: Message[] = [{ role: "user", content: `${question}\n\n(${localeInstruction})${moduleContext}` }];
+  const preferenceContext = await getPreferenceContext(session.orgId);
 
-  return runAskAvalLoop(env, session, SYSTEM, messages);
+  return runAskAvalLoop(env, session, SYSTEM + preferenceContext, messages);
 }

@@ -17,6 +17,7 @@ import type { AskAvalEnv, Message } from "./anthropic";
 import type { AskAvalSession } from "./usage";
 import { DRAFT_TOOLS } from "./tools";
 import { runAskAvalLoop, json } from "./loop";
+import { getPreferenceContext } from "./preferences";
 
 const MAX_TITLE_CHARS = 140;
 const MAX_INSTRUCTIONS_CHARS = 1200;
@@ -68,9 +69,10 @@ export async function handleAskAvalDraft(
     `Draft: "${title}"\n\nInstructions: ${instructions}\n\n${FORMAT_GUIDANCE[format]}\n\n(${localeInstruction})${moduleContext}`;
 
   const messages: Message[] = [{ role: "user", content: prompt }];
+  const preferenceContext = await getPreferenceContext(session.orgId);
 
   // Drafting a full document takes longer per call than a quick chat answer
   // (more output tokens, same tool-round budget) — the default 25s timeout
   // is tuned for /ask and is too tight here.
-  return runAskAvalLoop(env, session, SYSTEM, messages, DRAFT_TOOLS, "compose_document", 4096, 55_000);
+  return runAskAvalLoop(env, session, SYSTEM + preferenceContext, messages, DRAFT_TOOLS, "compose_document", 4096, 55_000);
 }

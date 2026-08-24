@@ -224,3 +224,78 @@ export const tokenTopUps = sqliteTable(
   },
   (table) => [uniqueIndex("token_top_ups_session_uq").on(table.stripeSessionId)],
 );
+
+// Every finished (or failed) Ask Aval Tasks draft, so a refresh doesn't lose
+// it — the client's draft-job state is otherwise purely in-memory.
+export const draftDocuments = sqliteTable(
+  "draft_documents",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id").notNull().references(() => organizations.id),
+    userId: text("user_id").notNull(),
+    title: text("title").notNull(),
+    instructions: text("instructions").notNull(),
+    format: text("format").notNull(),
+    status: text("status").notNull(),
+    headline: text("headline"),
+    documentMarkdown: text("document_markdown"),
+    metricsJson: text("metrics_json").notNull().default("[]"),
+    confidence: text("confidence"),
+    errorMessage: text("error_message"),
+    sentTo: text("sent_to"),
+    moduleLabel: text("module_label"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [index("draft_documents_org_created_idx").on(table.organizationId, table.createdAt)],
+);
+
+// A structured, redacted workflow preference — never raw tenant/financial
+// content — that Ask Aval reads back as context. See
+// lib/ask-aval/preferences.ts for what is and isn't allowed to land here.
+export const learnedPreferences = sqliteTable(
+  "learned_preferences",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id").notNull().references(() => organizations.id),
+    topic: text("topic").notNull(),
+    statement: text("statement").notNull(),
+    source: text("source").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("learned_preferences_org_topic_uq").on(table.organizationId, table.topic),
+    index("learned_preferences_org_idx").on(table.organizationId),
+  ],
+);
+
+// One run per triggered automation (e.g. a maintenance issue routed to a
+// vendor). insightId ties back to the real sample insight that triggered
+// it — no synthetic trigger data.
+export const automationRuns = sqliteTable(
+  "automation_runs",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id").notNull().references(() => organizations.id),
+    insightId: text("insight_id").notNull(),
+    status: text("status").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [index("automation_runs_org_created_idx").on(table.organizationId, table.createdAt)],
+);
+
+// Each timeline entry within a run, in order.
+export const automationSteps = sqliteTable(
+  "automation_steps",
+  {
+    id: text("id").primaryKey(),
+    runId: text("run_id").notNull().references(() => automationRuns.id),
+    kind: text("kind").notNull(),
+    actorLabel: text("actor_label").notNull(),
+    summary: text("summary").notNull(),
+    payloadJson: text("payload_json").notNull().default("{}"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [index("automation_steps_run_idx").on(table.runId)],
+);
