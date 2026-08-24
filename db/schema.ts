@@ -186,3 +186,41 @@ export const aiUsage = sqliteTable(
   },
   (table) => [index("ai_usage_org_day_idx").on(table.organizationId, table.day)],
 );
+
+// One row per org, tracking its current Stripe subscription. planId is a
+// key into lib/billing/plans.ts's PLANS array, not a foreign key: plans are
+// defined in code, not the database, since they change by editing that
+// file rather than running a migration.
+export const subscriptions = sqliteTable(
+  "subscriptions",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id").notNull().references(() => organizations.id),
+    planId: text("plan_id").notNull(),
+    status: text("status").notNull(),
+    stripeCustomerId: text("stripe_customer_id"),
+    stripeSubscriptionId: text("stripe_subscription_id"),
+    currentPeriodStart: integer("current_period_start", { mode: "timestamp_ms" }),
+    currentPeriodEnd: integer("current_period_end", { mode: "timestamp_ms" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [uniqueIndex("subscriptions_org_uq").on(table.organizationId)],
+);
+
+// One row per completed one-time "buy more tokens" purchase. Token balance
+// is the sum of tokensGranted across all rows for an org, not a running
+// counter column, so a webhook retried by Stripe (deduplicated on
+// stripeSessionId) can never double- or under-credit a purchase.
+export const tokenTopUps = sqliteTable(
+  "token_top_ups",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id").notNull().references(() => organizations.id),
+    stripeSessionId: text("stripe_session_id").notNull(),
+    packId: text("pack_id").notNull(),
+    tokensGranted: integer("tokens_granted").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [uniqueIndex("token_top_ups_session_uq").on(table.stripeSessionId)],
+);

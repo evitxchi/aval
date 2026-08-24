@@ -7,6 +7,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { ChatLines, CheckCircle, Database, NavArrowRight, Page, SendDiagonal, StatsUpSquare, ViewGrid, Xmark } from "iconoir-react";
 import { useExperience } from "@/app/components/experience";
 import type { CreateDraftInput, DraftFormat } from "@/app/components/ask-aval-tasks";
+import { MarkdownPreview } from "@/app/components/markdown-preview";
 
 type EvidenceRow = { label: string; value: string };
 // value can be a pre-formatted string (the local sample-mode fallback
@@ -472,7 +473,7 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
                       </div>
                     )}
                     {message.answer.chart && message.answer.chart.points.length > 0 && <AvalChatChart chart={message.answer.chart} />}
-                    {message.answer.document && <div className="aval-chat-document">{message.answer.document}</div>}
+                    {message.answer.document && <div className="aval-chat-document"><MarkdownPreview text={message.answer.document} /></div>}
                     {(message.answer.evidence?.length || message.answer.evidence_ids?.length) ? (
                       <details className="aval-chat-evidence">
                         <summary>{t("AvalAssistant.viewEvidence")}<NavArrowRight width={15} height={15} /></summary>

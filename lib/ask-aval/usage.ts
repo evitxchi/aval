@@ -9,6 +9,7 @@
 import { and, eq, gte } from "drizzle-orm";
 import { getDb } from "@/db";
 import { aiUsage } from "@/db/schema";
+import { hasTokensRemaining } from "@/lib/billing/usage";
 import type { AskAvalEnv } from "./anthropic";
 
 export interface AskAvalSession {
@@ -22,7 +23,7 @@ export function todayKey(): { day: string; dayStart: Date } {
   return { day: dayStart.toISOString().slice(0, 10), dayStart };
 }
 
-export async function isDailyCapExceeded(env: AskAvalEnv, session: AskAvalSession): Promise<boolean> {
+async function isDailyCapExceeded(env: AskAvalEnv, session: AskAvalSession): Promise<boolean> {
   const db = getDb();
   const cap = Number(env.AI_DAILY_CALL_CAP ?? "400");
   const { day, dayStart } = todayKey();
@@ -31,6 +32,15 @@ export async function isDailyCapExceeded(env: AskAvalEnv, session: AskAvalSessio
     .from(aiUsage)
     .where(and(eq(aiUsage.organizationId, session.orgId), eq(aiUsage.day, day), gte(aiUsage.createdAt, dayStart)));
   return usedToday.length >= cap;
+}
+
+export type UsageBlockReason = "daily_cap" | "token_balance";
+
+/** Two independent gates: a coarse daily-call safety valve, and the real plan/top-up token balance. */
+export async function checkUsageBlocked(env: AskAvalEnv, session: AskAvalSession): Promise<UsageBlockReason | null> {
+  if (!(await hasTokensRemaining(session.orgId))) return "token_balance";
+  if (await isDailyCapExceeded(env, session)) return "daily_cap";
+  return null;
 }
 
 export async function recordUsage(session: AskAvalSession, inputTokens: number, outputTokens: number) {

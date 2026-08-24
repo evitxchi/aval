@@ -20,6 +20,7 @@ import {
 import * as Dialog from "@radix-ui/react-dialog";
 import { useExperience } from "@/app/components/experience";
 import { exportDocx, exportPdf, exportPptx, exportXlsx } from "@/lib/ask-aval/export";
+import { MarkdownPreview } from "@/app/components/markdown-preview";
 
 export type DraftFormat = "docx" | "xlsx" | "pptx";
 export type DraftStatus = "queued" | "streaming" | "paused" | "done" | "error";
@@ -252,7 +253,7 @@ function DraftJobCard({ job, onPause, onResume, onRetry, onSend }: {
       {job.status === "error" ? (
         <p className="draft-task-error">{job.error}</p>
       ) : (
-        <div className="draft-task-preview" aria-live="polite">{job.content || t("AskAvalTasks.waitingOnClaude")}</div>
+        <div className="draft-task-preview" aria-live="polite">{job.content ? <MarkdownPreview text={job.content} /> : t("AskAvalTasks.waitingOnAval")}</div>
       )}
       <div className="draft-task-actions">
         {canControl && job.status !== "queued" && (

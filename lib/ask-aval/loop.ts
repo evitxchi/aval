@@ -6,8 +6,9 @@
 
 import { callClaude, AnthropicError, type AskAvalEnv, type Message, type ContentBlock, type ToolUseBlock, type ToolSchema } from "./anthropic";
 import { TOOLS, runTool } from "./tools";
-import { isDailyCapExceeded, recordUsage, type AskAvalSession } from "./usage";
+import { checkUsageBlocked, recordUsage, type AskAvalSession } from "./usage";
 import { checkFaithfulness, withDerivedNumbers, round2 } from "./faithfulness";
+import { stripDashes } from "./style";
 
 const MAX_ROUNDS = 4;
 
@@ -23,7 +24,9 @@ export async function runAskAvalLoop(
   maxTokens = 2048,
   timeoutMs?: number,
 ): Promise<Response> {
-  if (await isDailyCapExceeded(env, session)) return json({ error: "Ask Aval has reached its usage cap for today. Try again tomorrow." }, 429);
+  const blockReason = await checkUsageBlocked(env, session);
+  if (blockReason === "token_balance") return json({ error: "Aval has run out of tokens for this billing period. Purchase more to continue.", code: "token_balance" }, 402);
+  if (blockReason === "daily_cap") return json({ error: "Aval has reached its usage cap for today. Try again tomorrow.", code: "daily_cap" }, 429);
 
   const seenNumbers = new Set<number>();
   const toolsUsed: string[] = [];
@@ -49,7 +52,7 @@ export async function runAskAvalLoop(
       const final = toolUses.find((use) => use.name === finalToolName);
 
       if (final) {
-        const answer = final.input;
+        const answer = stripDashes(final.input);
         const gate = checkFaithfulness(answer, withDerivedNumbers(seenNumbers));
         if (!gate.ok) {
           console.error("ask_aval_faithfulness_violation", { orgId: session.orgId, unsupported: gate.unsupported });

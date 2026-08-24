@@ -24,7 +24,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const host = incomingHeaders.get("x-forwarded-host") ?? incomingHeaders.get("host") ?? "localhost:3000";
   const protocol = incomingHeaders.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
   const origin = `${protocol}://${host}`;
-  const title = "Aval — Property operations, connected";
+  const title = "Aval: Property operations, connected";
   const description = "One calm workspace for leasing, accounting, resident conversations, maintenance, and the systems behind them.";
 
   return {

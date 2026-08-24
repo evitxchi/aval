@@ -215,14 +215,23 @@ export async function runTool(name: string, input: Record<string, unknown>): Pro
     }
 
     case "get_property_breakdown": {
-      const rows = sampleData.properties.list.map((row) => ({
-        property: PROPERTY_NAMES[row.nameKey] ?? row.nameKey,
-        units: row.units,
-        occupied: row.occupied,
-        occupied_pct: round2((row.occupied / row.units) * 100),
-        ready_for_leasing: row.readyForLeasing,
-      }));
-      const json = { properties: rows };
+      const totalUnits = sumAmounts(sampleData.properties.list.map((row) => ({ amount: row.units })));
+      const totalOccupied = sumAmounts(sampleData.properties.list.map((row) => ({ amount: row.occupied })));
+      const portfolioOccupiedPct = round2((totalOccupied / totalUnits) * 100);
+      const rows = sampleData.properties.list.map((row) => {
+        const occupiedPct = round2((row.occupied / row.units) * 100);
+        return {
+          property: PROPERTY_NAMES[row.nameKey] ?? row.nameKey,
+          units: row.units,
+          occupied: row.occupied,
+          occupied_pct: occupiedPct,
+          // Signed, not a label: negative means below the portfolio average.
+          // Removes the model having to subtract two percentages itself.
+          vs_portfolio_avg_pts: round2(occupiedPct - portfolioOccupiedPct),
+          ready_for_leasing: row.readyForLeasing,
+        };
+      });
+      const json = { properties: rows, portfolio_occupied_pct: portfolioOccupiedPct };
       return { json, numbers: collectNumbers(json) };
     }
 
@@ -256,6 +265,8 @@ export async function runTool(name: string, input: Record<string, unknown>): Pro
         applied: snapshot.applied,
         signed: snapshot.signed,
         contacted_to_viewed_pct: round2((snapshot.viewed / snapshot.contacted) * 100),
+        viewed_to_applied_pct: round2((snapshot.applied / snapshot.viewed) * 100),
+        applied_to_signed_pct: round2((snapshot.signed / snapshot.applied) * 100),
         contacted_to_signed_pct: round2((snapshot.signed / snapshot.contacted) * 100),
         six_week_trend: trend.map((week) => ({ contacted: week.contacted, viewed: week.viewed, applied: week.applied, signed: week.signed })),
       };
@@ -283,10 +294,21 @@ export async function runTool(name: string, input: Record<string, unknown>): Pro
     }
 
     case "get_accounting_breakdown": {
-      const revenueSources = sampleData.accounting.revenueSources.map((source) => ({ category: source.key, amount: source.amount }));
-      const expenses = sampleData.accounting.expenses.map((expense) => ({ category: expense.key, amount: expense.amount }));
       const totalRevenue = sumAmounts(sampleData.accounting.revenueSources);
       const totalExpenses = sumAmounts(sampleData.accounting.expenses);
+      // Every share is computed here, in code, once — not left for the model
+      // to divide out itself from raw amounts.
+      const revenueSources = sampleData.accounting.revenueSources.map((source) => ({
+        category: source.key,
+        amount: source.amount,
+        pct_of_revenue: round2((source.amount / totalRevenue) * 100),
+      }));
+      const expenses = sampleData.accounting.expenses.map((expense) => ({
+        category: expense.key,
+        amount: expense.amount,
+        pct_of_expenses: round2((expense.amount / totalExpenses) * 100),
+        pct_of_revenue: round2((expense.amount / totalRevenue) * 100),
+      }));
       const json = {
         revenue_sources: revenueSources,
         expenses,
@@ -294,6 +316,8 @@ export async function runTool(name: string, input: Record<string, unknown>): Pro
         total_expenses: totalExpenses,
         noi: sampleData.noi.value,
         noi_margin_pct: round2((sampleData.noi.value / totalRevenue) * 100),
+        expense_ratio_pct: round2((totalExpenses / totalRevenue) * 100),
+        note: "Sample mode has no property valuation or debt data, so cap rate, DSCR, cash-on-cash return, and IRR cannot be computed here. Do not estimate them.",
       };
       return { json, numbers: collectNumbers(json) };
     }

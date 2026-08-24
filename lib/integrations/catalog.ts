@@ -133,7 +133,7 @@ export const integrationCatalog: IntegrationProvider[] = [
     env: [],
     webhook: false,
     readOnly: true,
-    note: "Requires becoming an approved Yardi Interface Partner and a signed per-interface agreement — no self-serve signup.",
+    note: "Requires becoming an approved Yardi Interface Partner and a signed per-interface agreement. No self-serve signup.",
   },
   {
     id: "realpage",
@@ -149,7 +149,7 @@ export const integrationCatalog: IntegrationProvider[] = [
     env: [],
     webhook: false,
     readOnly: true,
-    note: "Access is granted only through the RealPage Exchange partner program — sales-led, not self-serve.",
+    note: "Access is granted only through the RealPage Exchange partner program. Sales-led, not self-serve.",
   },
   {
     id: "entrata",
@@ -220,7 +220,7 @@ export const integrationCatalog: IntegrationProvider[] = [
     env: [],
     webhook: true,
     readOnly: false,
-    note: "Links via a QR-paired companion device, the same mechanism as WhatsApp Web — less reliable than the official Business API and outside WhatsApp's own terms for automated use.",
+    note: "Links via a QR-paired companion device, the same mechanism as WhatsApp Web. Less reliable than the official Business API and outside WhatsApp's own terms for automated use.",
   },
   {
     id: "apple_messages",
