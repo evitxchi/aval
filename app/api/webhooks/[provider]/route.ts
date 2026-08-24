@@ -1,9 +1,13 @@
 import { env } from "cloudflare:workers";
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { integrationConnections, integrationEvents } from "@/db/schema";
+import { conversations, integrationConnections, integrationEvents, messages } from "@/db/schema";
 import { decryptSecret } from "@/lib/integrations/crypto";
 import { constantTimeEqual } from "@/lib/security/constant-time";
+import { parseInboundMessage } from "@/lib/integrations/inbound";
+import { draftAutoReply } from "@/lib/ask-aval/auto-reply";
+import type { AskAvalEnv } from "@/lib/ask-aval/anthropic";
+import { getRequestExecutionContext } from "vinext/shims/request-context";
 
 const encoder = new TextEncoder();
 const bindings = () => env as unknown as Record<string, string | undefined>;
@@ -66,6 +70,84 @@ async function verify(provider: string, request: Request, raw: string) {
   return false;
 }
 
+/**
+ * Resolves which organization an inbound message belongs to. Telegram and
+ * Apple Messages webhook URLs are already scoped to one connection (set at
+ * verify time, see app/api/integrations/verify/route.ts); Slack, WhatsApp,
+ * and Twilio share one webhook URL across every org, so those are matched
+ * by the account-identifying field each connection stored at connect/verify
+ * time (team id, phone_number_id, AccountSid).
+ */
+async function resolveOrganizationId(provider: string, connectionId: string | undefined, externalAccountKey: string | undefined): Promise<string | null> {
+  const db = getDb();
+  if (connectionId) {
+    const [connection] = await db.select({ organizationId: integrationConnections.organizationId }).from(integrationConnections).where(and(eq(integrationConnections.id, connectionId), eq(integrationConnections.provider, provider))).limit(1);
+    return connection?.organizationId ?? null;
+  }
+  if (externalAccountKey) {
+    const [connection] = await db.select({ organizationId: integrationConnections.organizationId }).from(integrationConnections).where(and(eq(integrationConnections.provider, provider), eq(integrationConnections.externalAccountId, externalAccountKey))).limit(1);
+    return connection?.organizationId ?? null;
+  }
+  return null;
+}
+
+/**
+ * Persists the inbound message (conversations/messages, previously defined
+ * but never written to), then drafts a reply the moment it lands rather
+ * than waiting for a human to open the thread. Scheduled via waitUntil so
+ * the webhook provider gets its ack immediately; the LLM call happens
+ * after the response is already on the wire. On plain Node (local dev),
+ * getRequestExecutionContext() is null, so this falls back to a detached,
+ * best-effort promise instead.
+ */
+async function ingestInboundMessage(provider: string, organizationId: string, parsed: { externalThreadId: string; externalMessageId: string; contactDisplayName: string; body: string }, env: AskAvalEnv) {
+  const db = getDb();
+  const now = new Date();
+  await db.insert(conversations).values({
+    id: crypto.randomUUID(),
+    organizationId,
+    channel: provider,
+    externalThreadId: parsed.externalThreadId,
+    contactDisplayName: parsed.contactDisplayName,
+    lastMessageAt: now,
+    createdAt: now,
+    updatedAt: now,
+  }).onConflictDoUpdate({
+    target: [conversations.organizationId, conversations.channel, conversations.externalThreadId],
+    set: { contactDisplayName: parsed.contactDisplayName, lastMessageAt: now, updatedAt: now },
+  });
+  const [conversation] = await db.select({ id: conversations.id, locale: conversations.locale }).from(conversations)
+    .where(and(eq(conversations.organizationId, organizationId), eq(conversations.channel, provider), eq(conversations.externalThreadId, parsed.externalThreadId)))
+    .limit(1);
+  if (!conversation) return;
+
+  const inserted = await db.insert(messages).values({
+    id: crypto.randomUUID(),
+    conversationId: conversation.id,
+    externalMessageId: parsed.externalMessageId,
+    direction: "inbound",
+    body: parsed.body,
+    createdAt: now,
+  }).onConflictDoNothing().returning({ id: messages.id });
+  // A retried webhook delivery for the same message id lands here as a
+  // no-op insert — skip re-drafting (and re-spending a model call) for a
+  // message that already has one.
+  if (inserted.length === 0) return;
+
+  const draftWork = (async () => {
+    const result = await draftAutoReply(env, { orgId: organizationId, userId: "webhook" }, parsed.contactDisplayName, parsed.body, conversation.locale);
+    await db.update(conversations).set({
+      draftReply: result.ok ? (result.reply ?? null) : null,
+      draftReplyStatus: result.ok ? "ready" : "failed",
+      draftReplyAt: new Date(),
+      updatedAt: new Date(),
+    }).where(eq(conversations.id, conversation.id));
+  })().catch((error) => console.error("auto_reply_draft_failed", provider, error instanceof Error ? error.message : error));
+
+  const ctx = getRequestExecutionContext();
+  if (ctx) ctx.waitUntil(draftWork);
+}
+
 export async function GET(request: Request, context: { params: Promise<{ provider: string }> }) {
   const { provider } = await context.params;
   const url = new URL(request.url);
@@ -92,5 +174,20 @@ export async function POST(request: Request, context: { params: Promise<{ provid
     console.error("Webhook persistence failed", provider, error instanceof Error ? error.message : error);
     return Response.json({ error: "Event storage unavailable" }, { status: 503 });
   }
+
+  // Best-effort: a real inbound message that can't be attributed to a
+  // known organization, or that fails to draft, should never turn a
+  // successfully-received webhook into an error response to the provider.
+  try {
+    const connectionIdFromQuery = new URL(request.url).searchParams.get("connection");
+    const parsed = parseInboundMessage(provider, payload, connectionIdFromQuery);
+    if (parsed) {
+      const organizationId = await resolveOrganizationId(provider, parsed.connectionId, parsed.externalAccountKey);
+      if (organizationId) await ingestInboundMessage(provider, organizationId, parsed, env as unknown as AskAvalEnv);
+    }
+  } catch (error) {
+    console.error("Inbound message ingestion failed", provider, error instanceof Error ? error.message : error);
+  }
+
   return Response.json({ received: true }, { status: 202 });
 }

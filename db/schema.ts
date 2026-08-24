@@ -114,6 +114,12 @@ export const conversations = sqliteTable(
     status: text("status").notNull().default("open"),
     locale: text("locale").notNull().default("en"),
     register: text("register").notNull().default("professional"),
+    // A reply Ask Aval drafted the moment the latest inbound message arrived
+    // (lib/ask-aval/auto-reply.ts), pre-filled in the Inbox composer for a
+    // human to edit or send. Never sent automatically — see draftReplyStatus.
+    draftReply: text("draft_reply"),
+    draftReplyStatus: text("draft_reply_status"),
+    draftReplyAt: integer("draft_reply_at", { mode: "timestamp_ms" }),
     lastMessageAt: integer("last_message_at", { mode: "timestamp_ms" }).notNull(),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),

@@ -358,6 +358,9 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--ink); outli
 .conversation-row small, .conversation-row em { color: var(--quiet); font-size: 8px; font-style: normal; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .conversation-row > i { color: var(--quiet); font-size: 8px; font-style: normal; }
 .conversation-row > b { position: absolute; right: 9px; bottom: 11px; width: 17px; height: 17px; display: grid; place-items: center; border-radius: 9px; background: var(--ink); color: white; font-size: 8px; font-weight: 400; }
+.live-badge { display: inline-block; margin-left: 6px; padding: 1px 5px; border-radius: 5px; background: var(--ink); color: white; font-size: 6.5px; font-weight: 500; letter-spacing: .04em; text-transform: uppercase; }
+.draft-ready-dot { position: absolute; right: 9px; top: 11px; width: 6px; height: 6px; border-radius: 50%; background: #4f9568; box-shadow: 0 0 0 3px color-mix(in srgb, #4f9568 15%, transparent); }
+.message.draft-pending { opacity: .6; border-style: dashed; }
 .message-thread { min-width: 0; display: grid; grid-template-rows: 64px 1fr 68px; }
 .message-thread > header { padding: 0 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); }
 .message-thread > header > div { display: flex; align-items: center; gap: 10px; }
