@@ -538,6 +538,7 @@ function Overview({ openConnections, dataMode, providers, pendingTarget, targetT
       title: `Weekly portfolio report: ${period}`,
       instructions: "Compile this week's portfolio digest in five sections, in this order: (1) Net operating income, with the period-over-period change. (2) Occupancy, portfolio-wide and by property, naming any property below the portfolio average. (3) Rent collections and delinquency, naming past-due accounts and the total amount at risk. (4) Leasing funnel performance, the conversion rate at each stage from inquiry to signed lease. (5) Maintenance load, the volume and cost of open work orders by category. Close with one recommended next action grounded in the numbers above.",
       format: "docx",
+      documentType: "Weekly report",
     });
     notify(t("Overview.weeklyReportStarted"), t("Overview.weeklyReportStartedDetail"));
   };

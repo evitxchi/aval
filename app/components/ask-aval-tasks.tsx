@@ -31,9 +31,13 @@ export interface CreateDraftInput {
   format: DraftFormat;
   moduleLabel?: string;
   moduleSnapshot?: string;
+  // Eyebrow label for the exported document's house style (e.g. "Weekly report").
+  // Purely a display label chosen by the caller, never invented downstream.
+  documentType?: string;
 }
 
-interface DraftMetric { label: string; value: number | string; unit?: string }
+interface DraftMetric { label: string; value: number | string; unit?: string; delta?: number }
+export interface DraftChart { metric: string; title: string; points: { x: string; y: number }[] }
 
 export interface DraftJob {
   id: string;
@@ -42,7 +46,9 @@ export interface DraftJob {
   content: string;
   fullText: string;
   headline?: string;
+  narrative?: string;
   metrics?: DraftMetric[];
+  chart?: DraftChart;
   confidence?: "high" | "medium" | "low";
   error?: string;
   progress: number;
@@ -117,6 +123,7 @@ export function useDraftJobs(locale: string) {
             locale,
             moduleLabel: input.moduleLabel,
             moduleSnapshot: input.moduleSnapshot,
+            documentType: input.documentType,
           }),
         });
         const data = (await response.json().catch(() => ({}))) as Record<string, unknown> & { error?: string };
@@ -128,7 +135,9 @@ export function useDraftJobs(locale: string) {
           status: "streaming",
           fullText: data.document as string,
           headline: data.headline as string,
+          narrative: typeof data.narrative === "string" ? data.narrative : undefined,
           metrics: Array.isArray(data.metrics) ? (data.metrics as DraftMetric[]) : [],
+          chart: (data.chart as DraftChart | undefined) ?? undefined,
           confidence: (data.confidence as DraftJob["confidence"]) ?? undefined,
         });
         startReveal(id, data.document as string, 0);
@@ -144,15 +153,17 @@ export function useDraftJobs(locale: string) {
     (async () => {
       try {
         const response = await fetch("/api/assistant/documents");
-        const data = (await response.json()) as { documents?: Array<{ id: string; title: string; instructions: string; format: DraftFormat; status: string; headline?: string; document?: string; metrics?: DraftMetric[]; confidence?: DraftJob["confidence"]; error?: string; sentTo?: string; createdAt: number }> };
+        const data = (await response.json()) as { documents?: Array<{ id: string; title: string; instructions: string; format: DraftFormat; status: string; headline?: string; narrative?: string; documentType?: string; document?: string; metrics?: DraftMetric[]; chart?: DraftChart; confidence?: DraftJob["confidence"]; error?: string; sentTo?: string; createdAt: number }> };
         const persisted = (data.documents ?? []).map((row): DraftJob => ({
           id: row.id,
-          input: { title: row.title, instructions: row.instructions, format: row.format },
+          input: { title: row.title, instructions: row.instructions, format: row.format, documentType: row.documentType },
           status: row.status === "done" ? "done" : "error",
           content: row.document ?? "",
           fullText: row.document ?? "",
           headline: row.headline,
+          narrative: row.narrative,
           metrics: row.metrics,
+          chart: row.chart,
           confidence: row.confidence,
           error: row.error,
           progress: row.status === "done" ? 100 : 0,
@@ -245,7 +256,16 @@ function DraftJobCard({ job, onPause, onResume, onRetry, onSend }: {
     if (!done) return;
     setExporting(kind);
     try {
-      const draft = { title: job.input.title, document: job.fullText, metrics: job.metrics };
+      const draft = {
+        title: job.headline ?? job.input.title,
+        document: job.fullText,
+        standfirst: job.narrative,
+        documentType: job.input.documentType,
+        metrics: job.metrics,
+        chart: job.chart,
+        status: job.sentTo ? ("sent" as const) : ("draft" as const),
+        sentTo: job.sentTo,
+      };
       if (kind === "pdf") await exportPdf(draft);
       else if (job.input.format === "xlsx") await exportXlsx(draft);
       else if (job.input.format === "pptx") await exportPptx(draft);

@@ -18,10 +18,12 @@ export async function POST(request: Request) {
     locale?: string;
     moduleLabel?: string;
     moduleSnapshot?: string;
+    documentType?: string;
   };
   const title = typeof body.title === "string" ? body.title : "";
   const instructions = typeof body.instructions === "string" ? body.instructions : "";
   const format: DraftFormat = body.format === "xlsx" || body.format === "pptx" ? body.format : "docx";
+  const documentType = typeof body.documentType === "string" ? body.documentType.trim().slice(0, 60) : "";
   const locale = body.locale === "es-mx" ? "es-mx" : "en";
   const focusedModule = body.moduleLabel ? { label: body.moduleLabel, snapshot: body.moduleSnapshot ?? "" } : undefined;
 
@@ -52,8 +54,11 @@ export async function POST(request: Request) {
       format,
       status: isSuccess ? "done" : "error",
       headline: isSuccess ? (data.headline as string | undefined) ?? null : null,
+      narrative: isSuccess ? (data.narrative as string | undefined) ?? null : null,
+      documentType: documentType || null,
       documentMarkdown: isSuccess ? (data.document as string) : null,
       metricsJson: isSuccess ? JSON.stringify(data.metrics ?? []) : "[]",
+      chartJson: isSuccess && data.chart ? JSON.stringify(data.chart) : null,
       confidence: isSuccess ? (data.confidence as string | undefined) ?? null : null,
       errorMessage: isSuccess ? null : data.error ?? "The draft could not be generated.",
       moduleLabel: focusedModule?.label ?? null,
