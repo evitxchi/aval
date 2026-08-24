@@ -5,12 +5,15 @@
  * iteration count can be raised later without invalidating old hashes.
  */
 
-// OWASP's current minimum for PBKDF2-HMAC-SHA256 (raised from 100k, an
-// older, now-too-weak baseline). The stored format is versioned by
-// iteration count (`pbkdf2$<iterations>$...`), so this only affects hashes
-// created from now on — existing accounts keep verifying against whatever
-// count their hash was created with.
-const ITERATIONS = 600_000;
+// OWASP's current guidance for PBKDF2-HMAC-SHA256 is 600k+, but Cloudflare
+// Workers' WebCrypto hard-caps PBKDF2 at 100k iterations and throws
+// NotSupportedError above that (unlike Node, where this was benchmarked —
+// Node has no such cap, so the benchmark didn't catch it). 100k is this
+// platform's real ceiling, not a choice. The stored format is versioned by
+// iteration count (`pbkdf2$<iterations>$...`) regardless, so raising this
+// later — on a different runtime, or if Workers lifts the cap — only
+// affects hashes created from that point on.
+const ITERATIONS = 100_000;
 const KEY_LENGTH_BITS = 256;
 
 function toHex(bytes: Uint8Array): string {
