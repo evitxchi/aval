@@ -11,7 +11,7 @@
  * known email (password brute-forcing).
  */
 
-import { and, eq, gte } from "drizzle-orm";
+import { and, eq, gte, lt } from "drizzle-orm";
 import { getDb } from "@/db";
 import { rateLimitHits } from "@/db/schema";
 
@@ -20,10 +20,19 @@ export interface RateLimitRule {
   windowMs: number;
 }
 
-/** True if `scopeKey` has already hit its limit within the window — check BEFORE doing the guarded work, then call recordAttempt regardless of outcome. */
+/**
+ * True if `scopeKey` has already hit its limit within the window — check
+ * BEFORE doing the guarded work, then call recordAttempt regardless of
+ * outcome. Also opportunistically deletes this scope's own rows that have
+ * aged out of the window: this app has no cron/scheduled worker to sweep
+ * the table on a timer, so without this the table would grow forever.
+ * Scoped to just this key (not a full-table sweep) so it stays cheap on
+ * every request rather than adding an unrelated table scan.
+ */
 export async function isRateLimited(scopeKey: string, rule: RateLimitRule): Promise<boolean> {
   const db = getDb();
   const windowStart = new Date(Date.now() - rule.windowMs);
+  await db.delete(rateLimitHits).where(and(eq(rateLimitHits.scopeKey, scopeKey), lt(rateLimitHits.createdAt, windowStart))).catch(() => {});
   const hits = await db
     .select({ id: rateLimitHits.id })
     .from(rateLimitHits)
