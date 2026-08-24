@@ -55,8 +55,8 @@
     "approve": "Aprobar y enviar",
     "empty": "Aún no hay automatizaciones en curso.",
     "resolved": "Resuelto.",
-    "start": "Ejecutar escalamiento de mantenimiento",
-    "subtitle": "Un flujo real: un problema de mantenimiento marcado, triado y redactado como contacto a un proveedor, sujeto a tu aprobación antes de considerarse enviado.",
+    "runTrigger": "Ejecutar esta automatización",
+    "subtitle": "Flujos reales para cada perspectiva marcada, triados y redactados para tu aprobación antes de considerarse enviados.",
     "title": "Automatizaciones"
   },
   "AvalAssistant": {
@@ -539,6 +539,7 @@
     "driverOther": "Otro",
     "driverRentCollected": "Renta cobrada",
     "expandDraft": "Expandir",
+    "generateWeeklyReport": "Generar el reporte de esta semana",
     "history": "Historial",
     "historyCount": "{count, plural, one {# acción verificada esta semana} other {# acciones verificadas esta semana}}",
     "historyDepositsMatched": "Se conciliaron 2 de 3 depósitos de agosto sin coincidencia",
@@ -630,6 +631,8 @@
     "waterfallAriaLabel": "Cambio del NOI del periodo anterior a este periodo, por factor",
     "waterfallCurrent": "Este periodo",
     "waterfallPrior": "Periodo anterior",
+    "weeklyReportStarted": "Reporte semanal iniciado",
+    "weeklyReportStartedDetail": "Redactando ahora en Tareas: NOI, ocupación, cobranza, embudo de arrendamiento y carga de mantenimiento.",
     "workMovingThroughTheSystem": "Trabajo moviéndose por el sistema",
     "workOrderJardines22": "Jardines 22 · Unidad 4A",
     "workOrderJardines22Detail": "Fuga activa · incumple SLA en 3h",

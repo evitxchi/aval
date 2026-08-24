@@ -913,9 +913,12 @@ html.aval-module-picking .content-shell { cursor: crosshair; }
 /* ── Automations timeline ────────────────────────────────────────────────── */
 
 .automation-timeline-card { margin-top: 14px; }
+.automation-trigger-list { display: flex; flex-direction: column; gap: 14px; }
+.automation-trigger { padding: 12px; border: 1px solid var(--line); border-radius: 14px; }
+.automation-trigger-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.automation-trigger-title { display: flex; align-items: center; gap: 10px; font-size: 12px; }
 .automation-timeline-steps { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
-.automation-step { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-raised); }
-.automation-step-icon { width: 28px; height: 28px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 9px; background: var(--surface-soft); color: var(--muted); }
+.automation-step { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-raised); }
 .automation-step strong { display: block; font-size: 10px; font-weight: 500; margin-bottom: 2px; }
 .automation-step p { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
 

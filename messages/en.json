@@ -55,8 +55,8 @@
     "approve": "Approve and send",
     "empty": "No automation runs yet.",
     "resolved": "Resolved.",
-    "start": "Run maintenance escalation",
-    "subtitle": "One real workflow: a flagged maintenance issue, triaged and drafted into vendor outreach, gated on your approval before anything is considered sent.",
+    "runTrigger": "Run this automation",
+    "subtitle": "Real workflows across your flagged insights, each triaged and drafted for your approval before anything is considered sent.",
     "title": "Automations"
   },
   "AvalAssistant": {
@@ -539,6 +539,7 @@
     "driverOther": "Other",
     "driverRentCollected": "Rent collected",
     "expandDraft": "Expand",
+    "generateWeeklyReport": "Generate this week's report",
     "history": "History",
     "historyCount": "{count, plural, one {# verified action from this week} other {# verified actions from this week}}",
     "historyDepositsMatched": "Reconciled 2 of 3 unmatched August deposits",
@@ -630,6 +631,8 @@
     "waterfallAriaLabel": "NOI change from prior period to this period, by driver",
     "waterfallCurrent": "This period",
     "waterfallPrior": "Prior period",
+    "weeklyReportStarted": "Weekly report started",
+    "weeklyReportStartedDetail": "Drafting now in Tasks: NOI, occupancy, collections, leasing funnel, and maintenance load.",
     "workMovingThroughTheSystem": "Work moving through the system",
     "workOrderJardines22": "Jardines 22 · Unit 4A",
     "workOrderJardines22Detail": "Active leak · SLA breach in 3h",
