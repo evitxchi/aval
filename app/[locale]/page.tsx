@@ -13,5 +13,5 @@ import { AvalDashboard } from "./dashboard-client";
 export default async function Home() {
   const identity = await getPageIdentity();
   if (!identity) return <SignInScreen />;
-  return <AvalDashboard authMode={identity.source} />;
+  return <AvalDashboard authMode={identity.source} displayName={identity.displayName} email={identity.email} />;
 }
