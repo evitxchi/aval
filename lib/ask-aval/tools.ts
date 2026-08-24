@@ -38,7 +38,7 @@ const PROPERTY_NAMES: Record<string, string> = {
 
 /* ── schemas the model sees ─────────────────────────────────────────────── */
 
-export const TOOLS: ToolSchema[] = [
+const DATA_TOOLS: ToolSchema[] = [
   {
     name: "get_portfolio_metrics",
     description:
@@ -92,61 +92,90 @@ export const TOOLS: ToolSchema[] = [
     description: "Revenue sources, expense categories, and NOI margin for the current period. Use for cost, margin, or budget questions.",
     input_schema: { type: "object", properties: {} },
   },
-  {
-    name: "render_answer",
+];
+
+// Shared by both final-answer tools below — `document` is the only
+// difference: optional for a quick chat answer, required for a draft, so a
+// short drafting instruction can never silently skip it the way an optional
+// field can.
+const ANSWER_FIELDS = {
+  headline: { type: "string", description: "Under 90 characters." },
+  narrative: {
+    type: "string",
     description:
-      "Call this exactly once, last, to return the final answer. Do not write prose outside this tool. " +
-      "Every number in `narrative` or `document` must have appeared in a previous tool result.",
-    input_schema: {
+      "Two to four sentences stating the finding and, if knowable from the data, the cause. No greeting, no sign-off. " +
+      "If a cause is inferred rather than computed, hedge it explicitly.",
+  },
+  metrics: {
+    type: "array",
+    description: "Up to 4 figures to display as tiles. Values must come from tool results.",
+    items: {
       type: "object",
       properties: {
-        headline: { type: "string", description: "Under 90 characters." },
-        narrative: {
-          type: "string",
-          description:
-            "Two to four sentences stating the finding and, if knowable from the data, the cause. No greeting, no sign-off. " +
-            "If a cause is inferred rather than computed, hedge it explicitly.",
-        },
-        document: { type: "string", description: "Optional. A full markdown proposal, memo, or written analysis when the question calls for one rather than a quick answer. Omit for simple questions." },
-        metrics: {
-          type: "array",
-          description: "Up to 4 figures to display as tiles. Values must come from tool results.",
-          items: {
-            type: "object",
-            properties: {
-              label: { type: "string" },
-              value: { type: "number" },
-              unit: { type: "string", enum: ["currency", "percent", "count", "days"] },
-              delta: { type: "number", description: "Optional. Point or percent change, if a prior value is available." },
-            },
-            required: ["label", "value", "unit"],
-          },
-        },
-        chart: {
-          type: "object",
-          description: "Optional. Only from get_metric_series output — never hand-built.",
-          properties: {
-            metric: { type: "string" },
-            title: { type: "string" },
-            points: {
-              type: "array",
-              items: { type: "object", properties: { x: { type: "string" }, y: { type: "number" } }, required: ["x", "y"] },
-            },
-          },
-        },
-        evidence_ids: {
-          type: "array",
-          description: "Row identifiers from tool results that back the claim (e.g. resident:Lucía R.).",
-          items: { type: "string" },
-        },
-        action: { type: "string", description: "Optional. A short label (2-5 words) for one concrete next action the user could take." },
-        actionDetail: { type: "string", description: "Optional. One sentence describing what approving that action would actually do." },
-        confidence: { type: "string", enum: ["high", "medium", "low"] },
+        label: { type: "string" },
+        value: { type: "number" },
+        unit: { type: "string", enum: ["currency", "percent", "count", "days"] },
+        delta: { type: "number", description: "Optional. Point or percent change, if a prior value is available." },
       },
-      required: ["headline", "narrative", "confidence"],
+      required: ["label", "value", "unit"],
     },
   },
-];
+  chart: {
+    type: "object",
+    description: "Optional. Only from get_metric_series output — never hand-built.",
+    properties: {
+      metric: { type: "string" },
+      title: { type: "string" },
+      points: {
+        type: "array",
+        items: { type: "object", properties: { x: { type: "string" }, y: { type: "number" } }, required: ["x", "y"] },
+      },
+    },
+  },
+  evidence_ids: {
+    type: "array",
+    description: "Row identifiers from tool results that back the claim (e.g. resident:Lucía R.).",
+    items: { type: "string" },
+  },
+  action: { type: "string", description: "Optional. A short label (2-5 words) for one concrete next action the user could take." },
+  actionDetail: { type: "string", description: "Optional. One sentence describing what approving that action would actually do." },
+  confidence: { type: "string", enum: ["high", "medium", "low"] },
+} as const;
+
+const RENDER_ANSWER_TOOL: ToolSchema = {
+  name: "render_answer",
+  description:
+    "Call this exactly once, last, to return the final answer. Do not write prose outside this tool. " +
+    "Every number in `narrative` or `document` must have appeared in a previous tool result.",
+  input_schema: {
+    type: "object",
+    properties: {
+      ...ANSWER_FIELDS,
+      document: { type: "string", description: "Optional. A full markdown proposal, memo, or written analysis when the question calls for one rather than a quick answer. Omit for simple questions." },
+    },
+    required: ["headline", "narrative", "confidence"],
+  },
+};
+
+const COMPOSE_DOCUMENT_TOOL: ToolSchema = {
+  name: "compose_document",
+  description:
+    "Call this exactly once, last, to deliver the drafted document. Do not write prose outside this tool. " +
+    "Every number in `narrative` or `document` must have appeared in a previous tool result.",
+  input_schema: {
+    type: "object",
+    properties: {
+      ...ANSWER_FIELDS,
+      document: { type: "string", description: "Required. The full deliverable in markdown — this is a drafting request, never a quick answer, so this field is never omitted or left empty." },
+    },
+    required: ["headline", "narrative", "document", "confidence"],
+  },
+};
+
+/** Tools for a quick chat answer — `render_answer`'s `document` is optional. */
+export const TOOLS: ToolSchema[] = [...DATA_TOOLS, RENDER_ANSWER_TOOL];
+/** Tools for a drafting request — `compose_document`'s `document` is required. */
+export const DRAFT_TOOLS: ToolSchema[] = [...DATA_TOOLS, COMPOSE_DOCUMENT_TOOL];
 
 /* ── executors ──────────────────────────────────────────────────────────── */
 

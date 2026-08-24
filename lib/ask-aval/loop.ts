@@ -4,7 +4,7 @@
  * callers only supply a system prompt and the opening message.
  */
 
-import { callClaude, AnthropicError, type AskAvalEnv, type Message, type ContentBlock, type ToolUseBlock } from "./anthropic";
+import { callClaude, AnthropicError, type AskAvalEnv, type Message, type ContentBlock, type ToolUseBlock, type ToolSchema } from "./anthropic";
 import { TOOLS, runTool } from "./tools";
 import { isDailyCapExceeded, recordUsage, type AskAvalSession } from "./usage";
 import { checkFaithfulness, withDerivedNumbers, round2 } from "./faithfulness";
@@ -13,7 +13,16 @@ const MAX_ROUNDS = 4;
 
 export const json = (body: unknown, status = 200) => Response.json(body, { status, headers: { "cache-control": "no-store" } });
 
-export async function runAskAvalLoop(env: AskAvalEnv, session: AskAvalSession, system: string, messages: Message[]): Promise<Response> {
+export async function runAskAvalLoop(
+  env: AskAvalEnv,
+  session: AskAvalSession,
+  system: string,
+  messages: Message[],
+  tools: ToolSchema[] = TOOLS,
+  finalToolName = "render_answer",
+  maxTokens = 2048,
+  timeoutMs?: number,
+): Promise<Response> {
   if (await isDailyCapExceeded(env, session)) return json({ error: "Ask Aval has reached its usage cap for today. Try again tomorrow." }, 429);
 
   const seenNumbers = new Set<number>();
@@ -26,17 +35,18 @@ export async function runAskAvalLoop(env: AskAvalEnv, session: AskAvalSession, s
       const res = await callClaude(env, {
         system,
         messages,
-        tools: TOOLS,
+        tools,
         // On the last round, force the model to conclude.
-        tool_choice: round === MAX_ROUNDS - 1 ? { type: "tool", name: "render_answer" } : { type: "auto" },
-        max_tokens: 2048,
+        tool_choice: round === MAX_ROUNDS - 1 ? { type: "tool", name: finalToolName } : { type: "auto" },
+        max_tokens: maxTokens,
+        timeout_ms: timeoutMs,
       });
 
       inputTokens += res.usage.input_tokens;
       outputTokens += res.usage.output_tokens;
 
       const toolUses = res.content.filter((block): block is ToolUseBlock => block.type === "tool_use");
-      const final = toolUses.find((use) => use.name === "render_answer");
+      const final = toolUses.find((use) => use.name === finalToolName);
 
       if (final) {
         const answer = final.input;

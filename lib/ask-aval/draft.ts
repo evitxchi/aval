@@ -15,6 +15,7 @@
 
 import type { AskAvalEnv, Message } from "./anthropic";
 import type { AskAvalSession } from "./usage";
+import { DRAFT_TOOLS } from "./tools";
 import { runAskAvalLoop, json } from "./loop";
 
 const MAX_TITLE_CHARS = 140;
@@ -41,7 +42,7 @@ Hard rules:
 - You have no authority to take action yourself. At most, name one concrete next action the reader could approve.
 
 Always fill in \`document\` with the full deliverable in markdown — this is a drafting request, not a quick answer. Use \`headline\` as the document's title and \`narrative\` as a one-paragraph executive summary.
-Finish by calling render_answer exactly once. Write no prose outside it.
+Finish by calling compose_document exactly once. Write no prose outside it.
 Tone: plain, specific, and written for the reader named in the brief. No greeting, no sign-off, no exclamation marks.`;
 
 export async function handleAskAvalDraft(
@@ -67,5 +68,8 @@ export async function handleAskAvalDraft(
 
   const messages: Message[] = [{ role: "user", content: prompt }];
 
-  return runAskAvalLoop(env, session, SYSTEM, messages);
+  // Drafting a full document takes longer per call than a quick chat answer
+  // (more output tokens, same tool-round budget) — the default 25s timeout
+  // is tuned for /ask and is too tight here.
+  return runAskAvalLoop(env, session, SYSTEM, messages, DRAFT_TOOLS, "compose_document", 4096, 55_000);
 }

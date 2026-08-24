@@ -75,6 +75,7 @@ export async function callClaude(
     tools?: ToolSchema[];
     tool_choice?: { type: "auto" | "any" | "tool"; name?: string };
     max_tokens?: number;
+    timeout_ms?: number;
   },
 ): Promise<MessagesResponse> {
   if (!env.ANTHROPIC_API_KEY) {
@@ -82,7 +83,7 @@ export async function callClaude(
   }
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), params.timeout_ms ?? TIMEOUT_MS);
 
   try {
     const res = await fetch(API_URL, {
