@@ -18,9 +18,13 @@
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.23",
     "@radix-ui/react-tabs": "^1.1.21",
+    "docx": "^9.7.1",
     "drizzle-orm": "0.45.2",
+    "exceljs": "^4.4.0",
     "iconoir-react": "^7.12.1",
+    "jspdf": "^4.2.1",
     "next-intl": "^4.13.7",
+    "pptxgenjs": "^4.0.1",
     "react": "19.2.6",
     "react-dom": "19.2.6",
     "simple-icons": "^16.28.0"

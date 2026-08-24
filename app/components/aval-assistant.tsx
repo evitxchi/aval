@@ -1,10 +1,12 @@
 "use client";
+/* eslint-disable jsx-a11y/no-autofocus */
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { ChatLines, CheckCircle, Database, NavArrowRight, SendDiagonal, StatsUpSquare, ViewGrid, Xmark } from "iconoir-react";
+import { ChatLines, CheckCircle, Database, NavArrowRight, Page, SendDiagonal, StatsUpSquare, ViewGrid, Xmark } from "iconoir-react";
 import { useExperience } from "@/app/components/experience";
+import type { CreateDraftInput, DraftFormat } from "@/app/components/ask-aval-tasks";
 
 type EvidenceRow = { label: string; value: string };
 // value can be a pre-formatted string (the local sample-mode fallback
@@ -39,7 +41,9 @@ type ChatMessage = {
 function isAnswerShaped(value: unknown): value is Answer {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<Answer>;
-  return typeof candidate.headline === "string" && typeof candidate.narrative === "string" && Array.isArray(candidate.metrics);
+  // metrics is optional in the server's render_answer schema — a real answer
+  // that had no figures worth tiling is still a real answer, not a failure.
+  return typeof candidate.headline === "string" && typeof candidate.narrative === "string" && (candidate.metrics === undefined || Array.isArray(candidate.metrics));
 }
 type SelectedModule = { label: string; snapshot: string };
 
@@ -217,7 +221,7 @@ function analyzeQuestion(t: ReturnType<typeof useTranslations>, question: string
   };
 }
 
-export function AvalAssistant({ view }: { view: string }) {
+export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateDraft: (input: CreateDraftInput) => void }) {
   const { notify } = useExperience();
   const t = useTranslations();
   const locale = useLocale();
@@ -227,6 +231,10 @@ export function AvalAssistant({ view }: { view: string }) {
   const [pickingModule, setPickingModule] = useState(false);
   const [selectedModule, setSelectedModule] = useState<SelectedModule | null>(null);
   const [prepared, setPrepared] = useState<Record<number, boolean>>({});
+  const [draftPanelOpen, setDraftPanelOpen] = useState(false);
+  const [draftTitle, setDraftTitle] = useState("");
+  const [draftInstructions, setDraftInstructions] = useState("");
+  const [draftFormat, setDraftFormat] = useState<DraftFormat>("docx");
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 1,
@@ -336,9 +344,11 @@ export function AvalAssistant({ view }: { view: string }) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ question: trimmed, view, moduleLabel: focusedModule?.label, moduleSnapshot: focusedModule?.snapshot, locale }),
       });
-      const data = await response.json() as { answer?: unknown; error?: string };
-      const answer = data.answer;
-      if (!response.ok || !isAnswerShaped(answer)) throw new Error(data.error ?? "The assistant is unavailable right now.");
+      // The endpoint returns the render_answer payload flattened at the top
+      // level (plus tools_used), not wrapped in an { answer: ... } envelope.
+      const data = (await response.json()) as Record<string, unknown> & { error?: string };
+      if (!response.ok || !isAnswerShaped(data)) throw new Error(typeof data.error === "string" ? data.error : "The assistant is unavailable right now.");
+      const answer = { ...data, metrics: Array.isArray(data.metrics) ? data.metrics : [] } as Answer;
       setMessages((current) => [...current, { id: nextId.current++, role: "assistant", answer, live: true }]);
     } catch {
       setMessages((current) => [...current, { id: nextId.current++, role: "assistant", answer: analyzeQuestion(t, trimmed, view, focusedModule), live: false }]);
@@ -355,7 +365,26 @@ export function AvalAssistant({ view }: { view: string }) {
   const prepareAction = (message: ChatMessage) => {
     if (!message.answer?.action) return;
     setPrepared((current) => ({ ...current, [message.id]: true }));
-    notify(t("AvalAssistant.actionPreparedForReview"), message.answer.actionDetail ?? message.answer.action);
+    onCreateDraft({
+      title: message.answer.action,
+      instructions: `Draft the full write-up for this approved action so it is ready to send: "${message.answer.action}". ${message.answer.actionDetail ?? ""} It follows from this finding: ${message.answer.headline}`,
+      format: "docx",
+    });
+    notify(t("AvalAssistant.actionPreparedForReview"), t("AvalAssistant.draftStartedInTasks"));
+  };
+
+  const startDraft = (event: FormEvent) => {
+    event.preventDefault();
+    if (!draftTitle.trim() || !draftInstructions.trim()) return;
+    onCreateDraft({
+      title: draftTitle.trim(),
+      instructions: draftInstructions.trim(),
+      format: draftFormat,
+      moduleLabel: selectedModule?.label,
+      moduleSnapshot: selectedModule?.snapshot,
+    });
+    setMessages((current) => [...current, { id: nextId.current++, role: "assistant", text: t("AvalAssistant.draftStartedMessage", { title: draftTitle.trim() }) }]);
+    setDraftTitle(""); setDraftInstructions(""); setDraftFormat("docx"); setDraftPanelOpen(false);
   };
 
   const clearSelectedModule = () => {
@@ -395,6 +424,9 @@ export function AvalAssistant({ view }: { view: string }) {
               <button className={`aval-module-picker ${pickingModule ? "active" : ""}`} type="button" onClick={() => setPickingModule((current) => !current)} aria-pressed={pickingModule}>
                 <ViewGrid width={15} height={15} />{selectedModule ? t("AvalAssistant.changeModule") : t("AvalAssistant.selectModule")}
               </button>
+              <button className={`aval-module-picker ${draftPanelOpen ? "active" : ""}`} type="button" onClick={() => setDraftPanelOpen((current) => !current)} aria-pressed={draftPanelOpen}>
+                <Page width={15} height={15} />{t("AvalAssistant.draftDocument")}
+              </button>
             </div>
             {pickingModule && <p className="aval-module-picker-instruction"><span />{t("AvalAssistant.hoverOverADashboardModuleThen")}</p>}
             {selectedModule && (
@@ -403,6 +435,22 @@ export function AvalAssistant({ view }: { view: string }) {
                 <span><small>{t("AvalAssistant.focusedModule")}</small><strong>{selectedModule.label}</strong></span>
                 <button type="button" onClick={clearSelectedModule} aria-label={t("AvalAssistant.clearSelectedModule")}><Xmark width={15} height={15} /></button>
               </div>
+            )}
+            {draftPanelOpen && (
+              <form className="aval-draft-panel" onSubmit={startDraft}>
+                <input value={draftTitle} onChange={(event) => setDraftTitle(event.target.value)} placeholder={t("AvalAssistant.draftTitlePlaceholder")} autoFocus />
+                <textarea value={draftInstructions} onChange={(event) => setDraftInstructions(event.target.value)} placeholder={t("AvalAssistant.draftInstructionsPlaceholder")} />
+                <div className="aval-draft-panel-row">
+                  <select value={draftFormat} onChange={(event) => setDraftFormat(event.target.value as DraftFormat)}>
+                    <option value="docx">{t("AvalAssistant.formatDocx")}</option>
+                    <option value="xlsx">{t("AvalAssistant.formatXlsx")}</option>
+                    <option value="pptx">{t("AvalAssistant.formatPptx")}</option>
+                  </select>
+                  <button type="submit" className="primary-button" disabled={!draftTitle.trim() || !draftInstructions.trim()}>
+                    <NavArrowRight width={16} height={16} />{t("AvalAssistant.startDrafting")}
+                  </button>
+                </div>
+              </form>
             )}
           </div>
 
