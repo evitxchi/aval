@@ -33,6 +33,24 @@
     "statusStreaming": "Escribiendo",
     "waitingOnClaude": "Esperando a Claude…"
   },
+  "AuthGate": {
+    "alreadyHaveAnAccount": "¿Ya tienes una cuenta? Inicia sesión",
+    "createAccount": "Crear cuenta",
+    "emailLabel": "Correo electrónico",
+    "emailPlaceholder": "tu@empresa.com",
+    "nameLabel": "Nombre",
+    "namePlaceholder": "Tu nombre",
+    "needAnAccount": "¿Necesitas una cuenta? Crea una",
+    "passwordLabel": "Contraseña",
+    "passwordPlaceholder": "Al menos 8 caracteres",
+    "pleaseWait": "Un momento…",
+    "signIn": "Iniciar sesión",
+    "signInSubtitle": "Inicia sesión en tu espacio de trabajo de Aval.",
+    "signInTitle": "Bienvenido de nuevo",
+    "signUpSubtitle": "Configura tu espacio de trabajo de Aval en menos de un minuto.",
+    "signUpTitle": "Crea tu espacio de trabajo",
+    "somethingWentWrong": "Algo salió mal. Inténtalo de nuevo."
+  },
   "AvalAssistant": {
     "actionPreparedForReview": "Acción preparada para revisión",
     "analyzingDashboardData": "Analizando datos del tablero",

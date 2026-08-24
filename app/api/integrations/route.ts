@@ -3,7 +3,8 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { integrationConnections } from "@/db/schema";
 import { configuredEnvironment, integrationCatalog } from "@/lib/integrations/catalog";
-import { ensureOrganization, getApiIdentity } from "@/lib/integrations/session";
+import { getApiIdentity } from "@/lib/integrations/session";
+import { ensureOrganization } from "@/lib/integrations/organizations";
 
 export async function GET(request: Request) {
   const identity = await getApiIdentity(request);

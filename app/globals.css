@@ -855,3 +855,22 @@ html.aval-module-picking .content-shell { cursor: crosshair; }
 @media (max-width: 600px) {
   .draft-task-grid { grid-template-columns: 1fr; }
 }
+
+/* ── Auth gate (real customer sign-in/sign-up) ──────────────────────────── */
+
+.auth-gate { width: 100%; min-height: 100dvh; display: grid; place-items: center; padding: 24px; background: var(--surface); }
+.auth-gate-card { width: 100%; max-width: 380px; padding: 28px 26px; border: 1px solid var(--line); border-radius: 22px; background: var(--surface-raised); box-shadow: 0 24px 60px rgba(15,15,13,.08); }
+.auth-gate-brand { display: flex; align-items: center; gap: 8px; margin-bottom: 22px; }
+.auth-gate-brand strong { font-size: 13px; letter-spacing: -.1px; }
+.auth-gate-card h1 { margin: 0 0 4px; font-size: 19px; font-weight: 500; letter-spacing: -.2px; }
+.auth-gate-card > p { margin: 0 0 20px; color: var(--quiet); font-size: 10.5px; line-height: 1.5; }
+.auth-gate-card form { display: flex; flex-direction: column; gap: 13px; }
+.auth-gate-card label { display: flex; flex-direction: column; gap: 6px; font-size: 9.5px; color: var(--muted); }
+.auth-gate-card input { min-height: 40px; padding: 0 12px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface-soft); color: var(--ink); font-size: 11px; font-family: inherit; }
+.auth-gate-card input:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
+.auth-gate-card .primary-button { width: 100%; margin-top: 4px; }
+.auth-gate-error { margin: 0; padding: 9px 10px; border-radius: 10px; background: color-mix(in srgb, #e2554a 10%, transparent); color: #a5352b; font-size: 9.5px; line-height: 1.5; }
+.auth-gate-switch { width: 100%; margin-top: 16px; padding: 8px 0 0; border: 0; background: transparent; color: var(--muted); font-size: 9.5px; text-align: center; cursor: pointer; }
+.auth-gate-switch:hover { color: var(--ink); text-decoration: underline; }
+
+[data-theme="dark"] .auth-gate-card input { background: var(--surface-raised); }

@@ -1,5 +1,6 @@
 import { env } from "cloudflare:workers";
-import { getApiIdentity, ensureOrganization } from "@/lib/integrations/session";
+import { getApiIdentity } from "@/lib/integrations/session";
+import { ensureOrganization } from "@/lib/integrations/organizations";
 import { handleAskAvalDraft, type DraftFormat } from "@/lib/ask-aval/draft";
 import type { AskAvalEnv } from "@/lib/ask-aval/anthropic";
 

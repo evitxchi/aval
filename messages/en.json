@@ -33,6 +33,24 @@
     "statusStreaming": "Writing",
     "waitingOnClaude": "Waiting on Claude…"
   },
+  "AuthGate": {
+    "alreadyHaveAnAccount": "Already have an account? Sign in",
+    "createAccount": "Create account",
+    "emailLabel": "Email",
+    "emailPlaceholder": "you@company.com",
+    "nameLabel": "Name",
+    "namePlaceholder": "Your name",
+    "needAnAccount": "Need an account? Create one",
+    "passwordLabel": "Password",
+    "passwordPlaceholder": "At least 8 characters",
+    "pleaseWait": "Please wait…",
+    "signIn": "Sign in",
+    "signInSubtitle": "Sign in to your Aval workspace.",
+    "signInTitle": "Welcome back",
+    "signUpSubtitle": "Set up your Aval workspace in under a minute.",
+    "signUpTitle": "Create your workspace",
+    "somethingWentWrong": "Something went wrong. Try again."
+  },
   "AvalAssistant": {
     "actionPreparedForReview": "Action prepared for review",
     "analyzingDashboardData": "Analyzing dashboard data",

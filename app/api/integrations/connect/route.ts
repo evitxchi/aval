@@ -4,7 +4,8 @@ import { getDb } from "@/db";
 import { integrationConnections, oauthStates } from "@/db/schema";
 import { encryptSecret } from "@/lib/integrations/crypto";
 import { configuredEnvironment, getProvider } from "@/lib/integrations/catalog";
-import { ensureOrganization, getApiIdentity } from "@/lib/integrations/session";
+import { getApiIdentity } from "@/lib/integrations/session";
+import { ensureOrganization } from "@/lib/integrations/organizations";
 
 const bindings = () => env as unknown as Record<string, string | undefined>;
 

@@ -58,7 +58,7 @@ test("renders the es-mx locale with real translated content, not English fallbac
 
 test("ships Monument typography, monochrome tokens, integrations, and durable storage", async () => {
   const [page, layout, css, packageJson, messagesEn] = await Promise.all([
-    readFile(new URL("../app/[locale]/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/[locale]/dashboard-client.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/[locale]/layout.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
