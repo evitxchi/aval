@@ -5,6 +5,7 @@ import type { UnitOfMeasure, UtilityType } from "@/lib/infrastructure/types";
 
 const UTILITY_TYPES: UtilityType[] = ["electricity", "water", "gas"];
 const UNITS_OF_MEASURE: UnitOfMeasure[] = ["kWh", "gal", "ccf", "therm", "m3"];
+const MAX_LABEL_CHARS = 200;
 
 export async function GET(request: Request) {
   const identity = await getApiIdentity(request);
@@ -34,7 +35,7 @@ export async function POST(request: Request) {
   if (!UTILITY_TYPES.includes(body.utilityType as UtilityType)) {
     return Response.json({ error: "utilityType must be one of: electricity, water, gas" }, { status: 400 });
   }
-  const propertyLabel = typeof body.propertyLabel === "string" ? body.propertyLabel.trim() : "";
+  const propertyLabel = typeof body.propertyLabel === "string" ? body.propertyLabel.trim().slice(0, MAX_LABEL_CHARS) : "";
   if (!propertyLabel) return Response.json({ error: "propertyLabel is required" }, { status: 400 });
   if (!UNITS_OF_MEASURE.includes(body.unitOfMeasure as UnitOfMeasure)) {
     return Response.json({ error: `unitOfMeasure must be one of: ${UNITS_OF_MEASURE.join(", ")}` }, { status: 400 });
@@ -43,9 +44,9 @@ export async function POST(request: Request) {
   const meter = await createMeter(identity.organizationId, {
     utilityType: body.utilityType as UtilityType,
     propertyLabel,
-    unitLabel: body.unitLabel?.trim() || undefined,
-    meterNumber: body.meterNumber?.trim() || undefined,
-    provider: body.provider?.trim() || undefined,
+    unitLabel: body.unitLabel?.trim().slice(0, MAX_LABEL_CHARS) || undefined,
+    meterNumber: body.meterNumber?.trim().slice(0, MAX_LABEL_CHARS) || undefined,
+    provider: body.provider?.trim().slice(0, MAX_LABEL_CHARS) || undefined,
     unitOfMeasure: body.unitOfMeasure as UnitOfMeasure,
   });
   return Response.json({ meter }, { status: 201 });

@@ -50,6 +50,11 @@ export const SHAPES: Record<ShapeId, ShapeGeometry> = {
     parts: [
       { kind: "path", d: "M10,34 L80,14 L94,42 L26,64 Z" },
       { kind: "path", d: "M18,58 L86,38 L98,70 L30,90 Z" },
+      // A zero-area line between the two facets' facing edges — fill-based
+      // silhouette/bloom passes render it as nothing (a line has no area),
+      // but the rim pass strokes it, giving "intersecting planes" a visible
+      // seam instead of reading as one blob at small sizes.
+      { kind: "path", d: "M20,60 L90,40" },
     ],
     bbox: { x0: 10, y0: 14, x1: 98, y1: 90 },
   },

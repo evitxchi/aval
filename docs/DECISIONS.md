@@ -348,3 +348,41 @@ correctly, and a failed submission (this sandbox's local preview has no working 
 noted for every other D1-backed route tonight) leaves the form open and re-enabled rather than
 stuck or crashed. The actual create → select → chat round trip needs a real D1 binding to verify
 end to end.
+
+## 2026-09-02 — Adversarial review of tonight's four commits, one fix
+
+**Context.** Given the scale of tonight's changes (four commits, new DB tables, six new API
+routes) and no live human review available, ran an independent adversarial review pass focused
+specifically on cross-tenant isolation, auth, injection, the finance formulas, and the
+faithfulness-gate/persona interaction — the things worth being paranoid about, not style.
+
+**Result: clean, with one real but low-severity gap.** Every new DB query correctly scopes by
+`organizationId` (traced, not assumed) — a cross-org `meterId` on `/api/infrastructure/bills`
+returns zero rows rather than another org's data; `getCustomPersonaAsAgentPersona` returns `null`
+on an id that exists in a different org rather than leaking it. All six new routes 401 before
+touching the DB. The faithfulness-gate/persona claim in `custom-personas.ts`'s doc comment was
+traced end to end, not trusted: `checkFaithfulness` validates against `seenNumbers`, populated
+only from real tool outputs in `loop.ts` with zero read of system-prompt content, so a custom
+persona's `focusDescription` genuinely cannot influence it; `personaTools()` filters the actual
+tool schemas sent to the model, so persona-scoped tool access is enforced by what's offered, not
+by prompt compliance. `internalRateOfReturnPct`'s Newton-Raphson derivative was independently
+re-derived by hand against NPV's definition and matches. No Node-only global (`Buffer`,
+`require`, `process.env`, `fs`) found in any Worker-request-path code.
+
+**The one gap:** `/api/infrastructure/bills` and `/api/infrastructure/meters` validated their
+numeric/string inputs' *type and sign* but not their *size* — `costCents`/`usageAmount` had no
+upper bound, and `propertyLabel`/`unitLabel`/`meterNumber`/`provider` had no length cap, unlike
+every other new endpoint tonight (`custom-personas.ts`'s `MAX_LABEL_CHARS`/`MAX_FOCUS_CHARS`,
+`bill-extraction.ts`'s `MAX_BILL_TEXT_CHARS`). Not cross-tenant-exploitable — just missing the
+input-size discipline the rest of the night's work had. Fixed: both routes now cap numeric
+fields (`MAX_USAGE_AMOUNT`, `MAX_COST_CENTS`) and string fields (`MAX_LABEL_CHARS` = 200,
+`MAX_EXTRACTION_NOTE_CHARS` = 1000).
+
+**Also fixed, unrelated:** the `planes` (intersecting-planes) avatar shape — flagged in this
+file's "Custom agent creation" entry as the weakest of the six, reading as one blob rather than
+two facets at small sizes. Added a zero-area line between the two facets' facing edges to
+`shapes.tsx`'s `planes` geometry: it renders nothing in the silhouette/bloom fill passes (a line
+has no area) but gets stroked in the rim pass, giving the shape a visible seam.
+
+**Verification.** `tsc --noEmit`, `npm run build`, `npm run lint`, `npm run i18n:check`, and
+`node --test` (53 passing) all clean after the fix.

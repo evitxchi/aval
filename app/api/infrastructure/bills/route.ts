@@ -4,6 +4,12 @@ import { listBills, recordBill, MeterNotFoundError } from "@/lib/infrastructure/
 import type { UtilityType } from "@/lib/infrastructure/types";
 
 const UTILITY_TYPES: UtilityType[] = ["electricity", "water", "gas"];
+// Generous upper bounds so a malformed or malicious payload can't hand an
+// unbounded number to Drizzle/D1 — a single utility bill has no legitimate
+// reason to exceed a nine-figure cost or usage reading.
+const MAX_USAGE_AMOUNT = 100_000_000;
+const MAX_COST_CENTS = 100_000_000_00;
+const MAX_EXTRACTION_NOTE_CHARS = 1000;
 
 export async function GET(request: Request) {
   const identity = await getApiIdentity(request);
@@ -40,11 +46,11 @@ export async function POST(request: Request) {
   if (Number.isNaN(periodStart.getTime()) || Number.isNaN(periodEnd.getTime()) || periodEnd <= periodStart) {
     return Response.json({ error: "periodStart and periodEnd must be valid dates with periodEnd after periodStart" }, { status: 400 });
   }
-  if (typeof body.usageAmount !== "number" || !Number.isFinite(body.usageAmount) || body.usageAmount < 0) {
-    return Response.json({ error: "usageAmount must be a non-negative number" }, { status: 400 });
+  if (typeof body.usageAmount !== "number" || !Number.isFinite(body.usageAmount) || body.usageAmount < 0 || body.usageAmount > MAX_USAGE_AMOUNT) {
+    return Response.json({ error: `usageAmount must be a non-negative number no greater than ${MAX_USAGE_AMOUNT}` }, { status: 400 });
   }
-  if (typeof body.costCents !== "number" || !Number.isFinite(body.costCents) || body.costCents < 0) {
-    return Response.json({ error: "costCents must be a non-negative number" }, { status: 400 });
+  if (typeof body.costCents !== "number" || !Number.isFinite(body.costCents) || body.costCents < 0 || body.costCents > MAX_COST_CENTS) {
+    return Response.json({ error: `costCents must be a non-negative number no greater than ${MAX_COST_CENTS}` }, { status: 400 });
   }
   const currency = body.currency === "MXN" ? "MXN" : "USD";
 
@@ -62,7 +68,7 @@ export async function POST(request: Request) {
       currency,
       source: "manual",
       extractionConfidence: body.extractionConfidence === "low" || body.extractionConfidence === "high" ? body.extractionConfidence : undefined,
-      extractionNote: body.extractionNote?.trim() || undefined,
+      extractionNote: body.extractionNote?.trim().slice(0, MAX_EXTRACTION_NOTE_CHARS) || undefined,
     });
     return Response.json({ bill }, { status: 201 });
   } catch (err) {
