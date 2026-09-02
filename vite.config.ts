@@ -3,6 +3,27 @@ import { sites } from "@openai/sites-vite-plugin";
 import vinext from "vinext";
 import { defineConfig } from "vite";
 import hostingConfig from "./.openai/hosting.json";
+// `npx @vinext/cloudflare deploy`'s pre-flight check
+// (viteConfigHasCloudflarePlugin in @vinext/cloudflare/dist/deploy-config.js)
+// is a plain regex over this file's own source text: it requires a static
+// `import { cloudflare } from "@cloudflare/vite-plugin"` AND a later call
+// that literally reads `cloudflare(` — matched against *this import's own
+// binding name specifically*, not just any `cloudflare(` in the file. So
+// the binding here must be named exactly `cloudflare`, unaliased, even
+// though it's never called: the real call (line ~79) is on the *locally
+// shadowed* `cloudflare` from the dynamic `await import(...)` inside
+// defineConfig's callback (deliberately dynamic so the env vars set right
+// before it run first — see the comment there) — a different binding in a
+// nested scope, invisible to this top-level one. Referencing this outer
+// import only via `typeof` below (never as a value) means standard
+// TS/esbuild import elision (the same mechanism that makes `import type`
+// usually unnecessary) should drop it from the actual build — reasoned
+// through, not directly inspected in the compiled output, so treat
+// `npm run dev`/`build`/`start` continuing to work as the real
+// confirmation, not this comment.
+import { cloudflare } from "@cloudflare/vite-plugin";
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- type-only usage of the import above; see the comment on it.
+type _CloudflarePluginTypeOnly = typeof cloudflare;
 
 const SITE_CREATOR_PLACEHOLDER_DATABASE_ID =
   "00000000-0000-4000-8000-000000000000";
