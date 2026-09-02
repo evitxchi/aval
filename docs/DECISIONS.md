@@ -458,3 +458,98 @@ shows the inline error and leaves the form usable, not stuck.
 calls them yet), and no live-mode data fetch — matching every other view in this file, which
 also don't fetch live data yet, "live" mode uniformly just means "not sample," not a real API
 call.
+
+## 2026-09-02 — Debug audit: agent framework and infrastructure sourcing, re-verified
+
+**Context.** After the two initiatives above shipped, the user asked to "go back and debug,
+ensure you used strong high star github repos for agents, infra" — a direct challenge to verify
+those sourcing conclusions weren't just convenient. Ran two fresh, skeptical research passes
+(not reusing the earlier agents' reasoning) specifically hunting for anything dismissed too
+quickly, including whether "call it as an external service" was seriously considered for
+Python-only options rather than rejected on language mismatch alone.
+
+**Agents: conclusion held, with one concrete action item.** Re-checked cloudflare/agents (still
+unconditionally Durable-Objects-based, no stateless mode), vercel/ai and mastra-ai/mastra
+(unchanged star counts, actively maintained). Two real corrections: vercel/ai's GitHub-reported
+"Other" license is a detector false negative — its actual LICENSE file is genuinely Apache-2.0,
+fetched and read directly; that concern is retired. mastra's NOASSERTION is *not* a false
+negative — its `ee/` directories are under a real, non-OSS "Enterprise Edition" license (moot
+here since Mastra isn't adopted). Separately: the official `@anthropic-ai/sdk` (MIT, 2.1k★,
+README explicitly lists Cloudflare Workers/Vercel Edge Runtime support) was checked and found
+clearly superior to this app's hand-rolled fetch client — adopted (see below).
+
+**Infrastructure: conclusion held, with a sharper schema reference.** Re-checked whether
+eemeter/OpenDSM could be called as an external service rather than ported — read its actual
+Dockerfile/compose directly: it builds a dev/test shell with no server, no exposed port, nothing
+to call. Broader building-energy-management platforms (OpenEMS 1,545★, Home Assistant 90k★)
+are real but solve equipment control, not bill/usage accounting — higher-star but wrong problem.
+No JS/TS Brick Schema library exists (checked npm directly). One genuine addition:
+`RealEstateCore/rec` (108★, BSD-3-Clause) is a real-estate-specific metadata ontology with more
+targeted fit than generic Brick Schema for this app's property/meter modeling — worth citing
+alongside Brick as a schema reference in any future infrastructure data-model work, though
+neither is a dependency.
+
+**Action taken: replaced the hand-rolled Anthropic client with `@anthropic-ai/sdk`.**
+`lib/ask-aval/anthropic.ts` now wraps the official SDK internally, with its *public* shape
+(`callClaude`, `AnthropicError`, `Message`, `ContentBlock`, `ToolSchema`, `MessagesResponse`)
+kept byte-for-byte identical to what it replaced — `loop.ts`'s control flow and
+`faithfulness.ts`'s post-hoc citation check needed zero changes, nor did any other caller
+(`handler.ts`, `draft.ts`, `bill-extraction.ts`). Real gains: automatic retries on
+408/409/429/5xx, typed error classes (mapped to this app's own `AnthropicError` so external
+behavior is unchanged), and per-request timeouts via the SDK's own `timeout` option instead of a
+bespoke `AbortController`. The API key is still passed explicitly (`apiKey: env.ANTHROPIC_API_KEY`)
+rather than relying on the SDK's `process.env` fallback, which isn't reliably present in a Worker.
+
+**Verification.** `tsc --noEmit`, `npm run build` (all routes that call `callClaude` — `/ask`,
+`/draft`, `/bills/extract` — registered and compiled clean), `npm run lint`, and `node --test`
+(56 passing) all clean. The actual Claude API call path wasn't exercised end-to-end in this
+sandbox (no live network path was tested beyond the build/bundle step), so treat this as
+type/build-verified, not live-request-verified, until a real deployment exercises it.
+
+## 2026-09-02 — First production deploy: signup password floor removed, deploy tooling fixed
+
+**Context.** User asked to remove the 8-character password minimum ("superquick," for fast
+testing on the live deployment) and to push the app live to `https://aval.evalxnder.workers.dev`.
+
+**Password floor removed** (`app/api/auth/signup/route.ts`, `app/components/auth-gate.tsx`):
+server-side check relaxed from `password.length < 8` to just requiring a non-empty string;
+client-side `minLength={8}` removed. An automated security review correctly flagged this as a
+weakened password policy — noted here plainly: this was an explicit, direct user request for
+their own deployment, not a default-behavior change, and the tradeoff was surfaced to the user
+rather than silently applied.
+
+**Deploy tooling bug found and fixed, twice.** `npx @vinext/cloudflare deploy` failed its
+pre-flight check with "Missing @cloudflare/vite-plugin," even though `vite.config.ts` correctly
+configures it — via a deliberate `await import("@cloudflare/vite-plugin")` inside
+`defineConfig`'s async callback, timed to run *after* `WRANGLER_LOG_PATH`/`MINIFLARE_REGISTRY_PATH`
+are set (a real, commented prior fix for wrangler snapshotting its log path too early). Root
+cause, found by reading `@vinext/cloudflare/dist/deploy-config.js` directly rather than guessing:
+`viteConfigHasCloudflarePlugin` is a plain regex over the file's raw source text, matching only a
+static `import { cloudflare } from "@cloudflare/vite-plugin"` and then requiring a later call
+matching *that exact binding name*. Fixed by adding exactly that import, referenced only via
+`typeof` (never as a value), so standard TS/esbuild import elision drops it from the actual
+build while the real, dynamically-imported `cloudflare` (in a nested, shadowed scope) is what
+actually runs. First attempt at this fix aliased the import (`as _cloudflareForDeployToolDetectionOnly`)
+for clarity, which broke the regex's exact-name matching — corrected to use the unaliased name.
+
+**Second, separate deploy bug:** the generated deploy-time Wrangler config merged this project's
+local-dev D1 binding (from `.openai/hosting.json`'s OpenAI-Sites-oriented dev config, wired
+through `vite.config.ts`'s `cloudflare({config: localBindingConfig})`) with the real
+`wrangler.jsonc` D1 binding — both named `DB`, which Wrangler rejects as a duplicate. Both
+configs are individually correct for their own purpose (one for local Miniflare simulation of
+OpenAI Sites hosting, one for a real deploy to this project's own Cloudflare account) — the
+deploy tool's config merge doesn't deduplicate by binding name when both exist. Worked around by
+editing the *generated* `dist/server/wrangler.json` build artifact (removing the placeholder
+entry) and deploying with `--skip-build --config dist/server/wrangler.json`, per the deploy
+tool's own documented support for a generated-config deploy path — no source file was touched
+for this part, so local dev and any future OpenAI Sites-path build are unaffected.
+
+**Deployed:** `https://aval.evalxnder.workers.dev` — build succeeded, D1 migrations
+(`utility_meters`/`utility_bills`, `agent_personas`) applied to the live `aval-production`
+database beforehand, single correct `env.DB` binding confirmed in the deploy output, and
+`/en` (200), `/` (307 redirect), and `/api/agents` (401 — correctly reaching the new route and
+its now-migrated table, not 500ing) all verified live post-deploy via curl.
+
+**Verification.** `tsc --noEmit`, `npm run lint`, `npm run build` all clean after both deploy-tool
+fixes. Live post-deploy smoke check via curl (above) — not a full manual walkthrough of every
+feature on production.
