@@ -19,7 +19,7 @@
 
 import type { ToolSchema } from "./anthropic";
 
-export type PersonaId = "general" | "financial" | "brokerage" | "realEstate" | "marketResearch" | "maintenance";
+export type PersonaId = "general" | "financial" | "brokerage" | "realEstate" | "marketResearch" | "maintenance" | "riskAnalyst" | "portfolioOutlook";
 
 export interface AgentPersona {
   /** A built-in PersonaId for the fixed roster below, or a custom_personas row's id — see resolvePersona(). */
@@ -72,6 +72,20 @@ export const PERSONAS: Record<PersonaId, AgentPersona> = {
     systemPromptAddition:
       "\n\nYou are currently in Maintenance mode: focus on open work orders, aging, and delinquency that correlates with maintenance-driven turnover. Prioritize operational urgency over financial framing.",
     toolNames: ["get_portfolio_metrics", "get_delinquent_accounts"],
+  },
+  riskAnalyst: {
+    id: "riskAnalyst",
+    label: "Risk Analyst",
+    systemPromptAddition:
+      "\n\nYou are currently in Risk Analyst mode: identify and rank portfolio risk using only collections, occupancy, and expense-margin data the tools return. Organize findings under fixed categories — collections risk, occupancy risk, expense-margin risk — ranked by severity, and name the specific tool figure behind each one. Never state a finding as a certainty (\"this is a problem\"); use calibrated language instead (\"shows signs of\", \"warrants review\").",
+    toolNames: ["get_delinquent_accounts", "get_portfolio_metrics", "get_accounting_breakdown"],
+  },
+  portfolioOutlook: {
+    id: "portfolioOutlook",
+    label: "Portfolio Outlook",
+    systemPromptAddition:
+      "\n\nYou are currently in Portfolio Outlook mode: compare the most recent period's figures against the prior period for the same metric and state plainly whether it looks on track, needs attention, or off track — always naming the two specific figures being compared. This reflects only what the connected tools return for those two periods; never project beyond them or imply a trend the data doesn't show.",
+    toolNames: ["get_metric_series", "get_portfolio_metrics"],
   },
 };
 

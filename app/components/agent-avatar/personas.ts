@@ -7,7 +7,7 @@ import type { ThemeId } from "./themes";
  * imports, lib/ask-aval/personas.ts's server-only registry — see that
  * file's doc comment for why. Keep the id strings identical by hand.
  */
-export type PersonaId = "general" | "financial" | "brokerage" | "realEstate" | "marketResearch" | "maintenance";
+export type PersonaId = "general" | "financial" | "brokerage" | "realEstate" | "marketResearch" | "maintenance" | "riskAnalyst" | "portfolioOutlook";
 
 export interface PersonaPreset {
   id: PersonaId;
@@ -15,13 +15,14 @@ export interface PersonaPreset {
   theme: ThemeId;
   labelKey: string;
   /**
-   * Commissioned artwork for this built-in persona (public/personas/*.png) —
-   * takes over rendering from the shape+theme silhouette below wherever
-   * AvalAgentAvatar is given it (see that component's `icon` prop). The
-   * shape/theme fields stay populated regardless, since a persona can still
-   * be displayed procedurally in a context with no icon slot.
+   * Commissioned artwork (public/personas/*.png) — takes over rendering from
+   * the shape+theme silhouette below wherever AvalAgentAvatar is given it
+   * (see that component's `icon` prop). Optional: only the six original
+   * personas have commissioned art; a persona with no `icon` renders
+   * procedurally from its shape/theme instead, the same as any custom,
+   * user-created persona.
    */
-  icon: string;
+  icon?: string;
 }
 
 export const PERSONA_PRESETS: Record<PersonaId, PersonaPreset> = {
@@ -32,6 +33,8 @@ export const PERSONA_PRESETS: Record<PersonaId, PersonaPreset> = {
   realEstate: { id: "realEstate", shape: "monolith", theme: "aqua", labelKey: "AgentPersonas.realEstateLabel", icon: "/personas/real-estate.png" },
   marketResearch: { id: "marketResearch", shape: "shard", theme: "orchid", labelKey: "AgentPersonas.marketResearchLabel", icon: "/personas/market-research.png" },
   maintenance: { id: "maintenance", shape: "planes", theme: "ember", labelKey: "AgentPersonas.maintenanceLabel", icon: "/personas/maintenance.png" },
+  riskAnalyst: { id: "riskAnalyst", shape: "shard", theme: "ember", labelKey: "AgentPersonas.riskAnalystLabel" },
+  portfolioOutlook: { id: "portfolioOutlook", shape: "monolith", theme: "aurora", labelKey: "AgentPersonas.portfolioOutlookLabel" },
 };
 
 export const PERSONA_IDS = Object.keys(PERSONA_PRESETS) as PersonaId[];

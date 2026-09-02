@@ -4,7 +4,9 @@
     "financialLabel": "Analista financiero",
     "maintenanceLabel": "Mantenimiento",
     "marketResearchLabel": "Estudio de mercado",
-    "realEstateLabel": "Bienes raíces"
+    "portfolioOutlookLabel": "Panorama del Portafolio",
+    "realEstateLabel": "Bienes raíces",
+    "riskAnalystLabel": "Analista de Riesgo"
   },
   "AskAvalTasks": {
     "cancel": "Cancelar",
