@@ -1,10 +1,27 @@
 /**
- * Minimal Anthropic Messages API client for Cloudflare Workers.
- * No SDK — one fetch, typed, with a hard timeout.
+ * Anthropic Messages API client for Cloudflare Workers.
  *
- * The key is read from env only. It must never be passed to, logged by,
- * or returned from anything that reaches the client.
+ * Backed by the official @anthropic-ai/sdk (its README lists Cloudflare
+ * Workers and Vercel Edge Runtime as supported) rather than a hand-rolled
+ * fetch call — swapped in after a GitHub-sourcing audit (docs/DECISIONS.md)
+ * found no case for an agent framework here, but a clear one for the
+ * transport layer: real retries (408/409/429/5xx), typed errors, and
+ * per-request timeouts instead of a bespoke AbortController.
+ *
+ * Deliberately kept this file's *public* shape (callClaude, AnthropicError,
+ * Message, ContentBlock, ToolSchema, MessagesResponse) identical to the
+ * hand-rolled version it replaces — loop.ts's control flow and
+ * faithfulness.ts's post-hoc citation check depend on none of the SDK's
+ * types, so they, and every other caller, needed zero changes.
+ *
+ * The key is read from env only, passed explicitly to the SDK client
+ * rather than relying on its `process.env` fallback — that global isn't
+ * reliably present in a Worker. It must never be passed to, logged by, or
+ * returned from anything that reaches the client.
  */
+
+import AnthropicSDK, { APIError, APIConnectionTimeoutError } from "@anthropic-ai/sdk";
+import type { MessageCreateParamsNonStreaming } from "@anthropic-ai/sdk/resources/messages/messages";
 
 export interface AskAvalEnv {
   DB: D1Database;
@@ -14,8 +31,6 @@ export interface AskAvalEnv {
   AI_DAILY_CALL_CAP?: string;
 }
 
-const API_URL = "https://api.anthropic.com/v1/messages";
-const API_VERSION = "2023-06-01";
 const DEFAULT_MODEL = "claude-sonnet-5";
 const TIMEOUT_MS = 25_000;
 
@@ -57,13 +72,14 @@ export interface MessagesResponse {
 }
 
 export class AnthropicError extends Error {
-  constructor(
-    message: string,
-    readonly status: number,
-    readonly retryable: boolean,
-  ) {
+  status: number;
+  retryable: boolean;
+
+  constructor(message: string, status: number, retryable: boolean) {
     super(message);
     this.name = "AnthropicError";
+    this.status = status;
+    this.retryable = retryable;
   }
 }
 
@@ -82,47 +98,39 @@ export async function callClaude(
     throw new AnthropicError("ANTHROPIC_API_KEY is not configured", 500, false);
   }
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), params.timeout_ms ?? TIMEOUT_MS);
+  const client = new AnthropicSDK({
+    apiKey: env.ANTHROPIC_API_KEY,
+    timeout: params.timeout_ms ?? TIMEOUT_MS,
+    maxRetries: 2,
+  });
+
+  const request: MessageCreateParamsNonStreaming = {
+    model: env.ANTHROPIC_MODEL ?? DEFAULT_MODEL,
+    max_tokens: params.max_tokens ?? 2048,
+    system: params.system,
+    messages: params.messages as MessageCreateParamsNonStreaming["messages"],
+    ...(params.tools ? { tools: params.tools as MessageCreateParamsNonStreaming["tools"] } : {}),
+    ...(params.tool_choice ? { tool_choice: params.tool_choice as MessageCreateParamsNonStreaming["tool_choice"] } : {}),
+  };
 
   try {
-    const res = await fetch(API_URL, {
-      method: "POST",
-      signal: controller.signal,
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": env.ANTHROPIC_API_KEY,
-        "anthropic-version": API_VERSION,
-      },
-      body: JSON.stringify({
-        model: env.ANTHROPIC_MODEL ?? DEFAULT_MODEL,
-        max_tokens: params.max_tokens ?? 2048,
-        system: params.system,
-        messages: params.messages,
-        ...(params.tools ? { tools: params.tools } : {}),
-        ...(params.tool_choice ? { tool_choice: params.tool_choice } : {}),
-      }),
-    });
-
-    if (!res.ok) {
-      const body = await res.text();
-      // Never echo the body to the client — it can contain request context.
-      console.error("anthropic_error", res.status, body.slice(0, 500));
-      throw new AnthropicError(
-        `Anthropic request failed (${res.status})`,
-        res.status,
-        res.status === 429 || res.status >= 500,
-      );
-    }
-
-    return (await res.json()) as MessagesResponse;
+    const response = await client.messages.create(request);
+    return {
+      id: response.id,
+      content: response.content as unknown as ContentBlock[],
+      stop_reason: (response.stop_reason ?? "end_turn") as MessagesResponse["stop_reason"],
+      usage: { input_tokens: response.usage.input_tokens, output_tokens: response.usage.output_tokens },
+    };
   } catch (err) {
-    if (err instanceof AnthropicError) throw err;
-    if (err instanceof Error && err.name === "AbortError") {
+    if (err instanceof APIConnectionTimeoutError) {
       throw new AnthropicError("Model call timed out", 504, true);
     }
+    if (err instanceof APIError) {
+      // Never echo the response body to the client — it can contain request context.
+      console.error("anthropic_error", err.status, JSON.stringify(err.error ?? {}).slice(0, 500));
+      const status = err.status ?? 502;
+      throw new AnthropicError(`Anthropic request failed (${status})`, status, status === 429 || status >= 500);
+    }
     throw new AnthropicError("Model call failed", 502, true);
-  } finally {
-    clearTimeout(timer);
   }
 }

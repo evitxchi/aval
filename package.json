@@ -16,6 +16,7 @@
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.123.0",
     "@radix-ui/react-dialog": "^1.1.23",
     "@radix-ui/react-tabs": "^1.1.21",
     "dinero.js": "^2.0.2",
