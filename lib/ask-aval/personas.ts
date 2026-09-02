@@ -22,7 +22,8 @@ import type { ToolSchema } from "./anthropic";
 export type PersonaId = "general" | "financial" | "brokerage" | "realEstate" | "marketResearch" | "maintenance";
 
 export interface AgentPersona {
-  id: PersonaId;
+  /** A built-in PersonaId for the fixed roster below, or a custom_personas row's id — see resolvePersona(). */
+  id: string;
   label: string;
   /** Appended to the base SYSTEM prompt in handler.ts/draft.ts — framing only. The hard rules (faithfulness, no fabricated valuations, etc.) stay identical for every persona and are never overridden here. */
   systemPromptAddition: string;
@@ -76,6 +77,23 @@ export const PERSONAS: Record<PersonaId, AgentPersona> = {
 
 export function getPersona(id: string | undefined): AgentPersona {
   return (id && PERSONAS[id as PersonaId]) || PERSONAS.general;
+}
+
+/**
+ * Resolves a personaId to an AgentPersona, checking the fixed built-in
+ * roster first (no DB round-trip) and falling back to a workspace-defined
+ * custom persona (custom-personas.ts) scoped to `organizationId` — a
+ * custom persona from a different org is invisible here, same as any other
+ * org-scoped row in this app. Falls back to `general` if neither matches,
+ * same as getPersona().
+ */
+export async function resolvePersona(id: string | undefined, organizationId: string): Promise<AgentPersona> {
+  if (!id) return PERSONAS.general;
+  const builtIn = PERSONAS[id as PersonaId];
+  if (builtIn) return builtIn;
+  const { getCustomPersonaAsAgentPersona } = await import("./custom-personas");
+  const custom = await getCustomPersonaAsAgentPersona(organizationId, id);
+  return custom ?? PERSONAS.general;
 }
 
 /** Filters `baseTools` (TOOLS or DRAFT_TOOLS) to a persona's subset, always keeping `record_preference` (standing corrections apply regardless of persona) and `finalToolName` (the model must always be able to conclude). */

@@ -2,13 +2,20 @@
 /* eslint-disable jsx-a11y/no-autofocus */
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { FormEvent } from "react";
+import type { FormEvent, MouseEvent as ReactMouseEvent } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { ChatLines, CheckCircle, Database, NavArrowRight, Page, SendDiagonal, StatsUpSquare, ViewGrid, Xmark } from "iconoir-react";
 import { useExperience } from "@/app/components/experience";
 import type { CreateDraftInput, DraftFormat } from "@/app/components/ask-aval-tasks";
 import { MarkdownPreview } from "@/app/components/markdown-preview";
-import { AvalAgentAvatar, PERSONA_IDS, PERSONA_PRESETS, type PersonaId } from "@/app/components/agent-avatar";
+import { AvalAgentAvatar, PERSONA_IDS, PERSONA_PRESETS, SHAPE_IDS, THEME_IDS, type PersonaId, type ShapeId, type ThemeId } from "@/app/components/agent-avatar";
+
+interface CustomPersonaSummary {
+  id: string;
+  label: string;
+  shape: ShapeId;
+  theme: ThemeId;
+}
 
 type EvidenceRow = { label: string; value: string };
 // value can be a pre-formatted string (the local sample-mode fallback
@@ -233,8 +240,69 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
   const [pickingModule, setPickingModule] = useState(false);
   const [selectedModule, setSelectedModule] = useState<SelectedModule | null>(null);
   const [pickingPersona, setPickingPersona] = useState(false);
-  const [personaId, setPersonaId] = useState<PersonaId>("general");
-  const activePersona = PERSONA_PRESETS[personaId];
+  const [personaId, setPersonaId] = useState<string>("general");
+  const [customPersonas, setCustomPersonas] = useState<CustomPersonaSummary[]>([]);
+  const [creatingAgent, setCreatingAgent] = useState(false);
+  const [creatingAgentBusy, setCreatingAgentBusy] = useState(false);
+  const [newAgentLabel, setNewAgentLabel] = useState("");
+  const [newAgentFocus, setNewAgentFocus] = useState("");
+  const [newAgentShape, setNewAgentShape] = useState<ShapeId>("arch");
+  const [newAgentTheme, setNewAgentTheme] = useState<ThemeId>("violet");
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const response = await fetch("/api/agents");
+        const data = (await response.json()) as { personas?: CustomPersonaSummary[] };
+        if (Array.isArray(data.personas)) setCustomPersonas(data.personas);
+      } catch { /* not fatal — the picker just shows the built-in roster */ }
+    })();
+  }, []);
+
+  // Built-in presets carry an i18n labelKey; a workspace-created persona
+  // carries its own literal label (typed by the user, not translatable) —
+  // this is the one place both are normalized to the same shape/theme/text.
+  const personaDisplay = (id: string): { shape: ShapeId; theme: ThemeId; label: string } => {
+    const builtIn = PERSONA_PRESETS[id as PersonaId];
+    if (builtIn) return { shape: builtIn.shape, theme: builtIn.theme, label: t(builtIn.labelKey) };
+    const custom = customPersonas.find((persona) => persona.id === id);
+    if (custom) return { shape: custom.shape, theme: custom.theme, label: custom.label };
+    return { shape: PERSONA_PRESETS.general.shape, theme: PERSONA_PRESETS.general.theme, label: t(PERSONA_PRESETS.general.labelKey) };
+  };
+  const activePersona = personaDisplay(personaId);
+
+  const createAgent = async (event: FormEvent) => {
+    event.preventDefault();
+    const label = newAgentLabel.trim();
+    const focusDescription = newAgentFocus.trim();
+    if (!label || !focusDescription || creatingAgentBusy) return;
+    setCreatingAgentBusy(true);
+    try {
+      const response = await fetch("/api/agents", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ label, focusDescription, shape: newAgentShape, theme: newAgentTheme }),
+      });
+      const data = (await response.json().catch(() => ({}))) as { persona?: CustomPersonaSummary; error?: string };
+      if (response.ok && data.persona) {
+        setCustomPersonas((current) => [data.persona!, ...current]);
+        setPersonaId(data.persona.id);
+        setNewAgentLabel("");
+        setNewAgentFocus("");
+        setCreatingAgent(false);
+        setPickingPersona(false);
+      }
+    } finally {
+      setCreatingAgentBusy(false);
+    }
+  };
+
+  const deleteAgent = (id: string, event: ReactMouseEvent) => {
+    event.stopPropagation();
+    setCustomPersonas((current) => current.filter((persona) => persona.id !== id));
+    if (personaId === id) setPersonaId("general");
+    fetch(`/api/agents/${id}`, { method: "DELETE" }).catch(() => {});
+  };
   const [prepared, setPrepared] = useState<Record<number, boolean>>({});
   const [draftPanelOpen, setDraftPanelOpen] = useState(false);
   const [draftTitle, setDraftTitle] = useState("");
@@ -422,9 +490,9 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
               {personaId === "general" ? (
                 <span className="aval-assistant-mark" aria-hidden="true" />
               ) : (
-                <AvalAgentAvatar shape={activePersona.shape} theme={activePersona.theme} size={38} label={t(activePersona.labelKey)} />
+                <AvalAgentAvatar shape={activePersona.shape} theme={activePersona.theme} size={38} label={activePersona.label} />
               )}
-              <span><strong>{t(activePersona.labelKey)}</strong><small><i />{t("AvalAssistant.liveDashboardContext")}</small></span>
+              <span><strong>{activePersona.label}</strong><small><i />{t("AvalAssistant.liveDashboardContext")}</small></span>
             </div>
             <button className="aval-assistant-close" type="button" onClick={closeAssistant} aria-label={t("AvalAssistant.closeAssistant")}><Xmark width={19} height={19} /></button>
           </header>
@@ -440,7 +508,7 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
               </button>
               <button className={`aval-module-picker ${pickingPersona ? "active" : ""}`} type="button" onClick={() => setPickingPersona((current) => !current)} aria-pressed={pickingPersona}>
                 <AvalAgentAvatar shape={activePersona.shape} theme={activePersona.theme} size={17} />
-                {personaId === "general" ? t("AvalAssistant.selectAgent") : t(activePersona.labelKey)}
+                {personaId === "general" ? t("AvalAssistant.selectAgent") : activePersona.label}
               </button>
             </div>
             {pickingModule && <p className="aval-module-picker-instruction"><span />{t("AvalAssistant.hoverOverADashboardModuleThen")}</p>}
@@ -455,7 +523,44 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
                     </button>
                   );
                 })}
+                {customPersonas.map((persona) => (
+                  <div key={persona.id} className="aval-agent-picker-item">
+                    <button type="button" className="aval-agent-picker-item-select" aria-pressed={personaId === persona.id} onClick={() => { setPersonaId(persona.id); setPickingPersona(false); }}>
+                      <AvalAgentAvatar shape={persona.shape} theme={persona.theme} size={40} selected={personaId === persona.id} interactive />
+                      <span>{persona.label}</span>
+                    </button>
+                    <button type="button" className="aval-agent-picker-item-delete" aria-label={t("AvalAssistant.deleteAgent")} onClick={(event) => deleteAgent(persona.id, event)}>
+                      <Xmark width={9} height={9} />
+                    </button>
+                  </div>
+                ))}
+                <button type="button" className="aval-agent-picker-create" aria-label={t("AvalAssistant.newAgent")} onClick={() => setCreatingAgent((current) => !current)}>+</button>
               </div>
+            )}
+            {pickingPersona && creatingAgent && (
+              <form className="aval-draft-panel" onSubmit={createAgent}>
+                <input value={newAgentLabel} onChange={(event) => setNewAgentLabel(event.target.value)} placeholder={t("AvalAssistant.newAgentNamePlaceholder")} autoFocus />
+                <textarea value={newAgentFocus} onChange={(event) => setNewAgentFocus(event.target.value)} placeholder={t("AvalAssistant.newAgentFocusPlaceholder")} />
+                <div className="aval-agent-swatch-row">
+                  {SHAPE_IDS.map((shape) => (
+                    <button key={shape} type="button" className={shape === newAgentShape ? "selected" : ""} onClick={() => setNewAgentShape(shape)}>
+                      <AvalAgentAvatar shape={shape} theme={newAgentTheme} size={28} />
+                    </button>
+                  ))}
+                </div>
+                <div className="aval-agent-swatch-row">
+                  {THEME_IDS.map((theme) => (
+                    <button key={theme} type="button" className={theme === newAgentTheme ? "selected" : ""} onClick={() => setNewAgentTheme(theme)}>
+                      <AvalAgentAvatar shape={newAgentShape} theme={theme} size={28} />
+                    </button>
+                  ))}
+                </div>
+                <div className="aval-draft-panel-row">
+                  <button type="submit" className="primary-button" disabled={!newAgentLabel.trim() || !newAgentFocus.trim() || creatingAgentBusy}>
+                    <NavArrowRight width={16} height={16} />{t("AvalAssistant.createAgent")}
+                  </button>
+                </div>
+              </form>
             )}
             {selectedModule && (
               <div className="aval-selected-module-context">

@@ -286,3 +286,65 @@ reference?) better made with real example templates in hand, not invented here.
 **Verification.** `tsc --noEmit`, `npm run build` (route registered:
 `/api/assistant/fill-template`), `npm run lint`, `npm run i18n:check`, and `node --test` (45
 passing) all clean.
+
+## 2026-09-02 — Custom agent creation, not just selection
+
+**Context.** After shipping the fixed six-persona roster and avatar picker (this file's earlier
+2026-09-02 "Agent avatar system" entry), the user's brief specifically called out that agent
+*creation* — not just selection from a preset list — was the important part: "maybe even create
+agents that users can use for different tasks... this agent selection, creation is crucial." This
+entry adds that.
+
+**What shipped.** `agent_personas` (db/schema.ts, migration `drizzle/0010_lethal_changeling.sql`):
+one row per workspace-defined agent — label, a free-text `focusDescription`, an optional
+`toolNamesJson` subset, and a `shape`/`theme` pair for its avatar. `lib/ask-aval/
+persona-validation.ts` holds the pure validation rules (label/focus length caps, shape/theme
+enum checks, tool-name filtering) split into its own file specifically so it stays unit-testable
+— the sibling `custom-personas.ts` (the actual DB CRUD) imports `@/db`, which itself imports
+`cloudflare:workers`, neither of which plain `node --test` can resolve outside the Workers/Vite
+build. `personas.ts` gained `resolvePersona(id, organizationId)`, an async sibling to the
+existing sync `getPersona()`: checks the fixed built-in roster first, then falls back to a
+workspace's own custom persona, scoped by `organizationId` like every other row in this app.
+`handleAskAval`/`handleAskAvalDraft` now call `resolvePersona` instead of `getPersona`.
+
+Routes: `GET/POST /api/agents`, `DELETE /api/agents/:id`. UI: the existing persona picker in
+`aval-assistant.tsx` now fetches and lists an org's custom personas alongside the six built-ins,
+with a per-tile delete control and a "+" tile opening an inline creation form (name, focus
+description, and live-preview shape/theme swatch rows built from `AvalAgentAvatar` itself —
+picking a swatch shows the exact avatar the new agent will get).
+
+**Why an operator-authored `focusDescription` can't be used to bypass this app's safety model**
+(documented in `custom-personas.ts`'s doc comment, worth restating here): it only ever becomes a
+system-prompt *addition* appended after the hard rules in `handler.ts`/`draft.ts`, but even a
+fully-compliant model following a "estimate freely" instruction still can't get an invented
+number past `faithfulness.ts`'s gate, which checks the *final answer* against what tools actually
+returned — independent of anything the system prompt said. `toolNames` is enforced by which tool
+schemas are literally sent to the model (`personaTools()`), so prompt text can't grant access to
+a tool that was never offered either. Full-org-scoping keeps this simple, too: `organizationId`
+is `hash(userId)` (see `session.ts`), so there is no shared-team-membership case to worry about —
+every user's custom personas are only ever visible to that same user.
+
+**A real layout bug caught only by testing the actual UI, not by inspection.**
+`.aval-assistant-panel` is a fixed-height CSS grid (`grid-template-rows: auto auto minmax(0,1fr)
+auto auto auto`). Adding the creation form's inputs and swatch rows made `.aval-assistant-context`
+(one `auto` row) taller than the grid had room left to give it once the panel's total fixed
+height was accounted for — and because that section had `overflow: visible`, the excess didn't
+clip, it spilled straight down and visually overlapped the message-suggestions section below it
+(confirmed by comparing `getBoundingClientRect()` on both: they shared the same top coordinate).
+Fixed with `max-height: 340px; overflow-y: auto` on `.aval-assistant-context` so it scrolls
+internally past that point instead of overflowing into its sibling.
+
+**Deliberately not done.** No tool-subset picker in the creation form — every custom persona
+gets `toolNames: null` (every tool), the same permissiveness as the general assistant; a
+checkbox UI for the six tool names is a small, low-risk follow-up. No edit — only create/delete;
+editing would reuse the same form, just prefilled and PATCHing instead of POSTing.
+
+**Verification.** `tsc --noEmit`, `npm run build` (routes registered: `/api/agents`,
+`/api/agents/:id`), `npm run lint`, `npm run i18n:check`, and `node --test` (53 passing) all
+clean. UI verified live (Playwright against the production build): picker shows built-ins + a
+"+" tile, the creation form opens without the overlap bug above, shape/theme swatches preview
+correctly, and a failed submission (this sandbox's local preview has no working D1 binding —
+`cloudflare:workers` isn't resolvable outside the real Workers runtime, the same limitation
+noted for every other D1-backed route tonight) leaves the form open and re-enabled rather than
+stuck or crashed. The actual create → select → chat round trip needs a real D1 binding to verify
+end to end.

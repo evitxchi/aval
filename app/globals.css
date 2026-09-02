@@ -713,7 +713,15 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--ink); outli
 .aval-assistant-close { width: 35px; height: 35px; flex: 0 0 auto; display: grid; place-items: center; border: 0; border-radius: 11px; background: transparent; color: var(--muted); cursor: pointer; }
 .aval-assistant-close:hover { background: var(--surface-soft); color: var(--ink); }
 
-.aval-assistant-context { min-height: 43px; padding: 7px 12px; display: grid; gap: 7px; border-bottom: 1px solid var(--line); background: var(--surface-soft); color: var(--quiet); font-size: 8px; }
+/* max-height + its own scroll, not just `auto` — .aval-assistant-panel is a
+   fixed-height grid (`grid-template-rows: auto auto minmax(0,1fr) auto auto
+   auto`); an `auto` row can grow past the space the grid actually has left
+   once the panel's total height is spoken for, and since this section has
+   `overflow: visible`, that excess spilled straight into the message
+   stream below it rather than being clipped or scrolled — happened once
+   the agent-creation form's content made this section tall enough to hit
+   that ceiling. */
+.aval-assistant-context { min-height: 43px; max-height: 340px; overflow-y: auto; padding: 7px 12px; display: grid; gap: 7px; border-bottom: 1px solid var(--line); background: var(--surface-soft); color: var(--quiet); font-size: 8px; }
 .aval-chat-context-row { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .aval-chat-scope { min-width: 0; display: flex; align-items: center; gap: 7px; white-space: nowrap; }
 .aval-chat-scope span { overflow: hidden; text-overflow: ellipsis; }
@@ -966,6 +974,27 @@ html.aval-module-picking .content-shell { cursor: crosshair; }
 .aval-agent-avatar-selected { border-color: rgba(255, 255, 255, 0.22); background: linear-gradient(155deg, #101219, #08090c); }
 
 .aval-agent-picker { display: flex; flex-wrap: wrap; gap: 10px; }
-.aval-agent-picker-item { display: flex; flex-direction: column; align-items: center; gap: 6px; background: none; border: none; padding: 0; }
+.aval-agent-picker-item { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; background: none; border: none; padding: 0; }
 .aval-agent-picker-item span { font-size: 9px; color: var(--muted); text-align: center; max-width: 64px; line-height: 1.3; }
 .aval-agent-picker-item[aria-pressed="true"] span { color: var(--ink); font-weight: 500; }
+/* A custom persona's tile nests two real buttons (select + delete) side by
+   side under one wrapper rather than one button inside another (invalid
+   HTML, and it's what made the delete control need a non-button element
+   with manual keyboard handling in the first place). */
+.aval-agent-picker-item-select { all: unset; display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; }
+.aval-agent-picker-item-select[aria-pressed="true"] span { color: var(--ink); font-weight: 500; }
+.aval-agent-picker-item-delete {
+  position: absolute; top: -4px; right: -4px; width: 15px; height: 15px; display: grid; place-items: center;
+  border-radius: 50%; border: 1px solid var(--line-strong); background: var(--surface-raised); color: var(--muted); font-size: 9px; line-height: 1; cursor: pointer;
+}
+.aval-agent-picker-item-delete:hover { color: var(--ink); border-color: var(--ink); }
+
+.aval-agent-picker-create {
+  width: 40px; height: 40px; display: grid; place-items: center; border-radius: 26%;
+  border: 1px dashed var(--line-strong); background: none; color: var(--quiet); font-size: 16px; cursor: pointer;
+}
+.aval-agent-picker-create:hover { border-color: var(--ink); color: var(--ink); }
+
+.aval-agent-swatch-row { display: flex; gap: 6px; }
+.aval-agent-swatch-row button { background: none; border: none; padding: 0; cursor: pointer; border-radius: 26%; }
+.aval-agent-swatch-row button.selected { outline: 2px solid var(--ink); outline-offset: 2px; }

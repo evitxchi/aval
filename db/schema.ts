@@ -394,3 +394,26 @@ export const utilityBills = sqliteTable(
     index("utility_bills_meter_period_idx").on(table.meterId, table.periodStart),
   ],
 );
+
+// A workspace-defined Ask Aval persona, alongside the fixed built-in roster
+// in lib/ask-aval/personas.ts (general/financial/brokerage/realEstate/
+// marketResearch/maintenance). focusDescription becomes a system-prompt
+// *addition*, never a replacement — see lib/ask-aval/custom-personas.ts for
+// why an operator-authored focus can't be used to bypass the faithfulness
+// gate or reach a tool outside toolNamesJson, regardless of its wording.
+export const agentPersonas = sqliteTable(
+  "agent_personas",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id").notNull().references(() => organizations.id),
+    label: text("label").notNull(),
+    focusDescription: text("focus_description").notNull(),
+    toolNamesJson: text("tool_names_json"), // JSON string array, or null meaning "every tool" (matches AgentPersona.toolNames)
+    shape: text("shape").notNull(), // ShapeId, app/components/agent-avatar/shapes.tsx
+    theme: text("theme").notNull(), // ThemeId, app/components/agent-avatar/themes.ts
+    createdBy: text("created_by").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [index("agent_personas_org_idx").on(table.organizationId)],
+);

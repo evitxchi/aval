@@ -19,7 +19,7 @@ import { runAskAvalLoop, json } from "./loop";
 import { getPreferenceContext } from "./preferences";
 import { getUsagePatternContext } from "./usage-patterns";
 import { TOOLS } from "./tools";
-import { getPersona, personaTools } from "./personas";
+import { resolvePersona, personaTools } from "./personas";
 
 export type { AskAvalSession } from "./usage";
 
@@ -55,13 +55,13 @@ export async function handleAskAval(
   if (!question) return json({ error: "A question is required" }, 400);
   if (question.length > MAX_QUESTION_CHARS) return json({ error: "Question is too long" }, 400);
 
-  const persona = getPersona(personaId);
   const localeInstruction = locale === "es-mx" ? "Respond in Spanish (Mexico)." : "Respond in English.";
   const moduleContext = focusedModule
     ? `\n\n(The user focused this question on a dashboard module titled "${focusedModule.label}". Its visible on-screen text: ${JSON.stringify(focusedModule.snapshot)}. Still use the tools for any figures you cite — the snapshot text is context, not a verified source.)`
     : "";
   const messages: Message[] = [{ role: "user", content: `${question}\n\n(${localeInstruction})${moduleContext}` }];
-  const [preferenceContext, usagePatternContext] = await Promise.all([
+  const [persona, preferenceContext, usagePatternContext] = await Promise.all([
+    resolvePersona(personaId, session.orgId),
     getPreferenceContext(session.orgId),
     getUsagePatternContext(session.orgId),
   ]);

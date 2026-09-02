@@ -71,6 +71,13 @@
       "when": 1788337030611,
       "tag": "0009_clever_maggott",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1788340615026,
+      "tag": "0010_lethal_changeling",
+      "breakpoints": true
     }
   ]
 }

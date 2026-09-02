@@ -19,7 +19,7 @@ import { DRAFT_TOOLS } from "./tools";
 import { runAskAvalLoop, json } from "./loop";
 import { getPreferenceContext } from "./preferences";
 import { getUsagePatternContext } from "./usage-patterns";
-import { getPersona, personaTools } from "./personas";
+import { resolvePersona, personaTools } from "./personas";
 
 const MAX_TITLE_CHARS = 140;
 const MAX_INSTRUCTIONS_CHARS = 1200;
@@ -65,7 +65,6 @@ export async function handleAskAvalDraft(
   if (!title) return json({ error: "A title is required" }, 400);
   if (!instructions) return json({ error: "Drafting instructions are required" }, 400);
   const format: DraftFormat = input.format === "xlsx" || input.format === "pptx" ? input.format : "docx";
-  const persona = getPersona(personaId);
 
   const localeInstruction = locale === "es-mx" ? "Write in Spanish (Mexico)." : "Write in English.";
   const moduleContext = focusedModule
@@ -76,7 +75,8 @@ export async function handleAskAvalDraft(
     `Draft: "${title}"\n\nInstructions: ${instructions}\n\n${FORMAT_GUIDANCE[format]}\n\n(${localeInstruction})${moduleContext}`;
 
   const messages: Message[] = [{ role: "user", content: prompt }];
-  const [preferenceContext, usagePatternContext] = await Promise.all([
+  const [persona, preferenceContext, usagePatternContext] = await Promise.all([
+    resolvePersona(personaId, session.orgId),
     getPreferenceContext(session.orgId),
     getUsagePatternContext(session.orgId),
   ]);
