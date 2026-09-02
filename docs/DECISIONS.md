@@ -553,3 +553,31 @@ its now-migrated table, not 500ing) all verified live post-deploy via curl.
 **Verification.** `tsc --noEmit`, `npm run lint`, `npm run build` all clean after both deploy-tool
 fixes. Live post-deploy smoke check via curl (above) — not a full manual walkthrough of every
 feature on production.
+
+## 2026-09-02 — Signup/sign-in report: server confirmed correct, client UX gap closed
+
+**Context.** User reported "create accounts don't work" against the live deployment (twice,
+with two different real emails), asking to confirm both create-account and sign-in work.
+
+**Server-side, both flows confirmed correct and unchanged.** `wrangler tail` live log streaming
+plus direct `curl` against `/api/auth/signup` with the user's own reported email reproduced a
+clean `409 {"error":"An account with that email already exists."}` — no server exception, no
+500. `/api/auth/login` was re-read in full and is correct (separate IP/email rate limits,
+identical generic error for both "no such user" and "wrong password" to avoid account
+enumeration); a real Playwright sign-in against the live site with real credentials succeeded
+end-to-end, loading the full authenticated dashboard including the persona picker.
+
+**The actual gap was client UX, not a server bug.** A duplicate-email signup surfaced as the
+same ambiguous "Something went wrong" state as a genuine failure, giving a signed-up-but-existing
+user no obvious next step. Root cause of *why* the specific 409 message wasn't visibly rendered
+in the reported screenshot was not pinned down (browser reproduction was confounded by an
+already-authenticated session and a stale element reference) — rather than continue chasing an
+unreproduced display glitch, `app/components/auth-gate.tsx`'s `submit` now treats HTTP 409 on
+signup as an expected outcome: it flips `formMode` to `"signin"` and shows a direct, actionable
+message (new key `AuthGate.accountExistsSignInInstead`, both locales) instead of any error
+copy on the signup form.
+
+**Verification.** `npm run i18n:check`, `tsc --noEmit`, `npm run lint`, `npm run build`, and
+`node --test` (56 passing) all clean. Deployed via the established `--skip-build --config
+dist/server/wrangler.json` path; post-deploy `curl` against `/api/auth/signup` with the same
+email re-confirmed the still-clean `409` response.
