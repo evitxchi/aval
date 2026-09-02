@@ -107,6 +107,20 @@ const viewNameKeys: Record<string, string> = {
 const suggestionKeys = ["AvalAssistant.suggestion1", "AvalAssistant.suggestion2", "AvalAssistant.suggestion3"];
 const focusedSuggestionKeys = ["AvalAssistant.focusedSuggestion1", "AvalAssistant.focusedSuggestion2", "AvalAssistant.focusedSuggestion3"];
 
+// Mirrors persona-validation.ts's VALID_TOOL_NAMES — duplicated rather than
+// imported since that file sits in lib/ask-aval (server-only in spirit,
+// even though this particular module has no actual server-only import) and
+// this is just six display labels, not logic worth sharing a module for.
+const TOOL_OPTIONS: { id: string; labelKey: string }[] = [
+  { id: "get_portfolio_metrics", labelKey: "AvalAssistant.toolPortfolioMetrics" },
+  { id: "get_property_breakdown", labelKey: "AvalAssistant.toolPropertyBreakdown" },
+  { id: "get_delinquent_accounts", labelKey: "AvalAssistant.toolDelinquentAccounts" },
+  { id: "get_leasing_funnel", labelKey: "AvalAssistant.toolLeasingFunnel" },
+  { id: "get_metric_series", labelKey: "AvalAssistant.toolMetricSeries" },
+  { id: "get_accounting_breakdown", labelKey: "AvalAssistant.toolAccountingBreakdown" },
+];
+const ALL_TOOL_IDS = TOOL_OPTIONS.map((tool) => tool.id);
+
 const moduleSelector = [
   "[data-ai-module]",
   ".metric-card",
@@ -248,6 +262,17 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
   const [newAgentFocus, setNewAgentFocus] = useState("");
   const [newAgentShape, setNewAgentShape] = useState<ShapeId>("arch");
   const [newAgentTheme, setNewAgentTheme] = useState<ThemeId>("violet");
+  const [newAgentTools, setNewAgentTools] = useState<Set<string>>(new Set(ALL_TOOL_IDS));
+  const [newAgentError, setNewAgentError] = useState<string | null>(null);
+
+  const toggleNewAgentTool = (toolId: string) => {
+    setNewAgentTools((current) => {
+      const next = new Set(current);
+      if (next.has(toolId)) next.delete(toolId);
+      else next.add(toolId);
+      return next;
+    });
+  };
 
   useEffect(() => {
     (async () => {
@@ -275,13 +300,19 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
     event.preventDefault();
     const label = newAgentLabel.trim();
     const focusDescription = newAgentFocus.trim();
-    if (!label || !focusDescription || creatingAgentBusy) return;
+    if (!label || !focusDescription || newAgentTools.size === 0 || creatingAgentBusy) return;
+    setNewAgentError(null);
     setCreatingAgentBusy(true);
     try {
+      // Sending `null` (every tool) rather than the full list when nothing's
+      // been unchecked keeps a freshly-created agent's behavior identical
+      // to before this picker existed, instead of quietly re-deriving "all
+      // tools" as an explicit list that could drift from ALL_TOOL_IDS later.
+      const toolNames = newAgentTools.size === ALL_TOOL_IDS.length ? null : [...newAgentTools];
       const response = await fetch("/api/agents", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ label, focusDescription, shape: newAgentShape, theme: newAgentTheme }),
+        body: JSON.stringify({ label, focusDescription, shape: newAgentShape, theme: newAgentTheme, toolNames }),
       });
       const data = (await response.json().catch(() => ({}))) as { persona?: CustomPersonaSummary; error?: string };
       if (response.ok && data.persona) {
@@ -289,9 +320,14 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
         setPersonaId(data.persona.id);
         setNewAgentLabel("");
         setNewAgentFocus("");
+        setNewAgentTools(new Set(ALL_TOOL_IDS));
         setCreatingAgent(false);
         setPickingPersona(false);
+      } else {
+        setNewAgentError(data.error || t("AvalAssistant.createAgentError"));
       }
+    } catch {
+      setNewAgentError(t("AvalAssistant.createAgentError"));
     } finally {
       setCreatingAgentBusy(false);
     }
@@ -555,8 +591,18 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
                     </button>
                   ))}
                 </div>
+                <p className="aval-agent-tools-label">{t("AvalAssistant.agentTools")}</p>
+                <div className="aval-agent-tools-list">
+                  {TOOL_OPTIONS.map((tool) => (
+                    <label key={tool.id}>
+                      <input type="checkbox" checked={newAgentTools.has(tool.id)} onChange={() => toggleNewAgentTool(tool.id)} />
+                      {t(tool.labelKey)}
+                    </label>
+                  ))}
+                </div>
+                {newAgentError && <p className="aval-agent-create-error">{newAgentError}</p>}
                 <div className="aval-draft-panel-row">
-                  <button type="submit" className="primary-button" disabled={!newAgentLabel.trim() || !newAgentFocus.trim() || creatingAgentBusy}>
+                  <button type="submit" className="primary-button" disabled={!newAgentLabel.trim() || !newAgentFocus.trim() || newAgentTools.size === 0 || creatingAgentBusy}>
                     <NavArrowRight width={16} height={16} />{t("AvalAssistant.createAgent")}
                   </button>
                 </div>

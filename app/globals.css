@@ -998,3 +998,9 @@ html.aval-module-picking .content-shell { cursor: crosshair; }
 .aval-agent-swatch-row { display: flex; gap: 6px; }
 .aval-agent-swatch-row button { background: none; border: none; padding: 0; cursor: pointer; border-radius: 26%; }
 .aval-agent-swatch-row button.selected { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+.aval-agent-tools-label { margin: 2px 0 0; font-size: 8px; text-transform: uppercase; letter-spacing: .04em; color: var(--quiet); }
+.aval-agent-tools-list { display: flex; flex-direction: column; gap: 4px; }
+.aval-agent-tools-list label { display: flex; align-items: center; gap: 6px; font-size: 9.5px; color: var(--muted); cursor: pointer; }
+.aval-agent-tools-list input { margin: 0; }
+.aval-agent-create-error { margin: 0; padding: 6px 8px; border-radius: 8px; background: color-mix(in srgb, var(--viz-red) 12%, transparent); color: var(--viz-red); font-size: 9px; line-height: 1.4; }

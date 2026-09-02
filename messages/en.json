@@ -68,6 +68,7 @@
   },
   "AvalAssistant": {
     "actionPreparedForReview": "Action prepared for review",
+    "agentTools": "Tools this agent can use",
     "analyzingDashboardData": "Analyzing dashboard data",
     "answerCollectionsAction": "Prepare 3 reminders",
     "answerCollectionsActionDetail": "Personalized WhatsApp drafts with per-recipient preview.",
@@ -159,6 +160,7 @@
     "confidenceLow": "Low confidence",
     "confidenceMedium": "Medium confidence",
     "createAgent": "Create agent",
+    "createAgentError": "Could not create this agent. Try again.",
     "dataFreshness4MinAgo": "4 minutes ago",
     "deleteAgent": "Delete agent",
     "draftDocument": "Draft a document",
@@ -189,6 +191,12 @@
     "suggestion1": "What needs my attention today?",
     "suggestion2": "Why are collections behind?",
     "suggestion3": "Which maintenance items are urgent?",
+    "toolAccountingBreakdown": "Accounting breakdown",
+    "toolDelinquentAccounts": "Delinquent accounts",
+    "toolLeasingFunnel": "Leasing funnel",
+    "toolMetricSeries": "Metric trends",
+    "toolPortfolioMetrics": "Portfolio metrics (NOI, occupancy, rent)",
+    "toolPropertyBreakdown": "Property breakdown",
     "viewEvidence": "View evidence",
     "welcomeMessage": "I’m connected to this dashboard context. Ask about collections, vacancies, maintenance, or what deserves attention."
   },

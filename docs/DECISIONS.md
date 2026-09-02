@@ -386,3 +386,29 @@ has no area) but gets stroked in the rim pass, giving the shape a visible seam.
 
 **Verification.** `tsc --noEmit`, `npm run build`, `npm run lint`, `npm run i18n:check`, and
 `node --test` (53 passing) all clean after the fix.
+
+## 2026-09-02 — Custom-agent creation form: tool picker + visible errors
+
+**Context.** Closing two gaps this file's "Custom agent creation" entry deliberately left open:
+every workspace-created persona silently got unrestricted tool access (no way to scope one down
+in the UI, even though the backend already supported `toolNames`), and a failed creation request
+was swallowed with no feedback — the form just sat there.
+
+**What shipped.** The creation form in `aval-assistant.tsx` gained a checkbox list (`TOOL_OPTIONS`,
+mirroring `persona-validation.ts`'s `VALID_TOOL_NAMES`) for the same six tools `personaTools()`
+already knows how to filter to, all checked by default so a fresh agent behaves exactly like
+before this picker existed. Submitting sends `toolNames: null` when every box is still checked
+(explicit "every tool", not a hand-assembled list that could drift from the real tool set) and
+the checked subset otherwise; unchecking all of them disables the submit button rather than
+letting a persona with zero tools reach the server. A failed request (validation error or genuine
+failure) now sets a visible inline error banner instead of failing silently, verified live: an
+intentionally-failed submission (this sandbox's D1-less local preview, see the "local preview
+limits" project memory) rendered "Could not create this agent. Try again." inline, with the
+form's values and checkbox state preserved and the submit button re-enabled — not stuck, not
+cleared.
+
+**Verification.** `tsc --noEmit`, `npm run build`, `npm run lint`, `npm run i18n:check`, and
+`node --test` (53 passing) all clean. Verified live in a browser (Playwright, production build):
+the tool list renders inside the same scrollable section fixed in the earlier overlap-bug entry
+with no regression, unchecking every box disables submission, and the error path displays and
+recovers correctly.

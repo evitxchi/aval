@@ -68,6 +68,7 @@
   },
   "AvalAssistant": {
     "actionPreparedForReview": "Acción preparada para revisión",
+    "agentTools": "Herramientas que puede usar este agente",
     "analyzingDashboardData": "Analizando datos del tablero",
     "answerCollectionsAction": "Preparar 3 recordatorios",
     "answerCollectionsActionDetail": "Borradores personalizados de WhatsApp con vista previa por destinatario.",
@@ -159,6 +160,7 @@
     "confidenceLow": "Confianza baja",
     "confidenceMedium": "Confianza media",
     "createAgent": "Crear agente",
+    "createAgentError": "No se pudo crear este agente. Inténtalo de nuevo.",
     "dataFreshness4MinAgo": "hace 4 minutos",
     "deleteAgent": "Eliminar agente",
     "draftDocument": "Redactar un documento",
@@ -189,6 +191,12 @@
     "suggestion1": "¿Qué necesita mi atención hoy?",
     "suggestion2": "¿Por qué está atrasada la cobranza?",
     "suggestion3": "¿Qué mantenimientos son urgentes?",
+    "toolAccountingBreakdown": "Desglose contable",
+    "toolDelinquentAccounts": "Cuentas morosas",
+    "toolLeasingFunnel": "Embudo de arrendamiento",
+    "toolMetricSeries": "Tendencias de métricas",
+    "toolPortfolioMetrics": "Métricas del portafolio (NOI, ocupación, renta)",
+    "toolPropertyBreakdown": "Desglose por propiedad",
     "viewEvidence": "Ver evidencia",
     "welcomeMessage": "Estoy conectado al contexto de este tablero. Pregunta por cobranza, vacantes, mantenimiento o qué necesita atención."
   },
