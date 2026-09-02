@@ -581,3 +581,51 @@ copy on the signup form.
 `node --test` (56 passing) all clean. Deployed via the established `--skip-build --config
 dist/server/wrangler.json` path; post-deploy `curl` against `/api/auth/signup` with the same
 email re-confirmed the still-clean `409` response.
+
+## 2026-09-02 — Settings → Intelligence: bring-your-own model provider
+
+**Context.** User asked for a way to "connect their chat/claude subscriptions" as another
+option alongside Aval's own bundled key, plus a new Intelligence page in Settings — the model
+choice as "the backbone powering agents, Ask Aval, etc." — and to support both subscriptions
+and API keys.
+
+**Reused the integrations stack instead of building a parallel one.** A model provider is just
+an `IntegrationProvider` (`lib/integrations/catalog.ts`) with `category: "Model"` and
+`authMode: "api_key"` — nine new catalog entries (Anthropic, OpenAI, Google Gemini, OpenRouter,
+Moonshot, Z.AI, DeepSeek, Alibaba Cloud Model Studio, SiliconFlow), each with a `baseUrl` +
+`defaultModel` (Anthropic has neither — it keeps using the native Messages SDK). This meant the
+existing encrypted-credential storage (`lib/integrations/crypto.ts`, already generic, not
+integration-specific), `/api/integrations/connect`, and the connect/verify dialog needed zero
+new plumbing — only a new verification branch (`lib/integrations/model-providers.ts`) that
+proves a pasted key works with a cheap `GET /models` call rather than spending tokens on a real
+completion.
+
+**`ConnectionDialog` and its `Provider` type were extracted** out of `dashboard-client.tsx` into
+`app/components/connection-dialog.tsx` so the new `intelligence-settings.tsx` card could reuse
+the exact same connect/verify UI without a circular import between the two component files.
+
+**Routing an org's own model through the existing loop.** `organizations` gained a nullable
+`activeModelProvider` column (migration `0011_wonderful_magma.sql`) recording which connected
+provider, if any, should answer that org's calls. `lib/ask-aval/model-router.ts`'s `callModel`
+resolves it once per request and dispatches to either `callClaude` (Anthropic, own or Aval's
+key) or a new single `lib/ask-aval/openai-compatible.ts` adapter — one translator between
+Aval's Anthropic-shaped `Message`/`ContentBlock`/`ToolSchema` types and the `/chat/completions`
++ function-calling shape every other listed provider (OpenAI, Gemini's OpenAI-compat endpoint,
+OpenRouter, Moonshot, Z.AI, DeepSeek, Alibaba DashScope, SiliconFlow) documents supporting.
+Any resolution failure (no override, decrypt failure, encryption key unset) silently falls back
+to Aval's own key — a broken override must never take an org's assistant down. The two actual
+`callClaude` call sites (`lib/ask-aval/loop.ts`, `lib/infrastructure/bill-extraction.ts`) now
+call `callModel(env, session.orgId, params)` instead; every other file importing from
+`anthropic.ts` only used its types, so the blast radius was exactly these two.
+
+**Deliberately not built:** OAuth "connect your ChatGPT Plus/Pro or GitHub Copilot subscription"
+buttons like the competitor reference screenshot showed. Neither OpenAI's ChatGPT consumer
+subscription nor GitHub Copilot exposes a public, ToS-compliant API for a third-party
+server-side app to place general chat calls against a personal subscription — building that
+UI would mean either faking a connection that does nothing, or integrating against an
+unsupported/ToS-risky surface. Only real, working API-key connections are wired up; a
+subscription-OAuth path stays a documented open question rather than a stub button.
+
+**Verification.** `npm run i18n:check`, `tsc --noEmit`, `npm run lint`, `npm run build`, and
+`node --test` (56 passing) all clean. Migration `0011` applied to the live `aval-production`
+D1 database via `wrangler d1 migrations apply --remote` before deploy.
