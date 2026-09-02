@@ -64,6 +64,13 @@
       "when": 1787555970528,
       "tag": "0008_cute_jigsaw",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1788337030611,
+      "tag": "0009_clever_maggott",
+      "breakpoints": true
     }
   ]
 }

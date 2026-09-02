@@ -1,4 +1,4 @@
-import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { index, integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 // Real customer accounts for deployments outside ChatGPT Sites, where there
 // is no platform-injected identity header — email/password, hashed with
@@ -343,4 +343,54 @@ export const insightDecisions = sqliteTable(
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
   },
   (table) => [index("insight_decisions_org_insight_idx").on(table.organizationId, table.insightId)],
+);
+
+// A physical (or, pre-connection, manually tracked) electricity/water/gas
+// meter. There is no `properties`/`units` table yet — see docs/DECISIONS.md
+// — so meters are scoped to the org with a free-text property/unit label,
+// the same shape `insightDecisions` uses above for referencing a sample-data
+// id that doesn't have a real table behind it yet. Once a real property
+// table exists, propertyLabel/unitLabel should become propertyId/unitId.
+export const utilityMeters = sqliteTable(
+  "utility_meters",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id").notNull().references(() => organizations.id),
+    utilityType: text("utility_type").notNull(), // "electricity" | "water" | "gas"
+    propertyLabel: text("property_label").notNull(),
+    unitLabel: text("unit_label"),
+    meterNumber: text("meter_number"),
+    provider: text("provider"),
+    unitOfMeasure: text("unit_of_measure").notNull(), // "kWh" | "gal" | "ccf" | "therm" | "m3"
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [index("utility_meters_org_type_idx").on(table.organizationId, table.utilityType)],
+);
+
+// One row per billing-period read for a meter. usageAmount is a `real`
+// column since utility usage is fractional (1,234.56 kWh); costCents stays
+// an integer, matching how money is stored everywhere else in this schema
+// (see `tokenTopUps`, billing) — see lib/finance/money.ts for the
+// dinero.js-backed arithmetic that operates on it.
+export const utilityBills = sqliteTable(
+  "utility_bills",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id").notNull().references(() => organizations.id),
+    meterId: text("meter_id").notNull().references(() => utilityMeters.id),
+    periodStart: integer("period_start", { mode: "timestamp_ms" }).notNull(),
+    periodEnd: integer("period_end", { mode: "timestamp_ms" }).notNull(),
+    usageAmount: real("usage_amount").notNull(),
+    costCents: integer("cost_cents").notNull(),
+    currency: text("currency").notNull().default("USD"),
+    source: text("source").notNull(), // "manual" | "ai_extracted"
+    extractionConfidence: text("extraction_confidence"), // set only when source is "ai_extracted"
+    extractionNote: text("extraction_note"), // model's own caveat about the extraction, shown to the user, never trusted silently
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    index("utility_bills_org_period_idx").on(table.organizationId, table.periodStart),
+    index("utility_bills_meter_period_idx").on(table.meterId, table.periodStart),
+  ],
 );
