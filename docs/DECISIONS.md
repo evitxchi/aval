@@ -628,4 +628,19 @@ subscription-OAuth path stays a documented open question rather than a stub butt
 
 **Verification.** `npm run i18n:check`, `tsc --noEmit`, `npm run lint`, `npm run build`, and
 `node --test` (56 passing) all clean. Migration `0011` applied to the live `aval-production`
-D1 database via `wrangler d1 migrations apply --remote` before deploy.
+D1 database via `wrangler d1 migrations apply --remote` before deploy. Live Playwright pass
+against the deployed Settings page confirmed the Intelligence card renders all nine provider
+cards plus "Aval (default)" correctly, and that clicking "Connect" on Anthropic opens the
+reused dialog with the right title, copy, and API-key field.
+
+**One benign, unresolved anomaly found during that pass, noted rather than silently dropped:**
+visiting Settings (only Settings, reproduced 3 times; Connections and Overview never showed it)
+logs a caught, non-fatal `[vinext] RSC prefetch setup error: TypeError: p is not a function`
+inside the `simple-icons` chunk a few seconds after the view mounts. The page renders and
+functions correctly regardless (confirmed via full accessibility snapshots before and after the
+error fires) — it appears to be vinext's own link-prefetch warming choking on something about
+the `simple-icons` chunk specifically when Settings is the active view (Settings is the first
+view to import `BrandMark`/`simple-icons` on this route's chunk graph; Connections already did
+so without issue). Not root-caused — would need vinext's own (minified, third-party) prefetch
+internals inspected to go further, disproportionate to a caught, invisible-to-the-user
+optimization-path failure. Worth revisiting if a real user-visible symptom ever traces back to it.
