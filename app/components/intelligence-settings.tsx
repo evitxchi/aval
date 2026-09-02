@@ -113,7 +113,7 @@ function ProviderAccordionRow({ provider, twin, isOpen, onToggle, isActive, swit
   };
 
   return (
-    <div className={`provider-row ${connected || twinConnected ? "connected" : ""}`}>
+    <div className={`provider-row ${isOpen ? "is-open" : ""} ${isActive ? "active" : ""}`}>
       <button type="button" className="provider-row-summary" aria-expanded={isOpen} onClick={onToggle}>
         <BrandMark provider={provider.id} small />
         <span>{provider.title}</span>
@@ -268,18 +268,6 @@ export function IntelligenceSettings() {
 
       {error && <p className="auth-gate-error">{error}</p>}
 
-      <div className={`intelligence-provider-card connected ${!activeProvider ? "active" : ""}`}>
-        <div className="connection-card-top">
-          <BrandMark provider="aval" />
-          {!activeProvider && <span className="connection-status connected">{t("IntelligenceSettings.inUse")}</span>}
-        </div>
-        <h3>{t("IntelligenceSettings.avalDefault")}</h3>
-        <p>{t("IntelligenceSettings.avalDefaultDescription")}</p>
-        <button className="soft-button" disabled={!activeProvider || switching !== null} onClick={() => void setActive(null)}>
-          {switching === "aval" ? t("IntelligenceSettings.switching") : t("IntelligenceSettings.useThis")}
-        </button>
-      </div>
-
       <section className="intelligence-configure">
         <div className="intelligence-configure-header">
           <h3>{t("IntelligenceSettings.configureProviders")}</h3>
@@ -289,6 +277,24 @@ export function IntelligenceSettings() {
           </label>
         </div>
         <div className="provider-row-list">
+          <div className={`provider-row ${expanded === "aval" ? "is-open" : ""} ${!activeProvider ? "active" : ""}`}>
+            <button type="button" className="provider-row-summary" aria-expanded={expanded === "aval"} onClick={() => setExpanded((current) => (current === "aval" ? null : "aval"))}>
+              <BrandMark provider="aval" small />
+              <span>{t("IntelligenceSettings.avalDefault")}</span>
+              {!activeProvider && <span className="connection-status connected">{t("IntelligenceSettings.inUse")}</span>}
+              <NavArrowDown width={14} height={14} className={expanded === "aval" ? "provider-row-chevron open" : "provider-row-chevron"} />
+            </button>
+            <div className="provider-row-body" style={{ gridTemplateRows: expanded === "aval" ? "1fr" : "0fr" }}>
+              <div className="provider-row-body-inner">
+                <p className="provider-row-description">{t("IntelligenceSettings.avalDefaultDescription")}</p>
+                {activeProvider && (
+                  <button type="button" className="wide-button" disabled={switching !== null} onClick={() => void setActive(null)}>
+                    {switching === "aval" ? t("IntelligenceSettings.switching") : t("IntelligenceSettings.useThis")}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
           {filtered.map((provider) => {
             const twin = twinByProvider.get(provider.id) ?? null;
             const isActive = activeProvider === provider.id || (twin ? activeProvider === twin.id : false);

@@ -960,3 +960,74 @@ distinct from financial's green).
 the prior icon commit, no new ones), `npm run i18n:check`, `npm run build`, and `node --test`
 (56 passing) all clean. Not yet visually verified live — same standing limitation as the prior
 icon pass (no connected browser, no local D1-backed preview in this sandbox).
+
+## 2026-09-02 — Root-caused and fixed the Intelligence page's "messy" look
+
+**Context.** User sent a screenshot of the live Intelligence page calling it "so so messy,"
+alongside fresh screenshots of mentari2.0's real Settings/Intelligence UI, and asked for a
+super-depth pass through `~/Desktop/mentari2.0` for an actual design-system document to apply.
+No standalone `DESIGN.md` exists there — the real, authoritative source is code:
+`packages/design-system/src/tokens.css` (HSL color roles, `--radius: 0.5rem` as the base of a
+`sm`/`md`/`lg`/`xl` scale) and `packages/ui/src/styles/{corners,globals}.css` (`corner-shape:
+squircle` app-wide, Tailwind v4 `@theme` tokens). No `DESIGN.md`/`UI.md` file exists anywhere in
+that repo outside vendored third-party checkouts and an unrelated mobile-wireframe README.
+
+**Root cause, found by reading this app's own CSS rather than guessing from the screenshot.**
+`.provider-row`/`.intelligence-provider-card` (from the immediately preceding Intelligence
+build) used a *dashed* border for any provider not yet connected. Grepping this codebase's
+own existing `dashed` usage (`app/globals.css`) shows it means exactly one thing everywhere
+else it appears: `.empty-column` (a literal "nothing here" placeholder) and
+`.message.draft-pending` (an unsent, in-flight message). Applying that same visual language to
+eight real, immediately usable providers meant the page read as "eight broken placeholders,"
+not "eight options" — that mismatch, not a layout defect, was the actual source of "messy."
+Every other card in this app (`.connection-card`, `.required-source`, `.automation-step`) uses
+a plain solid `1px solid var(--line)` border on a white/raised surface; the fix brings the
+Intelligence provider rows in line with that existing, established convention instead of the
+novel one introduced for this page alone.
+
+**What changed, all CSS plus one component restructure — no new dependency:**
+- `.provider-row` dropped its dashed/solid state entirely; every row now uses the same solid-
+  border white-card recipe `.connection-card` already uses (`border: 1px solid var(--line);
+  background: white; box-shadow: 0 1px 3px rgba(15,15,13,.03)`). "In use" is now signaled the
+  same way it is everywhere else in this app — the existing `.connection-status` badge — not by
+  changing the container's own border style.
+- Aval's own bundled-model option is no longer a separately-styled, differently-shaped card
+  sitting above the list (the biggest single visual inconsistency in the previous build — one
+  card looking structurally unlike every row below it). It's now the first row *inside* the
+  same `provider-row-list`, sharing the identical summary/chevron/expand shell as every other
+  provider, just with simpler expanded content (a description and a "Use this" button, no
+  credential form).
+- `.intelligence-model-row` (the "Model being used" summary) tightened from a stacked
+  label/value block to one line, trimmed padding, and added text-overflow handling for long
+  provider/model names — matches the reference's plain, quiet single-line header instead of a
+  heavier stacked card.
+- `intelligence-settings.tsx`: the `expanded` accordion-state string now also accepts the
+  sentinel `"aval"` for the new default row, and the old bespoke `intelligence-provider-card`
+  JSX block was deleted outright along with its now-unused CSS.
+
+**Deliberately not changed:** `BrandMark`'s existing white-chip icon treatment (border + subtle
+shadow around every provider/channel icon) — this is Aval's own established, consistent pattern
+already used identically in Inbox conversation rows, task cards, notifications, and the
+automation timeline; stripping it just for Intelligence would have traded one inconsistency for
+another. mentari2.0's actual color palette (blue-accented HSL tokens) was not ported — the ask
+was mentari2.0's structural/spacing/alignment discipline "in the context of our app," and this
+app's monochrome identity is a standing, tested decision (`node --test` asserts "monochrome
+tokens" explicitly), not something to override for one page. `corner-shape: squircle` was
+considered but not applied — it's a real, load-bearing part of mentari2.0's feel, but it's a
+global, irreversible-feeling visual shift affecting literally every rounded corner in the app;
+flagged here as a genuine candidate for a deliberate, separate decision rather than folded into
+a bug-fix pass sight-unseen (no connected browser this session to preview it against).
+
+**Scope, stated plainly.** This pass fixed the Intelligence page specifically — the only page
+with concrete screenshots and a demonstrated defect — and confirmed via `packages/design-
+system`/`packages/ui` that the *systemic* issue (dashed-for-unconfigured) doesn't appear
+anywhere else in Aval's own CSS, so no other page shares this specific bug. "Improve the ui/ux
+across all pages" is a substantially larger ask than one page's dashed-border mismatch; treating
+this as fully satisfying it would overclaim. Worth a dedicated follow-up pass, ideally with a
+connected browser to compare real renders side by side rather than reasoning from source alone.
+
+**Verification.** `tsc --noEmit`, `npm run lint`, `npm run i18n:check`, `npm run build`, and
+`node --test` (56 passing) all clean. Not yet visually verified live — no connected browser this
+session (attempted; extension unavailable) — this is a source-level, principled fix (grepped
+codebase conventions, matched an existing proven card recipe exactly) rather than a guess, but a
+real screenshot comparison after this deploy is still owed.
