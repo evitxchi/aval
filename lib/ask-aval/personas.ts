@@ -1,0 +1,86 @@
+/**
+ * Named agent personas layered on top of the existing Ask Aval tool loop
+ * (loop.ts) — a config table, not a new agent framework. A GitHub sourcing
+ * pass (docs/DECISIONS.md) found no TS-native agent framework (Vercel AI
+ * SDK, Mastra, LangChain.js, Cloudflare's own Durable-Object-based agents
+ * SDK) that knows about this app's faithfulness gate or usage metering;
+ * adopting one would mean reimplementing those safety checks inside
+ * someone else's abstraction for what that same research found is, in
+ * every real system examined, just a `{id, systemPromptAddition,
+ * toolSubset}` registry. Every persona still runs through the same
+ * runAskAvalLoop, faithfulness gate, and usage caps as the default
+ * assistant — only the system-prompt framing and the tool subset change.
+ *
+ * `PersonaId` is intentionally duplicated (not imported) in
+ * app/components/agent-avatar/personas.ts, a client component module —
+ * keeping the ids in sync by convention avoids pulling any server-only
+ * Ask Aval code into the client bundle for a handful of string literals.
+ */
+
+import type { ToolSchema } from "./anthropic";
+
+export type PersonaId = "general" | "financial" | "brokerage" | "realEstate" | "marketResearch" | "maintenance";
+
+export interface AgentPersona {
+  id: PersonaId;
+  label: string;
+  /** Appended to the base SYSTEM prompt in handler.ts/draft.ts — framing only. The hard rules (faithfulness, no fabricated valuations, etc.) stay identical for every persona and are never overridden here. */
+  systemPromptAddition: string;
+  /** Tool names (from tools.ts's DATA_TOOLS) this persona may call. `null` means every tool — the general persona. */
+  toolNames: string[] | null;
+}
+
+export const PERSONAS: Record<PersonaId, AgentPersona> = {
+  general: {
+    id: "general",
+    label: "Ask Aval",
+    systemPromptAddition: "",
+    toolNames: null,
+  },
+  financial: {
+    id: "financial",
+    label: "Financial Analyst",
+    systemPromptAddition:
+      "\n\nYou are currently in Financial Analyst mode: focus on NOI, occupancy economics, collections, and portfolio financial performance. Lead with the numbers before commentary.",
+    toolNames: ["get_portfolio_metrics", "get_metric_series", "get_accounting_breakdown"],
+  },
+  brokerage: {
+    id: "brokerage",
+    label: "Brokerage & Leasing",
+    systemPromptAddition:
+      "\n\nYou are currently in Brokerage & Leasing mode: focus on the lead-to-lease funnel, showings, and conversion. Frame answers around what moves a prospect toward a signed lease.",
+    toolNames: ["get_leasing_funnel", "get_property_breakdown", "get_metric_series"],
+  },
+  realEstate: {
+    id: "realEstate",
+    label: "Real Estate",
+    systemPromptAddition:
+      "\n\nYou are currently in Real Estate mode: focus on property-level and unit-level detail — occupancy, unit mix, and readiness to lease — over portfolio-wide aggregates.",
+    toolNames: ["get_property_breakdown", "get_portfolio_metrics"],
+  },
+  marketResearch: {
+    id: "marketResearch",
+    label: "Market Research",
+    systemPromptAddition:
+      "\n\nYou are currently in Market Research mode: focus on trends and comparisons over single-point figures. This system has no external market-data connection — if a tool can't provide a real trend or comparison, say so rather than speculating about the broader market.",
+    toolNames: ["get_metric_series", "get_portfolio_metrics", "get_leasing_funnel"],
+  },
+  maintenance: {
+    id: "maintenance",
+    label: "Maintenance",
+    systemPromptAddition:
+      "\n\nYou are currently in Maintenance mode: focus on open work orders, aging, and delinquency that correlates with maintenance-driven turnover. Prioritize operational urgency over financial framing.",
+    toolNames: ["get_portfolio_metrics", "get_delinquent_accounts"],
+  },
+};
+
+export function getPersona(id: string | undefined): AgentPersona {
+  return (id && PERSONAS[id as PersonaId]) || PERSONAS.general;
+}
+
+/** Filters `baseTools` (TOOLS or DRAFT_TOOLS) to a persona's subset, always keeping `record_preference` (standing corrections apply regardless of persona) and `finalToolName` (the model must always be able to conclude). */
+export function personaTools(baseTools: ToolSchema[], persona: AgentPersona, finalToolName: string): ToolSchema[] {
+  if (!persona.toolNames) return baseTools;
+  const allowed = new Set([...persona.toolNames, "record_preference", finalToolName]);
+  return baseTools.filter((tool) => allowed.has(tool.name));
+}

@@ -1,4 +1,11 @@
 {
+  "AgentPersonas": {
+    "brokerageLabel": "Brokerage & Leasing",
+    "financialLabel": "Financial Analyst",
+    "maintenanceLabel": "Maintenance",
+    "marketResearchLabel": "Market Research",
+    "realEstateLabel": "Real Estate"
+  },
   "AskAvalTasks": {
     "cancel": "Cancel",
     "downloadFormat": "Download {format}",
@@ -170,6 +177,7 @@
     "moduleSelectedMessage": "I’m looking at “{module}” now. Ask what changed, why it happened, or what action to take.",
     "preparedForReview": "Prepared for review",
     "sampleModeAnswer": "Sample-mode answer. Connect a live key for real analysis.",
+    "selectAgent": "Choose agent",
     "selectModule": "Select module",
     "sendMessage": "Send message",
     "startDrafting": "Start drafting",

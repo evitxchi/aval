@@ -164,3 +164,86 @@ unstarted piece of work.
 
 **Verification.** `npx tsc --noEmit`, `npm run build`, `npm run lint`, and `node --test`
 (43 passing, including all pre-existing tests) all pass as of this entry.
+
+## 2026-09-02 — Agent avatar system and named agent personas
+
+**Context.** Same session as the infrastructure-module pass above. The user asked for a
+"cohesive premium visual system" of abstract, illuminated agent avatars (soft volumetric glow,
+asymmetric two-source lighting, dark dimensional forms, clean silhouettes at 24-40px — explicitly
+not sparkles, robot heads, generic AI stars, or plain gradient circles), a reusable component
+separating shape geometry from lighting/theme, and named agent personas (financial, brokerage,
+real estate, market research, maintenance) a user can select — plus a request to research
+high-star GitHub agent frameworks and "implement the best one," without stopping to ask.
+
+**Agent framework research (one fork agent).** Verified via the GitHub API: microsoft/autogen
+(60.8k★), crewAI (58.0k★), openai-agents-python (29.1k★), and semantic-kernel (28.5k★) are all
+Python/.NET, server-only — not deployable in a Cloudflare Worker. Of the TypeScript-native
+options, vercel/ai (26.5k★) and langchainjs (18.2k★) can run on Workers but bring chain/agent
+abstractions Aval's simple bounded loop doesn't need; mastra-ai/mastra (27.6k★) and vercel/ai
+both carry a GitHub-reported "Other"/`NOASSERTION` license needing manual verification before
+any real dependency decision. cloudflare/agents (5.5k★, MIT) is the one actually built for this
+runtime, but solves a different problem (persistent, stateful Durable-Object-backed agents) than
+Aval's stateless-per-request tool loop. Every real example of "named persona, own system prompt,
+scoped tool subset" found in the research was a plain `{id, systemPromptAddition, toolSubset}`
+registry, not a framework feature.
+
+**Decision: extend in-house, no new dependency.** None of the TS-native frameworks know about
+`lib/ask-aval/loop.ts`'s faithfulness gate (rejects any answer citing a number no tool returned)
+or its per-org usage/billing caps — adopting one would mean reimplementing those safety checks
+inside someone else's abstraction, for a feature the research itself shows is just a config
+table. Shipped as `lib/ask-aval/personas.ts`: six personas (general/financial/brokerage/
+realEstate/marketResearch/maintenance), each an id + label + system-prompt addition + a tool-name
+subset, filtered via `personaTools()` against the existing `TOOLS`/`DRAFT_TOOLS` registries.
+`handleAskAval` and `handleAskAvalDraft` both take an optional `personaId` (default preserves
+today's exact behavior) and route through the unchanged `runAskAvalLoop` — every persona is
+still faithfulness-gated and usage-metered identically to the default assistant. Plumbed through
+`/api/assistant/ask`, `/api/assistant/draft`, and `CreateDraftInput` end to end.
+
+**Avatar system: `app/components/agent-avatar/`.** Shape geometry (`shapes.tsx`) and color/
+lighting themes (`themes.ts`) are fully decoupled — any of 6 shapes (arch, shard, portal,
+four-point, monolith, intersecting planes) can carry any of 6 themes (Aval Blue, Violet, Aqua,
+Ember, Aurora, Orchid), so a new persona is a config entry, not a new graphic. Each avatar is an
+SVG built from three layers over a shared silhouette: an unmasked, blurred, primary-colored
+bloom halo sitting behind everything (the only layer allowed to bleed past the edge); the
+silhouette used as an SVG `<mask>` constraining a dark base gradient plus two asymmetric radial
+lights (positioned from *each shape's own bounding box*, not a fixed canvas point — see the bug
+below); and, inside that mask, a thin rim-light outline plus a small specular highlight.
+`fourPoint` deliberately avoids a symmetric sparkle/star silhouette (explicitly ruled out by the
+brief) by elongating and offsetting its arms. Wired into `aval-assistant.tsx`: the header shows
+the active persona's avatar (falling back to Aval's own brand mark for the general persona,
+left untouched), and a "Choose agent" control opens a picker grid of all six.
+
+**Two real bugs caught by visually testing in a browser before calling this done** (per this
+session's own standing instruction to verify UI changes in-browser, not just typecheck them):
+1. *Flat/dim non-`fourPoint` shapes.* The primary/secondary light gradients were centered at a
+   fixed canvas position tuned for `fourPoint` (which happens to span nearly the full 100×100
+   viewBox). Narrower shapes like `monolith` left their hotspot mostly outside their own
+   silhouette, masking away the brightest part of the gradient. Fixed by giving every shape an
+   explicit `bbox` and deriving each light's position/radius from that shape's own bounds
+   (`AgentAvatar.tsx`), and by enlarging every shape to use close to the full canvas rather than
+   leaving an internal margin on top of the container's own padding.
+2. *Header avatar rendering solid black.* `.aval-agent-avatar`'s container used `padding: 17%`
+   in CSS. Percentage padding resolves against the *containing block's width* by spec, not the
+   element's own size — inside `.aval-assistant-identity` (a wide flex row) this computed to
+   far more padding than the 38px avatar could hold, and CSS `border-box` sizing doesn't rescue
+   this: when padding alone exceeds the specified width, content clamps to zero and the box
+   grows past its declared size to fit the padding. Fixed by computing padding as a pixel value
+   from the `size` prop inside the component instead of a CSS percentage. Caught only by
+   screenshotting the actual header instance, not the picker grid, where a narrower container
+   happened to keep the same bug from being quite as visually catastrophic.
+
+**Deliberately not done.** No visual iteration with the user — this is a first implementable
+pass true to the technical brief (asymmetric lighting, bloom, rim, specular, no clichés), not a
+claim of final "premium" polish, which needs a human's eye. The `planes` (intersecting-planes)
+shape reads the weakest of the six — recognizable but its two facets don't visually separate at
+small sizes; a seam highlight between the two paths would help and was left for a follow-up.
+`vinext dev`'s hot-reload was found to throw an intermittent `useTranslations`/
+`NextIntlClientProvider` error in `DesktopApp` that reproduces on the pre-existing `main` branch
+with no source changes at all (confirmed via `git stash`) — a dev-server-only quirk, absent from
+the production build (`vinext build && vinext start`), not something this session introduced or
+fixed.
+
+**Verification.** `tsc --noEmit`, `npm run build`, `npm run lint`, and `node --test` (43 passing)
+all clean. Manually verified in a real browser (Playwright against the production build, since
+`vinext dev` was the one with the unrelated pre-existing flake) — screenshotted the persona
+picker and the header avatar before and after both bug fixes above.

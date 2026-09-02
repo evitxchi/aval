@@ -18,6 +18,8 @@ import type { AskAvalSession } from "./usage";
 import { runAskAvalLoop, json } from "./loop";
 import { getPreferenceContext } from "./preferences";
 import { getUsagePatternContext } from "./usage-patterns";
+import { TOOLS } from "./tools";
+import { getPersona, personaTools } from "./personas";
 
 export type { AskAvalSession } from "./usage";
 
@@ -47,11 +49,13 @@ export async function handleAskAval(
   session: AskAvalSession,
   locale: string,
   focusedModule?: { label: string; snapshot: string },
+  personaId?: string,
 ): Promise<Response> {
   const question = rawQuestion.trim();
   if (!question) return json({ error: "A question is required" }, 400);
   if (question.length > MAX_QUESTION_CHARS) return json({ error: "Question is too long" }, 400);
 
+  const persona = getPersona(personaId);
   const localeInstruction = locale === "es-mx" ? "Respond in Spanish (Mexico)." : "Respond in English.";
   const moduleContext = focusedModule
     ? `\n\n(The user focused this question on a dashboard module titled "${focusedModule.label}". Its visible on-screen text: ${JSON.stringify(focusedModule.snapshot)}. Still use the tools for any figures you cite — the snapshot text is context, not a verified source.)`
@@ -62,5 +66,5 @@ export async function handleAskAval(
     getUsagePatternContext(session.orgId),
   ]);
 
-  return runAskAvalLoop(env, session, SYSTEM + preferenceContext + usagePatternContext, messages);
+  return runAskAvalLoop(env, session, SYSTEM + persona.systemPromptAddition + preferenceContext + usagePatternContext, messages, personaTools(TOOLS, persona, "render_answer"));
 }

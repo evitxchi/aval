@@ -34,6 +34,8 @@ export interface CreateDraftInput {
   // Eyebrow label for the exported document's house style (e.g. "Weekly report").
   // Purely a display label chosen by the caller, never invented downstream.
   documentType?: string;
+  // Which named agent persona (lib/ask-aval/personas.ts) drafted this — omit for the general assistant.
+  personaId?: string;
 }
 
 interface DraftMetric { label: string; value: number | string; unit?: string; delta?: number }
@@ -124,6 +126,7 @@ export function useDraftJobs(locale: string) {
             moduleLabel: input.moduleLabel,
             moduleSnapshot: input.moduleSnapshot,
             documentType: input.documentType,
+            personaId: input.personaId,
           }),
         });
         const data = (await response.json().catch(() => ({}))) as Record<string, unknown> & { error?: string };

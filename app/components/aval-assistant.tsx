@@ -8,6 +8,7 @@ import { ChatLines, CheckCircle, Database, NavArrowRight, Page, SendDiagonal, St
 import { useExperience } from "@/app/components/experience";
 import type { CreateDraftInput, DraftFormat } from "@/app/components/ask-aval-tasks";
 import { MarkdownPreview } from "@/app/components/markdown-preview";
+import { AvalAgentAvatar, PERSONA_IDS, PERSONA_PRESETS, type PersonaId } from "@/app/components/agent-avatar";
 
 type EvidenceRow = { label: string; value: string };
 // value can be a pre-formatted string (the local sample-mode fallback
@@ -231,6 +232,9 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
   const [thinking, setThinking] = useState(false);
   const [pickingModule, setPickingModule] = useState(false);
   const [selectedModule, setSelectedModule] = useState<SelectedModule | null>(null);
+  const [pickingPersona, setPickingPersona] = useState(false);
+  const [personaId, setPersonaId] = useState<PersonaId>("general");
+  const activePersona = PERSONA_PRESETS[personaId];
   const [prepared, setPrepared] = useState<Record<number, boolean>>({});
   const [draftPanelOpen, setDraftPanelOpen] = useState(false);
   const [draftTitle, setDraftTitle] = useState("");
@@ -343,7 +347,7 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
       const response = await fetch("/api/assistant/ask", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ question: trimmed, view, moduleLabel: focusedModule?.label, moduleSnapshot: focusedModule?.snapshot, locale }),
+        body: JSON.stringify({ question: trimmed, view, moduleLabel: focusedModule?.label, moduleSnapshot: focusedModule?.snapshot, locale, personaId }),
       });
       // The endpoint returns the render_answer payload flattened at the top
       // level (plus tools_used), not wrapped in an { answer: ... } envelope.
@@ -370,6 +374,7 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
       title: message.answer.action,
       instructions: `Draft the full write-up for this approved action so it is ready to send: "${message.answer.action}". ${message.answer.actionDetail ?? ""} It follows from this finding: ${message.answer.headline}`,
       format: "docx",
+      personaId,
     });
     notify(t("AvalAssistant.actionPreparedForReview"), t("AvalAssistant.draftStartedInTasks"));
   };
@@ -383,6 +388,7 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
       format: draftFormat,
       moduleLabel: selectedModule?.label,
       moduleSnapshot: selectedModule?.snapshot,
+      personaId,
     });
     setMessages((current) => [...current, { id: nextId.current++, role: "assistant", text: t("AvalAssistant.draftStartedMessage", { title: draftTitle.trim() }) }]);
     setDraftTitle(""); setDraftInstructions(""); setDraftFormat("docx"); setDraftPanelOpen(false);
@@ -413,8 +419,12 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
         <section className="aval-assistant-panel" role="dialog" aria-label={t("AvalAssistant.avalAssistant")}>
           <header className="aval-assistant-header">
             <div className="aval-assistant-identity">
-              <span className="aval-assistant-mark" aria-hidden="true" />
-              <span><strong>{t("AvalAssistant.askAval")}</strong><small><i />{t("AvalAssistant.liveDashboardContext")}</small></span>
+              {personaId === "general" ? (
+                <span className="aval-assistant-mark" aria-hidden="true" />
+              ) : (
+                <AvalAgentAvatar shape={activePersona.shape} theme={activePersona.theme} size={38} label={t(activePersona.labelKey)} />
+              )}
+              <span><strong>{t(activePersona.labelKey)}</strong><small><i />{t("AvalAssistant.liveDashboardContext")}</small></span>
             </div>
             <button className="aval-assistant-close" type="button" onClick={closeAssistant} aria-label={t("AvalAssistant.closeAssistant")}><Xmark width={19} height={19} /></button>
           </header>
@@ -428,8 +438,25 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
               <button className={`aval-module-picker ${draftPanelOpen ? "active" : ""}`} type="button" onClick={() => setDraftPanelOpen((current) => !current)} aria-pressed={draftPanelOpen}>
                 <Page width={15} height={15} />{t("AvalAssistant.draftDocument")}
               </button>
+              <button className={`aval-module-picker ${pickingPersona ? "active" : ""}`} type="button" onClick={() => setPickingPersona((current) => !current)} aria-pressed={pickingPersona}>
+                <AvalAgentAvatar shape={activePersona.shape} theme={activePersona.theme} size={17} />
+                {personaId === "general" ? t("AvalAssistant.selectAgent") : t(activePersona.labelKey)}
+              </button>
             </div>
             {pickingModule && <p className="aval-module-picker-instruction"><span />{t("AvalAssistant.hoverOverADashboardModuleThen")}</p>}
+            {pickingPersona && (
+              <div className="aval-agent-picker">
+                {PERSONA_IDS.map((id) => {
+                  const preset = PERSONA_PRESETS[id];
+                  return (
+                    <button key={id} type="button" className="aval-agent-picker-item" aria-pressed={personaId === id} onClick={() => { setPersonaId(id); setPickingPersona(false); }}>
+                      <AvalAgentAvatar shape={preset.shape} theme={preset.theme} size={40} selected={personaId === id} interactive />
+                      <span>{t(preset.labelKey)}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
             {selectedModule && (
               <div className="aval-selected-module-context">
                 <ViewGrid width={16} height={16} />

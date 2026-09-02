@@ -932,3 +932,40 @@ html.aval-module-picking .content-shell { cursor: crosshair; }
 .security-practice-list li::before { content: ""; position: absolute; left: 0; top: 6px; width: 5px; height: 5px; border-radius: 50%; background: var(--quiet); }
 .security-disclaimer { margin: 0 0 12px; color: var(--quiet); font-size: 9px; line-height: 1.5; font-style: italic; }
 .security-card { min-height: 0; }
+
+/* ── Agent avatars (AvalAgentAvatar) ───────────────────────────────────────
+   Deliberately not part of the monochrome app shell (see :root's comment on
+   --viz-* — this is the same "real color where it earns its keep" exception,
+   applied to agent identity instead of chart series). The container stays a
+   fixed near-black tile regardless of the active app theme: the glow/bloom
+   effect reads correctly only against a dark ground, the same reason every
+   reference in the design brief sits on black. */
+
+.aval-agent-avatar {
+  box-sizing: border-box;
+  display: inline-flex;
+  /* Padding is set inline (AgentAvatar.tsx) as a pixel value derived from
+     `size`, not a CSS percentage here — percentage padding resolves against
+     the *containing block's* width (this sits inside several flex
+     containers of varying width), not this element's own size, which was
+     collapsing the SVG's content box toward zero. */
+  background: linear-gradient(155deg, #0c0d12, #060608);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 26%;
+  flex-shrink: 0;
+}
+
+.aval-agent-avatar svg { display: block; width: 100%; height: 100%; overflow: visible; }
+
+.aval-agent-avatar-interactive { cursor: pointer; transition: border-color 160ms ease, background 160ms ease; }
+.aval-agent-avatar-interactive:hover { border-color: rgba(255, 255, 255, 0.16); }
+.aval-agent-avatar-interactive:hover .aval-agent-avatar-bloom { opacity: 0.6; }
+.aval-agent-avatar-interactive:hover .aval-agent-avatar-rim { opacity: 0.7; }
+.aval-agent-avatar-interactive:hover .aval-agent-avatar-specular { opacity: 1; }
+
+.aval-agent-avatar-selected { border-color: rgba(255, 255, 255, 0.22); background: linear-gradient(155deg, #101219, #08090c); }
+
+.aval-agent-picker { display: flex; flex-wrap: wrap; gap: 10px; }
+.aval-agent-picker-item { display: flex; flex-direction: column; align-items: center; gap: 6px; background: none; border: none; padding: 0; }
+.aval-agent-picker-item span { font-size: 9px; color: var(--muted); text-align: center; max-width: 64px; line-height: 1.3; }
+.aval-agent-picker-item[aria-pressed="true"] span { color: var(--ink); font-weight: 500; }

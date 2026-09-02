@@ -19,6 +19,7 @@ export async function POST(request: Request) {
     moduleLabel?: string;
     moduleSnapshot?: string;
     documentType?: string;
+    personaId?: string;
   };
   const title = typeof body.title === "string" ? body.title : "";
   const instructions = typeof body.instructions === "string" ? body.instructions : "";
@@ -33,6 +34,7 @@ export async function POST(request: Request) {
     { orgId: identity.organizationId, userId: identity.userId },
     locale,
     focusedModule,
+    body.personaId,
   );
 
   // Persist the result (success or failure) so a page refresh doesn't lose

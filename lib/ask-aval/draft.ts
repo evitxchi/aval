@@ -19,6 +19,7 @@ import { DRAFT_TOOLS } from "./tools";
 import { runAskAvalLoop, json } from "./loop";
 import { getPreferenceContext } from "./preferences";
 import { getUsagePatternContext } from "./usage-patterns";
+import { getPersona, personaTools } from "./personas";
 
 const MAX_TITLE_CHARS = 140;
 const MAX_INSTRUCTIONS_CHARS = 1200;
@@ -57,12 +58,14 @@ export async function handleAskAvalDraft(
   session: AskAvalSession,
   locale: string,
   focusedModule?: { label: string; snapshot: string },
+  personaId?: string,
 ): Promise<Response> {
   const title = input.title.trim().slice(0, MAX_TITLE_CHARS);
   const instructions = input.instructions.trim().slice(0, MAX_INSTRUCTIONS_CHARS);
   if (!title) return json({ error: "A title is required" }, 400);
   if (!instructions) return json({ error: "Drafting instructions are required" }, 400);
   const format: DraftFormat = input.format === "xlsx" || input.format === "pptx" ? input.format : "docx";
+  const persona = getPersona(personaId);
 
   const localeInstruction = locale === "es-mx" ? "Write in Spanish (Mexico)." : "Write in English.";
   const moduleContext = focusedModule
@@ -81,5 +84,14 @@ export async function handleAskAvalDraft(
   // Drafting a full document takes longer per call than a quick chat answer
   // (more output tokens, same tool-round budget) — the default 25s timeout
   // is tuned for /ask and is too tight here.
-  return runAskAvalLoop(env, session, SYSTEM + preferenceContext + usagePatternContext, messages, DRAFT_TOOLS, "compose_document", 4096, 55_000);
+  return runAskAvalLoop(
+    env,
+    session,
+    SYSTEM + persona.systemPromptAddition + preferenceContext + usagePatternContext,
+    messages,
+    personaTools(DRAFT_TOOLS, persona, "compose_document"),
+    "compose_document",
+    4096,
+    55_000,
+  );
 }
