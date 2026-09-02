@@ -1,0 +1,1 @@
+ALTER TABLE `organizations` ADD `active_model_provider` text;

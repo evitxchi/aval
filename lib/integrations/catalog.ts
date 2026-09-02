@@ -19,12 +19,21 @@ export type ProviderId =
   | "gmail"
   | "telegram"
   | "twilio"
-  | "granola";
+  | "granola"
+  | "anthropic"
+  | "openai"
+  | "google_gemini"
+  | "openrouter"
+  | "moonshot"
+  | "zai"
+  | "deepseek"
+  | "alibaba_model_studio"
+  | "siliconflow";
 
 export type IntegrationProvider = {
   id: ProviderId;
   title: string;
-  category: "Accounting" | "Leasing & PMS" | "Communication" | "Knowledge";
+  category: "Accounting" | "Leasing & PMS" | "Communication" | "Knowledge" | "Model";
   description: string;
   authMode: "oauth2" | "credentials" | "bot_token" | "api_key" | "msp" | "qr_link";
   permissions: string[];
@@ -33,7 +42,23 @@ export type IntegrationProvider = {
   webhook: boolean;
   readOnly: boolean;
   note: string;
+  /** Model providers only — the OpenAI-compatible chat-completions base URL lib/ask-aval/openai-compatible.ts calls. Absent for Anthropic (native Messages API) and every non-model provider. */
+  baseUrl?: string;
+  /** Model providers only — shown as the default model id; users can override per-connection later. */
+  defaultModel?: string;
 };
+
+export const MODEL_PROVIDER_IDS: ReadonlySet<ProviderId> = new Set([
+  "anthropic",
+  "openai",
+  "google_gemini",
+  "openrouter",
+  "moonshot",
+  "zai",
+  "deepseek",
+  "alibaba_model_studio",
+  "siliconflow",
+]);
 
 export const integrationCatalog: IntegrationProvider[] = [
   {
@@ -330,6 +355,140 @@ export const integrationCatalog: IntegrationProvider[] = [
     webhook: false,
     readOnly: true,
     note: "Uses Granola's public API; its MCP OAuth route can be added for agent-to-agent access.",
+  },
+  {
+    id: "anthropic",
+    title: "Anthropic",
+    category: "Model",
+    description: "Bring your own Anthropic key so agents and Ask Aval run against your own account and budget instead of Aval's shared one.",
+    authMode: "api_key",
+    permissions: ["Model calls (Messages API)"],
+    credentialFields: [{ key: "apiKey", label: "Anthropic API key", secret: true }],
+    env: [],
+    webhook: false,
+    readOnly: true,
+    note: "Same Messages API Aval's own default connection uses — nothing else about the agent loop changes.",
+    defaultModel: "claude-sonnet-5",
+  },
+  {
+    id: "openai",
+    title: "OpenAI",
+    category: "Model",
+    description: "Power agents and Ask Aval with your own OpenAI account.",
+    authMode: "api_key",
+    permissions: ["Model calls (Chat Completions API)"],
+    credentialFields: [{ key: "apiKey", label: "OpenAI API key", secret: true }],
+    env: [],
+    webhook: false,
+    readOnly: true,
+    note: "Uses OpenAI's Chat Completions API with function calling.",
+    baseUrl: "https://api.openai.com/v1",
+    defaultModel: "gpt-5.1",
+  },
+  {
+    id: "google_gemini",
+    title: "Google Gemini",
+    category: "Model",
+    description: "Power agents and Ask Aval with your own Google AI Studio / Gemini API key.",
+    authMode: "api_key",
+    permissions: ["Model calls (Gemini API, OpenAI-compatible endpoint)"],
+    credentialFields: [{ key: "apiKey", label: "Gemini API key", secret: true }],
+    env: [],
+    webhook: false,
+    readOnly: true,
+    note: "Calls Gemini's OpenAI-compatibility endpoint, so the same tool-calling loop works unchanged.",
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
+    defaultModel: "gemini-2.5-pro",
+  },
+  {
+    id: "openrouter",
+    title: "OpenRouter",
+    category: "Model",
+    description: "Route agents and Ask Aval through any model OpenRouter offers, billed to your OpenRouter account.",
+    authMode: "api_key",
+    permissions: ["Model calls (OpenAI-compatible API)"],
+    credentialFields: [{ key: "apiKey", label: "OpenRouter API key", secret: true }],
+    env: [],
+    webhook: false,
+    readOnly: true,
+    note: "One key, many underlying models — pick the exact model id in Advanced once connected.",
+    baseUrl: "https://openrouter.ai/api/v1",
+    defaultModel: "anthropic/claude-sonnet-4.5",
+  },
+  {
+    id: "moonshot",
+    title: "Moonshot AI",
+    category: "Model",
+    description: "Power agents and Ask Aval with your own Moonshot AI (Kimi) account.",
+    authMode: "api_key",
+    permissions: ["Model calls (OpenAI-compatible API)"],
+    credentialFields: [{ key: "apiKey", label: "Moonshot API key", secret: true }],
+    env: [],
+    webhook: false,
+    readOnly: true,
+    note: "Uses Moonshot's OpenAI-compatible endpoint.",
+    baseUrl: "https://api.moonshot.ai/v1",
+    defaultModel: "kimi-k2-turbo-preview",
+  },
+  {
+    id: "zai",
+    title: "Z.AI",
+    category: "Model",
+    description: "Power agents and Ask Aval with your own Z.AI (GLM) account.",
+    authMode: "api_key",
+    permissions: ["Model calls (OpenAI-compatible API)"],
+    credentialFields: [{ key: "apiKey", label: "Z.AI API key", secret: true }],
+    env: [],
+    webhook: false,
+    readOnly: true,
+    note: "Uses Z.AI's OpenAI-compatible endpoint.",
+    baseUrl: "https://api.z.ai/api/paas/v4",
+    defaultModel: "glm-4.6",
+  },
+  {
+    id: "deepseek",
+    title: "DeepSeek",
+    category: "Model",
+    description: "Power agents and Ask Aval with your own DeepSeek account.",
+    authMode: "api_key",
+    permissions: ["Model calls (OpenAI-compatible API)"],
+    credentialFields: [{ key: "apiKey", label: "DeepSeek API key", secret: true }],
+    env: [],
+    webhook: false,
+    readOnly: true,
+    note: "Uses DeepSeek's OpenAI-compatible endpoint.",
+    baseUrl: "https://api.deepseek.com",
+    defaultModel: "deepseek-chat",
+  },
+  {
+    id: "alibaba_model_studio",
+    title: "Alibaba Cloud Model Studio",
+    category: "Model",
+    description: "Power agents and Ask Aval with your own Alibaba Cloud Model Studio (DashScope / Qwen) account.",
+    authMode: "api_key",
+    permissions: ["Model calls (OpenAI-compatible API)"],
+    credentialFields: [{ key: "apiKey", label: "DashScope API key", secret: true }],
+    env: [],
+    webhook: false,
+    readOnly: true,
+    note: "Uses DashScope's OpenAI-compatible endpoint. If a key returns region errors, the account may need the China (Beijing) endpoint instead of International — contact Aval support to switch it.",
+    baseUrl: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+    defaultModel: "qwen-max",
+  },
+  {
+    id: "siliconflow",
+    title: "SiliconFlow",
+    category: "Model",
+    description: "Power agents and Ask Aval with your own SiliconFlow account.",
+    authMode: "api_key",
+    permissions: ["Model calls (OpenAI-compatible API)"],
+    credentialFields: [{ key: "apiKey", label: "SiliconFlow API key", secret: true }],
+    env: [],
+    webhook: false,
+    readOnly: true,
+    note: "Uses SiliconFlow's OpenAI-compatible endpoint.",
+    baseUrl: "https://api.siliconflow.cn/v1",
+    defaultModel: "deepseek-ai/DeepSeek-V3",
   },
 ];
 

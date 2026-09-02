@@ -4,7 +4,8 @@
  * callers only supply a system prompt and the opening message.
  */
 
-import { callClaude, AnthropicError, type AskAvalEnv, type Message, type ContentBlock, type ToolUseBlock, type ToolSchema } from "./anthropic";
+import { AnthropicError, type AskAvalEnv, type Message, type ContentBlock, type ToolUseBlock, type ToolSchema } from "./anthropic";
+import { callModel } from "./model-router";
 import { TOOLS, runTool } from "./tools";
 import { checkUsageBlocked, recordUsage, type AskAvalSession } from "./usage";
 import { checkFaithfulness, withDerivedNumbers, round2 } from "./faithfulness";
@@ -35,7 +36,7 @@ export async function runAskAvalLoop(
 
   try {
     for (let round = 0; round < MAX_ROUNDS; round++) {
-      const res = await callClaude(env, {
+      const res = await callModel(env, session.orgId, {
         system,
         messages,
         tools,

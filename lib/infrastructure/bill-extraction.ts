@@ -15,7 +15,8 @@
  * cap and token balance as every other model call in this app.
  */
 
-import { callClaude, AnthropicError, type AskAvalEnv, type Message, type ToolSchema, type ToolUseBlock } from "@/lib/ask-aval/anthropic";
+import { AnthropicError, type AskAvalEnv, type Message, type ToolSchema, type ToolUseBlock } from "@/lib/ask-aval/anthropic";
+import { callModel } from "@/lib/ask-aval/model-router";
 import { checkUsageBlocked, recordUsage, type AskAvalSession } from "@/lib/ask-aval/usage";
 import { json } from "@/lib/ask-aval/loop";
 import type { UtilityType } from "./types";
@@ -80,7 +81,7 @@ export async function handleUtilityBillExtraction(rawBillText: string, env: AskA
   const messages: Message[] = [{ role: "user", content: billText }];
 
   try {
-    const res = await callClaude(env, {
+    const res = await callModel(env, session.orgId, {
       system: SYSTEM,
       messages,
       tools: [EXTRACT_TOOL],

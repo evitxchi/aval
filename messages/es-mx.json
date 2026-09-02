@@ -757,5 +757,20 @@
     "taskParked": "Tarea en espera",
     "tasks": "Tareas",
     "whatNeedsToHappen": "¿Qué debe pasar?"
+  },
+  "IntelligenceSettings": {
+    "avalDefault": "Aval (predeterminado)",
+    "avalDefaultDescription": "Funciona con la cuenta compartida de Aval. No requiere clave ni facturación aparte.",
+    "connect": "Conectar",
+    "currentlyUsing": "Actualmente usando {provider}.",
+    "currentlyUsingDefault": "Actualmente usando el modelo integrado de Aval; no requiere configuración.",
+    "eyebrow": "Inteligencia",
+    "inUse": "En uso",
+    "manageKey": "Administrar clave",
+    "notConnected": "No conectado",
+    "switchFailed": "No se pudo cambiar de proveedor de modelo. Intenta de nuevo.",
+    "switching": "Cambiando…",
+    "title": "Proveedor de modelo",
+    "useThis": "Usar este"
   }
 }

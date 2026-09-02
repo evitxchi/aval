@@ -757,5 +757,20 @@
     "taskParked": "Task parked",
     "tasks": "Tasks",
     "whatNeedsToHappen": "What needs to happen?"
+  },
+  "IntelligenceSettings": {
+    "avalDefault": "Aval (default)",
+    "avalDefaultDescription": "Runs on Aval's own shared account. No key required, no separate billing.",
+    "connect": "Connect",
+    "currentlyUsing": "Currently using {provider}.",
+    "currentlyUsingDefault": "Currently using Aval's built-in model — no setup needed.",
+    "eyebrow": "Intelligence",
+    "inUse": "In use",
+    "manageKey": "Manage key",
+    "notConnected": "Not connected",
+    "switchFailed": "Could not switch model providers. Try again.",
+    "switching": "Switching…",
+    "title": "Model provider",
+    "useThis": "Use this"
   }
 }

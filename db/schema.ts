@@ -20,6 +20,10 @@ export const organizations = sqliteTable("organizations", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   ownerUserId: text("owner_user_id").notNull(),
+  // Which connected model-provider ProviderId (integration_connections.provider,
+  // category "Model") powers agents/Ask Aval for this org. Null means Aval's
+  // own bundled Anthropic key (env.ANTHROPIC_API_KEY) — see lib/ask-aval/model-router.ts.
+  activeModelProvider: text("active_model_provider"),
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
 });

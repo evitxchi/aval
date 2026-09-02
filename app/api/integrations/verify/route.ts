@@ -4,6 +4,7 @@ import { getDb } from "@/db";
 import { integrationConnections } from "@/db/schema";
 import { decryptSecret } from "@/lib/integrations/crypto";
 import { getApiIdentity } from "@/lib/integrations/session";
+import { isModelProviderId, verifyModelProviderKey } from "@/lib/integrations/model-providers";
 
 const bindings = () => env as unknown as Record<string, string | undefined>;
 
@@ -21,6 +22,7 @@ async function readJson(response: Response) {
 }
 
 async function verifyCredentials(provider: string, credentials: Record<string, string>, request: Request, connectionId: string) {
+  if (isModelProviderId(provider)) return verifyModelProviderKey(provider, credentials.apiKey);
   if (provider === "telegram") {
     const payload = await readJson(await fetch(`https://api.telegram.org/bot${credentials.botToken}/getMe`));
     const result = payload.result as Record<string, unknown> | undefined;

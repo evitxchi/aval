@@ -324,6 +324,9 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--ink); outli
 .rentmanager-mark { background: #22406b; font-size: 13px; font-weight: 600; }
 .doorloop-mark { background: #12a89d; font-weight: 600; }
 .aval-mark { background: var(--ink); color: var(--inverse-ink); font-family: var(--font-sans); font-weight: 400; }
+.openai-mark { background: #0f0f10; font-size: 12px; font-weight: 600; }
+.zai-mark { background: #4f46e5; font-weight: 600; }
+.siliconflow-mark { background: #7c3aed; font-size: 12px; font-weight: 600; }
 
 .task-toolbar { padding: 15px 0; display: grid; grid-template-columns: minmax(240px, 430px) auto auto; justify-content: end; gap: 8px; }
 .search-field { height: 42px; display: flex; align-items: center; gap: 9px; padding: 0 12px; border: 1px solid var(--line); border-radius: 13px; background: white; color: var(--quiet); }
@@ -920,6 +923,20 @@ html.aval-module-picking .content-shell { cursor: crosshair; }
 .billing-packs { display: flex; flex-wrap: wrap; gap: 8px; }
 
 [data-theme="dark"] .billing-plan-card { background: var(--surface-raised); }
+
+/* ── Intelligence settings (model providers) ────────────────────────────── */
+
+.intelligence-card { grid-column: 1 / -1; min-height: 0; }
+.intelligence-current { margin: 4px 0 14px; color: var(--muted); font-size: 10px; }
+.intelligence-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; }
+.intelligence-provider-card { display: flex; flex-direction: column; gap: 3px; padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-soft); }
+.intelligence-provider-card.active { border-color: var(--ink); }
+.intelligence-provider-card h3 { margin: 8px 0 3px; font-size: 12.5px; font-weight: 500; }
+.intelligence-provider-card > p { margin: 0; color: var(--muted); font-size: 9.5px; line-height: 1.4; }
+.intelligence-provider-actions { margin-top: 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.intelligence-provider-actions .soft-button { min-height: 30px; padding: 0 10px; font-size: 9px; }
+
+[data-theme="dark"] .intelligence-provider-card { background: var(--surface-raised); }
 
 /* ── Automations timeline ────────────────────────────────────────────────── */
 
