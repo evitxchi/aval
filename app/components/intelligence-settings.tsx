@@ -71,7 +71,7 @@ export function IntelligenceSettings() {
       {error && <p className="auth-gate-error">{error}</p>}
 
       <div className="intelligence-grid">
-        <article className={`intelligence-provider-card ${!activeProvider ? "active" : ""}`}>
+        <article className={`intelligence-provider-card connected ${!activeProvider ? "active" : ""}`}>
           <div className="connection-card-top">
             <BrandMark provider="aval" />
             {!activeProvider && <span className="connection-status connected">{t("IntelligenceSettings.inUse")}</span>}
@@ -87,7 +87,7 @@ export function IntelligenceSettings() {
           const connected = provider.connection?.status === "connected";
           const isActive = provider.id === activeProvider;
           return (
-            <article className={`intelligence-provider-card ${isActive ? "active" : ""}`} key={provider.id}>
+            <article className={`intelligence-provider-card ${connected ? "connected" : ""} ${isActive ? "active" : ""}`} key={provider.id}>
               <div className="connection-card-top">
                 <BrandMark provider={provider.id} />
                 <span className={`connection-status ${provider.connection?.status ?? "not-connected"}`}>

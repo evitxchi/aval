@@ -644,3 +644,64 @@ view to import `BrandMark`/`simple-icons` on this route's chunk graph; Connectio
 so without issue). Not root-caused — would need vinext's own (minified, third-party) prefetch
 internals inspected to go further, disproportionate to a caught, invisible-to-the-user
 optimization-path failure. Worth revisiting if a real user-visible symptom ever traces back to it.
+
+## 2026-09-02 — Interaction-design pass: borrowing mentari2.0's motion feel
+
+**Context.** User pointed at `~/Desktop/mentari2.0` (a separate, unrelated Tauri/React desktop
+app) and asked Aval to pick up its animations/dropdowns/tabs/foldouts/buttons "feel" while
+keeping Aval's own sidebar/tab/page layout untouched. Two research passes grounded this: one
+read mentari2.0's actual UI source rather than guessing from screenshots, the other confirmed
+Aval already has a real, deliberate animation system (`cubic-bezier(.2,.8,.2,1)` used throughout
+chart reveals, dialogs, and drawers) — this was never a blank slate, so the brief was which
+specific pieces to borrow without clashing with what's already there.
+
+**What was actually reusable from mentari2.0, and what wasn't.** Its shadcn-style `data-state`
+fade/zoom Tailwind classes are present in its JSX but the plugin that would make them do
+anything (`tailwindcss-animate`) isn't installed there — those panels don't actually animate.
+The one piece of *real, working* motion in that codebase is its Tooltip component, built by hand
+with `duration: 0.2s, ease: [0.16, 1, 0.3, 1]` (a fast-out, no-overshoot curve) plus a scale/fade/
+slide. That's the specific thing worth porting — not a component library, a timing curve.
+
+**What shipped, all in `app/globals.css` plus two small component edits — no new dependency.**
+- A new `--ease-snap: cubic-bezier(.16,1,.3,1)` token, scoped to floating/interactive UI
+  (menus, tabs, foldouts). Aval's existing reveal/chart animations keep their own easing —
+  this doesn't replace them, it sits alongside for a different category of motion.
+- **Buttons**: `.icon-button` is now a true circle (was 12px radius on a 39px square);
+  `.soft-button`/`.primary-button`/`.wide-button` are now fully pill-shaped (`999px`), matching
+  mentari2.0's `rounded-full` control shape. `.primary-button:hover` moved from a hardcoded
+  `background: #2a2a28` to `filter: brightness(.9)` — the hardcoded hex was a **latent dark-theme
+  bug**, found while touching this rule: in dark mode `--ink` is a light fill with dark
+  `--inverse-ink` text, and forcing the hover background to a hardcoded dark gray while the text
+  stayed dark would have made hover text nearly unreadable. `filter: brightness()` darkens
+  correctly in both themes without a `[data-theme="dark"]` override.
+- **Tabs** (`.dialog-tabs button`, `.segmented button`): added a `background`/`box-shadow`/`color`
+  transition on `--ease-snap` — these previously snapped instantly between active/inactive.
+- **Floating menus** (`.profile-menu`, `.menu-popover`): swapped `menu-in`'s plain `ease` for
+  `--ease-snap` and gave the keyframe more travel (`translateY(-5px) scale(.98)` →
+  `translateY(-8px) scale(.95)`), closer to mentari2.0's actual Tooltip motion. Their row buttons
+  gained a real hover transition (previously instant).
+- **Foldouts**: native `<details>`/`<summary>` can't smoothly animate height across browsers
+  (the pseudo-element that would allow it, `::details-content`, is Chrome-only so far). Built a
+  small controlled `Foldout` component (`app/components/connection-dialog.tsx`) using the
+  `grid-template-rows: 0fr → 1fr` technique instead — broadly supported, no library needed —
+  and swapped it in for the one existing `<details>` use (the connection dialog's "technical
+  reference" disclosure), with a chevron that rotates on `--ease-snap`.
+- **Intelligence provider cards** (`app/components/intelligence-settings.tsx`): borrowed
+  mentari2.0's semantic "state = shape" cue directly — `.intelligence-provider-card` now renders
+  a dashed border until a `connected` class is applied (Aval's own bundled default and any
+  provider with a verified connection), then switches to solid, on the same `--ease-snap` timing.
+
+**Deliberately not done.** No new animation dependency (`motion`/Framer Motion) — mentari2.0's
+own real motion is hand-rolled CSS/JS, not library-driven, and Aval's existing system is already
+consistent hand-rolled CSS; adding a library for one easing curve isn't justified. No structural
+"nested chrome" double-panel rebuild of `.menu-popover`/`.profile-menu` — their current single-
+layer look (border + blur + shadow) already reads as a refined floating panel; reworking the
+DOM for a subtler visual nicety wasn't worth the risk relative to what was actually asked for.
+Also noticed but left alone: `guides` copy in `connection-dialog.tsx` promises "Choose the exact
+model in Advanced" for every model provider, but no such per-provider model-override field
+exists anywhere in the UI or the connect API (only `apiKey` is collected) — a real gap, but a
+functional one belonging to the Intelligence *feature* work above, not this aesthetic pass;
+flagged here rather than folded in un-asked-for.
+
+**Verification.** `npm run i18n:check`, `tsc --noEmit`, `npm run lint`, `npm run build`, and
+`node --test` (56 passing) all clean.
