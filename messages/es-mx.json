@@ -340,6 +340,23 @@
     "viewingBooked": "Visita agendada",
     "writeAReplyOrAskAval": "Escribe una respuesta o pregunta a Aval…"
   },
+  "InfrastructureView": {
+    "addMeter": "Agregar medidor",
+    "addMeterError": "No se pudo agregar el medidor. Inténtalo de nuevo.",
+    "billsCount": "{count} recibos",
+    "costPerUnit": "Costo por unidad",
+    "electricity": "Electricidad",
+    "emptyDescription": "Agrega un medidor para empezar a monitorear el consumo y costo de electricidad, agua y gas.",
+    "gas": "Gas",
+    "infrastructure": "Infraestructura",
+    "infrastructureSubtitle": "Consumo de electricidad, agua y otros servicios en todo el portafolio.",
+    "metersCount": "{count} medidores",
+    "propertyLabelPlaceholder": "Nombre de la propiedad o unidad",
+    "totalCost": "Costo total",
+    "totalUsage": "Consumo total",
+    "vsPriorPeriod": "vs. periodo anterior",
+    "water": "Agua"
+  },
   "MobileApp": {
     "acmeResidential": "Acme Residencial",
     "appearance": "Apariencia",
@@ -399,6 +416,7 @@
     "avalTasks": "Tareas de Aval",
     "connections": "Conexiones",
     "documents": "Documentos",
+    "infrastructure": "Infraestructura",
     "leasing": "Arrendamiento",
     "maintenance": "Mantenimiento",
     "operations": "Operaciones",

@@ -23,9 +23,11 @@ import { BrandMark } from "@/app/components/brand-mark";
 import { BillingSettings } from "@/app/components/billing-settings";
 import { AutomationTimeline } from "@/app/components/automation-timeline";
 import { derivedSample, derivePropertyTotals, deriveMaintenanceReported, rankInsights, sampleData, type InsightCandidate, type InsightRecipient, type NotificationItem, type NotificationTarget, type ReviewStatus } from "@/app/data/sample";
+import { infrastructureSummary } from "@/app/data/infrastructure-sample";
+import type { UtilityType } from "@/lib/infrastructure/types";
 import { AccountingSankey, LeasingTrendChart, MaintenanceRoseChart, PropertyOccupancyChart } from "@/app/components/charts";
 
-type View = "overview" | "tasks" | "reviewCenter" | "inbox" | "properties" | "leasing" | "maintenance" | "accounting" | "connections" | "documents" | "settings";
+type View = "overview" | "tasks" | "reviewCenter" | "inbox" | "properties" | "leasing" | "maintenance" | "accounting" | "infrastructure" | "connections" | "documents" | "settings";
 type DataMode = "sample" | "empty" | "live";
 type Provider = {
   id: string; title: string; category: string; description: string; authMode: string;
@@ -48,6 +50,7 @@ const navGroups: { labelKey: string; items: { id: View; labelKey: string; icon: 
     { id: "leasing", labelKey: "Nav.leasing", icon: User },
     { id: "maintenance", labelKey: "Nav.maintenance", icon: Tools },
     { id: "accounting", labelKey: "Nav.accounting", icon: CoinsSwap },
+    { id: "infrastructure", labelKey: "Nav.infrastructure", icon: Flash },
   ]},
   { labelKey: "Nav.workspace", items: [
     { id: "connections", labelKey: "Nav.connections", icon: NetworkLeft },
@@ -971,6 +974,32 @@ function OperationsView({ view, openConnections, dataMode, providers }: { view: 
   </div>;
 }
 
+// Not gated behind a Provider connection like OperationsView's tabs — meters
+// and bills are native Aval data (lib/infrastructure/), not synced from an
+// upstream PMS/accounting system, so there's no "connect a source" story
+// here. Sample mode shows the real derived rows from
+// app/data/infrastructure-sample.ts; anything else is "no meters yet".
+const UTILITY_LABEL_KEY: Record<UtilityType, string> = {
+  electricity: "InfrastructureView.electricity",
+  water: "InfrastructureView.water",
+  gas: "InfrastructureView.gas",
+};
+function InfrastructureView({ dataMode, onAddMeter }: { dataMode: DataMode; onAddMeter: () => void }) {
+  const t = useTranslations();
+  const isSample = dataMode === "sample";
+  return <div className="view-wrap">
+    <AppHeader title={t("InfrastructureView.infrastructure")} subtitle={t("InfrastructureView.infrastructureSubtitle")} actions={<button className="primary-button" onClick={onAddMeter}><Flash width={18} height={18}/>{t("InfrastructureView.addMeter")}</button>}/>
+    {isSample
+      ? <section className="metric-grid">{infrastructureSummary.map((row) => <article className="metric-card" data-reveal key={row.utilityType}>
+          <div className="metric-top"><span>{t(UTILITY_LABEL_KEY[row.utilityType])}</span><Flash width={18} height={18}/></div>
+          <strong>{row.totalCostFormatted}</strong>
+          <div className="metric-meta"><span>{row.usageVariancePct >= 0 ? "+" : ""}{row.usageVariancePct.toFixed(1)}%</span> {t("InfrastructureView.vsPriorPeriod")}</div>
+          <p className="empty-copy">{t("InfrastructureView.totalUsage")}: {row.totalUsage.toLocaleString()} {row.unitOfMeasure} · {t("InfrastructureView.metersCount", { count: row.meterCount })} · {t("InfrastructureView.billsCount", { count: row.billCount })}</p>
+        </article>)}</section>
+      : <section className="panel locked-panel" data-reveal><div className="locked-visual"><div className="locking-lines"><i/><i/><i/></div><span><Flash width={23} height={23}/></span></div><div><p className="eyebrow">{t("InfrastructureView.infrastructure")}</p><h2>{t("InfrastructureView.emptyDescription")}</h2><button className="primary-button" onClick={onAddMeter}>{t("InfrastructureView.addMeter")}<NavArrowRight width={17} height={17}/></button></div></section>}
+  </div>;
+}
+
 function SettingsView({ openConnections, displayName, email }: { openConnections: () => void; displayName: string; email: string }) {
   const initials = displayName.trim().split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase() || "?";
   const { theme, setTheme, sounds, setSounds, notify } = useExperience();
@@ -1052,6 +1081,77 @@ function ConnectionDialog({ provider, onClose, onRefresh }: { provider: Provider
   return <Dialog.Root open onOpenChange={(open) => !open && onClose()}><Dialog.Portal><Dialog.Overlay className="dialog-overlay"/><Dialog.Content className="connection-dialog"><div className="dialog-top"><BrandMark provider={provider.id}/><Dialog.Close className="icon-button"><Xmark width={20} height={20}/></Dialog.Close></div><Dialog.Title>{provider.title}</Dialog.Title><Dialog.Description>{provider.description}</Dialog.Description><div className="dialog-status-row"><span><ShieldCheck width={16} height={16}/>{provider.readOnly ? t("ConnectionDialog.readAccess") : t("ConnectionDialog.twoWayChannel")}</span><span><Key width={16} height={16}/>{provider.authMode.replace("_", " ")}</span><span><NetworkLeft width={16} height={16}/>{provider.webhook ? "Webhook + sync" : t("ConnectionDialog.scheduledSync")}</span></div><Tabs.Root defaultValue="readiness"><Tabs.List className="dialog-tabs three"><Tabs.Trigger value="readiness">{t("ConnectionDialog.readiness")}</Tabs.Trigger><Tabs.Trigger value="access">{t("ConnectionDialog.access")}</Tabs.Trigger><Tabs.Trigger value="flow">{t("ConnectionDialog.flow")}</Tabs.Trigger></Tabs.List><Tabs.Content value="readiness"><div className="readiness-grid"><div><p>{t("ConnectionDialog.avalConfiguresOnce")}</p>{providerGuide.aval.map((item) => <span key={item}><Check width={15} height={15}/>{item}</span>)}</div><div><p>{t("ConnectionDialog.customerBrings")}</p>{providerGuide.customer.map((item) => <span key={item}><User width={15} height={15}/>{item}</span>)}</div></div><p className="proof-note"><ShieldCheck width={16} height={16}/>{providerGuide.proof}</p>{blocked && <div className="setup-warning"><strong>{t("ConnectionDialog.notYetAvailableTitle")}</strong><p>{t("ConnectionDialog.notYetAvailableBody")}</p><details className="setup-warning-technical"><summary>{t("ConnectionDialog.technicalReferenceForSupport")}</summary><span>{provider.env.join(" · ")}</span></details></div>}</Tabs.Content><Tabs.Content value="access"><div className="permission-box"><p>{t("ConnectionDialog.avalWillRequest")}</p>{provider.permissions.map((permission) => <span key={permission}><Check width={16} height={16}/>{permission}</span>)}</div><p className="connection-note">{provider.note}</p></Tabs.Content><Tabs.Content value="flow"><ol className="architecture-list"><li><b>01</b><span><strong>{t("ConnectionDialog.authorize")}</strong>{t("ConnectionDialog.consentIsScopedToThisWorkspace")}</span></li><li><b>02</b><span><strong>{t("ConnectionDialog.verify")}</strong>{t("ConnectionDialog.avalTestsTheActualUpstreamIdentity")}</span></li><li><b>03</b><span><strong>{t("ConnectionDialog.normalize")}</strong>{t("ConnectionDialog.sourceIdsAndTimestampsRemainTraceable")}</span></li></ol></Tabs.Content></Tabs.Root>{provider.authMode === "qr_link" && <div className="qr-link-panel"><QrPlaceholder/><div><p>{t("ConnectionDialog.qrLinkInstructions")}</p><span className="qr-link-status"><span className="presence-dot"/>{status === "working" ? t("ConnectionDialog.waitingForScan") : t("ConnectionDialog.qrLinkReady")}</span></div></div>}{provider.authMode !== "oauth2" && provider.authMode !== "qr_link" && <form className="credential-form" onSubmit={connect}>{provider.credentialFields?.map((field) => <label key={field.key}>{field.label}<input type={field.secret ? "password" : "text"} value={credentials[field.key] ?? ""} onChange={(event) => setCredentials((current) => ({ ...current, [field.key]: event.target.value }))} autoComplete="off" required/></label>)}</form>}{message && <p className={`dialog-message ${status}`}>{message}</p>}<div className="dialog-actions"><button className="soft-button" onClick={onClose}>{t("ConnectionDialog.cancel")}</button><button className="primary-button" disabled={status === "working" || status === "saved" || blocked} onClick={() => connect()}>{status === "working" ? (provider.authMode === "qr_link" ? t("ConnectionDialog.waitingForScan") : t("ConnectionDialog.verifying")) : status === "saved" ? t("ConnectionDialog.saved") : blocked ? t("ConnectionDialog.avalSetupRequired") : provider.authMode === "oauth2" ? t("ConnectionDialog.continueToAuthorization") : provider.authMode === "qr_link" ? t("ConnectionDialog.linkDevice") : t("ConnectionDialog.encryptVerify")}<NavArrowRight width={17} height={17}/></button></div></Dialog.Content></Dialog.Portal></Dialog.Root>;
 }
 
+const UTILITY_TYPE_OPTIONS: UtilityType[] = ["electricity", "water", "gas"];
+const DEFAULT_UNIT_BY_UTILITY: Record<UtilityType, string> = { electricity: "kWh", water: "gal", gas: "therm" };
+
+/**
+ * Creates a real utility_meters row via POST /api/infrastructure/meters.
+ * Sample mode's KPI tiles (app/data/infrastructure-sample.ts) won't reflect
+ * a newly-added meter — the same is true of every "Connect data" flow
+ * elsewhere in this file, where sample-mode tiles are driven by
+ * dataMode, not by what's actually connected/created.
+ */
+function AddMeterDialog({ onClose }: { onClose: () => void }) {
+  const t = useTranslations();
+  const { notify } = useExperience();
+  const [propertyLabel, setPropertyLabel] = useState("");
+  const [utilityType, setUtilityType] = useState<UtilityType>("electricity");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    const label = propertyLabel.trim();
+    if (!label || submitting) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/infrastructure/meters", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ utilityType, propertyLabel: label, unitOfMeasure: DEFAULT_UNIT_BY_UTILITY[utilityType] }),
+      });
+      const data = (await response.json().catch(() => ({}))) as { error?: string };
+      if (response.ok) {
+        notify(t("InfrastructureView.addMeter"), label);
+        onClose();
+      } else {
+        setError(data.error || t("InfrastructureView.addMeterError"));
+      }
+    } catch {
+      setError(t("InfrastructureView.addMeterError"));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog.Root open onOpenChange={(open) => !open && onClose()}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="dialog-overlay" />
+        <Dialog.Content className="small-dialog">
+          <div className="dialog-top">
+            <Dialog.Title>{t("InfrastructureView.addMeter")}</Dialog.Title>
+            <Dialog.Close className="icon-button" aria-label={t("Overview.close")}><Xmark width={20} height={20} /></Dialog.Close>
+          </div>
+          <form className="aval-draft-panel" onSubmit={submit}>
+            <input value={propertyLabel} onChange={(event) => setPropertyLabel(event.target.value)} placeholder={t("InfrastructureView.propertyLabelPlaceholder")} autoFocus />
+            <div className="aval-draft-panel-row">
+              <select value={utilityType} onChange={(event) => setUtilityType(event.target.value as UtilityType)}>
+                {UTILITY_TYPE_OPTIONS.map((option) => <option key={option} value={option}>{t(UTILITY_LABEL_KEY[option])}</option>)}
+              </select>
+              <button type="submit" className="primary-button" disabled={!propertyLabel.trim() || submitting}>
+                <NavArrowRight width={16} height={16} />{t("InfrastructureView.addMeter")}
+              </button>
+            </div>
+            {error && <p className="aval-agent-create-error">{error}</p>}
+          </form>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
+
 function DesktopApp({ authMode, displayName, email }: { authMode: AuthMode; displayName: string; email: string }) {
   const initials = displayName.trim().split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase() || "?";
   const { market, setMarket, theme, setTheme, sounds, setSounds, celebrate, notify } = useExperience();
@@ -1060,7 +1160,7 @@ function DesktopApp({ authMode, displayName, email }: { authMode: AuthMode; disp
   const { jobs: draftJobs, createJob: createDraftJob, pauseJob: pauseDraftJob, resumeJob: resumeDraftJob, retryJob: retryDraftJob, sendJob: sendDraftJob } = useDraftJobs(currentLocale);
   const router = useRouter();
   const pathname = usePathname();
-  const switchLocale = (nextLocale: "en" | "es-mx") => router.replace(pathname, { locale: nextLocale }); const [view, setView] = useState<View>(() => { if (typeof window === "undefined") return "overview"; const requested = new URLSearchParams(window.location.search).get("view") as View | null; return requested && navGroups.some((group) => group.items.some((item) => item.id === requested)) ? requested : "overview"; }); const [dataMode] = useState<DataMode>(() => { if (typeof window === "undefined") return "sample"; const requested = new URLSearchParams(window.location.search).get("data"); return requested === "empty" || requested === "live" ? requested : "sample"; }); const [providers, setProviders] = useState<Provider[]>(fallbackProviders); const [loading, setLoading] = useState(true); const [selectedProvider, setSelectedProvider] = useState<Provider | null>(null); const [collapsed, setCollapsed] = useState(false); const [profile, setProfile] = useState(false); const [notifications, setNotifications] = useState(false); const [notificationItems, setNotificationItems] = useState<NotificationItem[]>(sampleData.notifications.items); const [pendingTarget, setPendingTarget] = useState<NotificationTarget | null>(null); const [targetToken, setTargetToken] = useState(0); const unreadCount = notificationItems.filter((item) => !item.read).length; const accountingProviderId = market === "latam" ? "contpaqi" : "quickbooks";
+  const switchLocale = (nextLocale: "en" | "es-mx") => router.replace(pathname, { locale: nextLocale }); const [view, setView] = useState<View>(() => { if (typeof window === "undefined") return "overview"; const requested = new URLSearchParams(window.location.search).get("view") as View | null; return requested && navGroups.some((group) => group.items.some((item) => item.id === requested)) ? requested : "overview"; }); const [dataMode] = useState<DataMode>(() => { if (typeof window === "undefined") return "sample"; const requested = new URLSearchParams(window.location.search).get("data"); return requested === "empty" || requested === "live" ? requested : "sample"; }); const [providers, setProviders] = useState<Provider[]>(fallbackProviders); const [loading, setLoading] = useState(true); const [selectedProvider, setSelectedProvider] = useState<Provider | null>(null); const [addMeterOpen, setAddMeterOpen] = useState(false); const [collapsed, setCollapsed] = useState(false); const [profile, setProfile] = useState(false); const [notifications, setNotifications] = useState(false); const [notificationItems, setNotificationItems] = useState<NotificationItem[]>(sampleData.notifications.items); const [pendingTarget, setPendingTarget] = useState<NotificationTarget | null>(null); const [targetToken, setTargetToken] = useState(0); const unreadCount = notificationItems.filter((item) => !item.read).length; const accountingProviderId = market === "latam" ? "contpaqi" : "quickbooks";
   const [reviewStatuses, setReviewStatuses] = useState<Record<string, ReviewStatus>>(() => Object.fromEntries(sampleData.insights.candidates.map((candidate) => [candidate.id, candidate.initialStatus ?? "pending"])));
   const [sentReceipts, setSentReceipts] = useState<Record<string, InsightRecipient[]>>(() => {
     const receipts: Record<string, InsightRecipient[]> = {};
@@ -1145,7 +1245,7 @@ function DesktopApp({ authMode, displayName, email }: { authMode: AuthMode; disp
         ? <button type="button" onClick={signOutOfPasswordAccount}><LogOut width={17} height={17}/>{t("DesktopApp.signOut")}</button>
         // eslint-disable-next-line @next/next/no-html-link-for-pages -- external platform sign-out route, not part of this app router
         : <a href="/signout-with-chatgpt?return_to=/"><LogOut width={17} height={17}/>{t("DesktopApp.signOut")}</a>}
-      </div>}</aside><section className="content-shell" aria-label={t(titleKey)}>{view === "overview" && <Overview openConnections={openConnections} dataMode={dataMode} providers={providers} pendingTarget={pendingTarget} targetToken={targetToken} reviewStatuses={reviewStatuses} sentReceipts={sentReceipts} onApprove={approveInsight} onDeny={denyInsight} onSendReminders={sendReminderBatch} onCreateDraft={createDraftJob}/>} {view === "tasks" && <TasksView draftJobs={draftJobs} onCreateDraft={createDraftJob} onPauseDraft={pauseDraftJob} onResumeDraft={resumeDraftJob} onRetryDraft={retryDraftJob} onSendDraft={sendDraftJob}/>} {view === "reviewCenter" && <ReviewCenterView reviewStatuses={reviewStatuses} sentReceipts={sentReceipts} onApprove={approveInsight} onDeny={denyInsight} onSendReminders={sendReminderBatch}/>} {view === "inbox" && <InboxView pendingTarget={pendingTarget} targetToken={targetToken}/>} {view === "connections" && <ConnectionsView providers={providers} loading={loading} onOpen={openProvider}/>} {view === "settings" && <SettingsView openConnections={openConnections} displayName={displayName} email={email}/>} {(["properties", "leasing", "maintenance", "accounting", "documents"] as View[]).includes(view) && <OperationsView view={view} openConnections={openConnections} dataMode={dataMode} providers={providers}/>}</section>{selectedProvider && <ConnectionDialog provider={selectedProvider} onClose={() => setSelectedProvider(null)} onRefresh={loadProviders}/>}<Dialog.Root open={notifications} onOpenChange={setNotifications}><Dialog.Portal><Dialog.Overlay className="dialog-overlay subtle"/><Dialog.Content className="notification-drawer"><div className="drawer-heading"><div><p className="eyebrow">{t("DesktopApp.liveWorkspace")}</p><Dialog.Title>{t("DesktopApp.notifications")}</Dialog.Title></div><Dialog.Close className="icon-button" aria-label={t("Overview.close")}><Xmark width={20} height={20}/></Dialog.Close></div><div className="notification-list">{notificationItems.map((item) => <button key={item.id} className={item.read ? "" : "unread"} onClick={() => openNotification(item)}><BrandMark provider={resolveNotificationProvider(item)} small/><span><strong>{t(item.titleKey)}</strong><small>{t(item.detailKey, item.detailParams)}</small></span><span className="notif-trailing">{!item.read && <i className="unread-dot"/>}<time>{formatMinutesAgo(item.minutesAgo, currentLocale)}</time></span></button>)}</div><button className="wide-button" onClick={() => setNotificationItems((current) => current.map((item) => ({ ...item, read: true })))}><Check width={17} height={17}/>{unreadCount ? t("DesktopApp.markAllAsRead") : t("DesktopApp.allCaughtUp")}</button></Dialog.Content></Dialog.Portal></Dialog.Root><AvalAssistant view={view} onCreateDraft={createDraftJob}/></main>;
+      </div>}</aside><section className="content-shell" aria-label={t(titleKey)}>{view === "overview" && <Overview openConnections={openConnections} dataMode={dataMode} providers={providers} pendingTarget={pendingTarget} targetToken={targetToken} reviewStatuses={reviewStatuses} sentReceipts={sentReceipts} onApprove={approveInsight} onDeny={denyInsight} onSendReminders={sendReminderBatch} onCreateDraft={createDraftJob}/>} {view === "tasks" && <TasksView draftJobs={draftJobs} onCreateDraft={createDraftJob} onPauseDraft={pauseDraftJob} onResumeDraft={resumeDraftJob} onRetryDraft={retryDraftJob} onSendDraft={sendDraftJob}/>} {view === "reviewCenter" && <ReviewCenterView reviewStatuses={reviewStatuses} sentReceipts={sentReceipts} onApprove={approveInsight} onDeny={denyInsight} onSendReminders={sendReminderBatch}/>} {view === "inbox" && <InboxView pendingTarget={pendingTarget} targetToken={targetToken}/>} {view === "connections" && <ConnectionsView providers={providers} loading={loading} onOpen={openProvider}/>} {view === "settings" && <SettingsView openConnections={openConnections} displayName={displayName} email={email}/>} {view === "infrastructure" && <InfrastructureView dataMode={dataMode} onAddMeter={() => setAddMeterOpen(true)}/>} {(["properties", "leasing", "maintenance", "accounting", "documents"] as View[]).includes(view) && <OperationsView view={view} openConnections={openConnections} dataMode={dataMode} providers={providers}/>}</section>{selectedProvider && <ConnectionDialog provider={selectedProvider} onClose={() => setSelectedProvider(null)} onRefresh={loadProviders}/>}{addMeterOpen && <AddMeterDialog onClose={() => setAddMeterOpen(false)}/>}<Dialog.Root open={notifications} onOpenChange={setNotifications}><Dialog.Portal><Dialog.Overlay className="dialog-overlay subtle"/><Dialog.Content className="notification-drawer"><div className="drawer-heading"><div><p className="eyebrow">{t("DesktopApp.liveWorkspace")}</p><Dialog.Title>{t("DesktopApp.notifications")}</Dialog.Title></div><Dialog.Close className="icon-button" aria-label={t("Overview.close")}><Xmark width={20} height={20}/></Dialog.Close></div><div className="notification-list">{notificationItems.map((item) => <button key={item.id} className={item.read ? "" : "unread"} onClick={() => openNotification(item)}><BrandMark provider={resolveNotificationProvider(item)} small/><span><strong>{t(item.titleKey)}</strong><small>{t(item.detailKey, item.detailParams)}</small></span><span className="notif-trailing">{!item.read && <i className="unread-dot"/>}<time>{formatMinutesAgo(item.minutesAgo, currentLocale)}</time></span></button>)}</div><button className="wide-button" onClick={() => setNotificationItems((current) => current.map((item) => ({ ...item, read: true })))}><Check width={17} height={17}/>{unreadCount ? t("DesktopApp.markAllAsRead") : t("DesktopApp.allCaughtUp")}</button></Dialog.Content></Dialog.Portal></Dialog.Root><AvalAssistant view={view} onCreateDraft={createDraftJob}/></main>;
 }
 
 export function AvalDashboard({ authMode, displayName, email }: { authMode: AuthMode; displayName: string; email: string }) { return <ExperienceProvider><DesktopApp authMode={authMode} displayName={displayName} email={email}/></ExperienceProvider>; }

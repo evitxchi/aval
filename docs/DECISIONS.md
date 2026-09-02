@@ -412,3 +412,49 @@ cleared.
 the tool list renders inside the same scrollable section fixed in the earlier overlap-bug entry
 with no regression, unchecking every box disables submission, and the error path displays and
 recovers correctly.
+
+## 2026-09-02 — Infrastructure gets a dashboard surface, closing the last deferred item
+
+**Context.** The very first ask this session was for an "infrastructure" module for electricity/
+water measurement; the backend shipped hours ago, but this file's first entry deliberately left
+it with no dashboard tile — `dashboard-client.tsx` looked, from a dev-server stack trace, like a
+~7000-line file too risky to touch blind. Rereading it directly (`wc -l`) showed 1151 lines —
+long single-line component bodies, not actually 7000 lines; the stack trace numbers were from
+Vite's transformed dev output, not the real source. With that corrected, and the user back and
+saying to keep building, this was worth finishing properly rather than leaving deferred forever.
+
+**What shipped.** `app/data/infrastructure-sample.ts`: raw electricity/water readings for two
+periods, with every displayed figure (cost, usage variance, cost per unit) derived through the
+*real* production libraries — `lib/infrastructure/usage-metrics.ts` and `lib/finance/money.ts`,
+the same ones `/api/infrastructure/summary` uses — not a second hand-typed copy of the numbers.
+A dedicated consistency test (`tests/infrastructure-sample-data.test.ts`) guards against drift,
+mirroring `sample.ts`'s own discipline without touching that file or its `assertSampleConsistency`
+directly — this is genuinely separate ground.
+
+A new `InfrastructureView` in `dashboard-client.tsx`, added as its own explicit view (not folded
+into `OperationsView`, which gates its tabs behind a PMS/accounting Provider connection — meters
+and bills are native Aval data with no upstream system to connect, so that "locked until
+connected" story doesn't apply here). Reuses `AppHeader` and the existing `.metric-grid`/
+`.metric-card` styling verbatim — no new CSS needed for the tiles themselves. A new nav entry
+under "Operations" (`Flash` icon, already imported for the Overview insights panel — reused, not
+a new icon dependency).
+
+`AddMeterDialog` — a real creation flow, not a dead button: posts to the already-existing
+`POST /api/infrastructure/meters`, with the same inline-error-on-failure pattern built for agent
+creation, reusing its `.aval-agent-create-error` styling. Like every other "Connect data" action
+in this file, a newly-created meter won't move the sample-mode tiles — sample mode is driven by
+`dataMode`, not by what's actually been connected or created, matching how the rest of the
+dashboard already works, not a new inconsistency.
+
+**Verification.** `tsc --noEmit`, `npm run build`, `npm run lint`, `npm run i18n:check`, and
+`node --test` (56 passing, including the pre-existing "server-renders the Aval connected
+operations dashboard" test — unbroken) all clean. Verified live in a browser (Playwright,
+production build): the Infrastructure nav item, KPI tiles with real derived numbers, and the
+add-meter dialog all render correctly; a failed submission (this sandbox's D1-less local preview)
+shows the inline error and leaves the form usable, not stuck.
+
+**Deliberately still not done:** no edit/delete UI for existing meters, no bill-entry UI (the
+`POST /api/infrastructure/bills` and `/bills/extract` routes exist but nothing in the dashboard
+calls them yet), and no live-mode data fetch — matching every other view in this file, which
+also don't fetch live data yet, "live" mode uniformly just means "not sample," not a real API
+call.

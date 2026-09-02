@@ -340,6 +340,23 @@
     "viewingBooked": "Viewing booked",
     "writeAReplyOrAskAval": "Write a reply or ask Aval…"
   },
+  "InfrastructureView": {
+    "addMeter": "Add a meter",
+    "addMeterError": "Could not add this meter. Try again.",
+    "billsCount": "{count} bills",
+    "costPerUnit": "Cost per unit",
+    "electricity": "Electricity",
+    "emptyDescription": "Add a meter to start tracking electricity, water, and gas usage and cost.",
+    "gas": "Gas",
+    "infrastructure": "Infrastructure",
+    "infrastructureSubtitle": "Electricity, water, and other utility usage across the portfolio.",
+    "metersCount": "{count} meters",
+    "propertyLabelPlaceholder": "Property or unit name",
+    "totalCost": "Total cost",
+    "totalUsage": "Total usage",
+    "vsPriorPeriod": "vs prior period",
+    "water": "Water"
+  },
   "MobileApp": {
     "acmeResidential": "Acme Residential",
     "appearance": "Appearance",
@@ -399,6 +416,7 @@
     "avalTasks": "Aval tasks",
     "connections": "Connections",
     "documents": "Documents",
+    "infrastructure": "Infrastructure",
     "leasing": "Leasing",
     "maintenance": "Maintenance",
     "operations": "Operations",
