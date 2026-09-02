@@ -28,14 +28,17 @@ export type ProviderId =
   | "zai"
   | "deepseek"
   | "alibaba_model_studio"
-  | "siliconflow";
+  | "siliconflow"
+  | "claude"
+  | "chatgpt";
 
 export type IntegrationProvider = {
   id: ProviderId;
   title: string;
   category: "Accounting" | "Leasing & PMS" | "Communication" | "Knowledge" | "Model";
   description: string;
-  authMode: "oauth2" | "credentials" | "bot_token" | "api_key" | "msp" | "qr_link";
+  /** "oauth_subscription_paste" — see lib/integrations/subscription-oauth.ts's file comment for exactly why this can't be a normal server-redirect "oauth2" flow. */
+  authMode: "oauth2" | "credentials" | "bot_token" | "api_key" | "msp" | "qr_link" | "oauth_subscription_paste";
   permissions: string[];
   credentialFields?: { key: string; label: string; secret?: boolean }[];
   env: string[];
@@ -46,6 +49,8 @@ export type IntegrationProvider = {
   baseUrl?: string;
   /** Model providers only — shown as the default model id; users can override per-connection later. */
   defaultModel?: string;
+  /** Subscription providers only (authMode "oauth_subscription_paste") — the API-key provider this connection is an alternative to. The UI folds this provider's "connect" affordance into that provider's own card instead of listing it separately (mentari2.0's "twin" pattern). */
+  subscriptionOf?: ProviderId;
 };
 
 export const MODEL_PROVIDER_IDS: ReadonlySet<ProviderId> = new Set([
@@ -58,6 +63,8 @@ export const MODEL_PROVIDER_IDS: ReadonlySet<ProviderId> = new Set([
   "deepseek",
   "alibaba_model_studio",
   "siliconflow",
+  "claude",
+  "chatgpt",
 ]);
 
 export const integrationCatalog: IntegrationProvider[] = [
@@ -489,6 +496,32 @@ export const integrationCatalog: IntegrationProvider[] = [
     note: "Uses SiliconFlow's OpenAI-compatible endpoint.",
     baseUrl: "https://api.siliconflow.cn/v1",
     defaultModel: "deepseek-ai/DeepSeek-V3",
+  },
+  {
+    id: "claude",
+    title: "Claude Pro / Max",
+    category: "Model",
+    description: "Connect your Claude Pro or Max subscription instead of pasting a separate API key.",
+    authMode: "oauth_subscription_paste",
+    permissions: ["Model calls billed to your Claude subscription"],
+    env: [],
+    webhook: false,
+    readOnly: true,
+    note: "Uses the same OAuth client Claude Code uses. Aval never sees your Anthropic password — only a subscription access token you authorize, which you can revoke anytime from your Anthropic account.",
+    subscriptionOf: "anthropic",
+  },
+  {
+    id: "chatgpt",
+    title: "ChatGPT Plus / Pro",
+    category: "Model",
+    description: "Connect your ChatGPT Plus or Pro subscription instead of pasting a separate API key.",
+    authMode: "oauth_subscription_paste",
+    permissions: ["Model calls billed to your ChatGPT subscription, via the Codex backend"],
+    env: [],
+    webhook: false,
+    readOnly: true,
+    note: "Uses the same OAuth client the Codex CLI uses. Aval never sees your OpenAI password — only a subscription access token you authorize, which you can revoke anytime from your OpenAI account.",
+    subscriptionOf: "openai",
   },
 ];
 

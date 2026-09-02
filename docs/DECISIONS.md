@@ -845,3 +845,88 @@ so none was attempted.
 
 **Verification.** `npm run i18n:check`, `tsc --noEmit`, `npm run lint`, `npm run build`, and
 `node --test` (56 passing) all clean.
+
+## 2026-09-02 — Real Claude/ChatGPT subscription linking, and a page reformat to match mentari2.0
+
+**Context.** The prior Intelligence-page entry deliberately did not build OAuth "connect your
+subscription" buttons, reasoning that neither Anthropic nor OpenAI publishes a client-
+registration path for a third-party server app to place general chat calls against a personal
+subscription. The user pushed back explicitly, asking for exactly how a separate local
+reference project (`~/Desktop/mentari2.0`, a desktop app) does this, then — after being told
+plainly what the mechanism actually is and its risk for a hosted, multi-tenant SaaS specifically
+(one client-ID action from either provider would affect every connected org at once, not one
+hobbyist's install) — said to build it anyway. That answer is what shipped here; the tradeoff
+was surfaced before building, not decided unilaterally.
+
+**The mechanism, read directly from mentari2.0's real source** (`apps/desktop/src/settings/ai/
+llm/subscriptions/{oauth,fetch,access,credential}.ts`), not reverse-engineered: OAuth 2.0
+Authorization Code + PKCE, using the same public client IDs Anthropic's and OpenAI's own CLI
+tools use (`9d1c250a-e61b-44d9-88ed-5944d1962f5e` for Claude Code, `app_EMoamEEZ73f0CkXaXp7hrann`
+for Codex) — this presents Aval to those providers' OAuth servers *as* those official clients,
+not as a distinct, Aval-registered app. Neither flow redirects to a server the connecting app
+controls: Claude's redirect_uri is Anthropic's own `platform.claude.com` page, which hands the
+user a code to copy; ChatGPT's is a fixed `localhost:1455` loopback meant for a locally-running
+CLI, which just fails to load in a browser — but the code/state survive in the address bar
+regardless. Both end in the user pasting what they see back into the app; that's not a
+workaround this build had to invent, it's the exact fallback mentari2.0 itself ships, since a
+hosted web app hits the same structural wall as any non-local caller.
+
+**What shipped, reusing existing infrastructure wherever it already fit:**
+- `lib/integrations/subscription-oauth.ts` — PKCE, the authorize-URL builders, pasted-input
+  parsing (a full URL or a bare `code`/`code#state`), and code exchange/refresh against both
+  providers' real token endpoints.
+- Two new routes, `/api/integrations/subscription/{start,complete}`, reusing this app's
+  *existing* `oauth_states` PKCE-verifier table unchanged — the only OAuth providers here that
+  don't end in a server-side redirect callback, but the state/verifier storage need was
+  identical. A failed paste doesn't consume the state, so a mistyped paste can be retried
+  against the same PKCE verifier.
+- Credentials land in `integration_connections`' existing `access_token_ciphertext`/
+  `refresh_token_ciphertext`/`expires_at` columns — the same columns this app's other real OAuth
+  providers (Slack, Notion, Xero, ...) already use. No migration needed.
+- `lib/ask-aval/model-router.ts` now branches on `authMode` at read time: a subscription
+  connection gets its access token refreshed (and re-encrypted back to the same row) if within
+  two minutes of expiry, then dispatches to one of two new adapters — `claude-oauth.ts` (a
+  direct fetch against Anthropic's real Messages API with the Claude-Code-specific headers and
+  Bearer auth instead of `x-api-key`, since the SDK-based `callClaude` is built around API-key
+  auth) and `chatgpt-oauth.ts` (a genuinely new translator, since the Codex backend only speaks
+  the Responses API `input`/`output` shape — a different wire format from every other provider
+  here, which all use `/chat/completions`).
+- `/api/integrations/reset` — a disconnect endpoint that didn't exist before (mentari2.0's own
+  "Reset" link needed something to call); deletes the connection row and clears the org's active
+  provider if it pointed there.
+- Catalog gained `claude`/`chatgpt` entries with a new `subscriptionOf` field (mentari2.0's
+  "twin" pattern) pointing at `anthropic`/`openai` — the UI folds the subscription option into
+  its API-key twin's own row instead of listing it separately.
+
+**The page was rebuilt to actually match mentari2.0's layout**, not just gain a new button:
+`intelligence-settings.tsx` no longer opens the shared modal `ConnectionDialog` for model
+providers — a "Model being used" summary row sits above a searchable, accordion-style "Configure
+Providers" list (`Foldout`'s grid-template-rows technique, extracted to `app/components/
+foldout.tsx` so both files could share it), each row expanding inline to "Paste an API key, or
+connect your [X] plan" with a divider, matching the reference screenshots' actual copy pattern.
+`ConnectionDialog` itself is untouched and still serves the Connections page's non-model
+integrations, which weren't asked to be reformatted.
+
+**Deliberately scoped down, and why:** no live model-search combobox (mentari2.0's "Model being
+used" row lets you search/type any model id with a live list fetched from the provider) — Aval
+has no such live-list-fetching capability today, and building one wasn't the ask; the row here
+is a read-only summary instead. No per-connection model override for the two subscription
+providers specifically (the existing Advanced/model-override field lives inside the API-key
+path's JSON credential blob, which subscription connections don't use) — Claude defaults to
+`claude-sonnet-5`, ChatGPT to a fixed Codex model id, matching this session's existing
+API-key-provider defaults pattern rather than inventing a second override mechanism for one
+pass. Both are real gaps relative to full parity with the reference, flagged rather than
+silently accepted.
+
+**A separate style reference arrived mid-build** (five unrelated clean dashboard/SaaS UI
+screenshots) — read as general taste calibration for spacing/card/button treatment, not a
+change of layout instruction; nothing here was rebuilt against them, since the mentari2.0
+reformat above already lands in the same register (generous padding, restrained borders, plain
+hierarchy) they illustrate.
+
+**Verification.** `tsc --noEmit`, `npm run lint`, `npm run i18n:check`, `npm run build`
+(confirmed all four new routes registered), and `node --test` (56 passing) all clean. Not yet
+exercised against a real Claude Pro/Max or ChatGPT Plus/Pro account end-to-end — this sandbox
+has no such account to authorize with, and no browser to complete the OAuth hop through — so
+this is type/build-verified, not live-request-verified, until a real deploy and a real account
+walk through it once.

@@ -1,0 +1,74 @@
+import { env } from "cloudflare:workers";
+import { and, eq } from "drizzle-orm";
+import { getDb } from "@/db";
+import { integrationConnections, oauthStates } from "@/db/schema";
+import { encryptSecret } from "@/lib/integrations/crypto";
+import { getProvider } from "@/lib/integrations/catalog";
+import { exchangeSubscriptionCode, isSubscriptionProviderId, parsePastedAuthorization } from "@/lib/integrations/subscription-oauth";
+import { getApiIdentity } from "@/lib/integrations/session";
+
+const bindings = () => env as unknown as Record<string, string | undefined>;
+
+/**
+ * POST /api/integrations/subscription/complete
+ * Finishes connecting a Claude/ChatGPT subscription: the user pastes back
+ * whatever their browser showed after authorizing (the code Anthropic's
+ * page displays, or the failed-to-load localhost URL OpenAI's flow
+ * redirects to — see subscription-oauth.ts). The `oauth_states` row isn't
+ * deleted on a failed parse/exchange, so a mistyped paste can be retried
+ * against the same PKCE verifier without restarting the whole flow.
+ */
+export async function POST(request: Request) {
+  const identity = await getApiIdentity(request);
+  if (!identity) return Response.json({ error: "Authentication required" }, { status: 401 });
+  const body = await request.json().catch(() => ({})) as { provider?: string; state?: string; pastedInput?: string };
+  if (!body.provider || !isSubscriptionProviderId(body.provider)) return Response.json({ error: "Unknown subscription provider" }, { status: 400 });
+  if (!body.state || !body.pastedInput) return Response.json({ error: "Missing authorization state or pasted input" }, { status: 400 });
+  const provider = getProvider(body.provider);
+  if (!provider) return Response.json({ error: "Unknown provider" }, { status: 400 });
+  const encryptionKey = bindings().INTEGRATION_TOKEN_ENCRYPTION_KEY;
+  if (!encryptionKey) return Response.json({ error: "Credential encryption is not configured" }, { status: 500 });
+
+  const db = getDb();
+  const [pending] = await db.select().from(oauthStates).where(and(eq(oauthStates.state, body.state), eq(oauthStates.userId, identity.userId), eq(oauthStates.provider, provider.id))).limit(1);
+  if (!pending || !pending.codeVerifier) return Response.json({ error: "This sign-in expired. Try connecting again." }, { status: 400 });
+  if (pending.expiresAt.getTime() < Date.now()) return Response.json({ error: "This sign-in expired. Try connecting again." }, { status: 400 });
+
+  try {
+    const parsed = parsePastedAuthorization(body.pastedInput);
+    if (parsed.state && parsed.state !== pending.state) return Response.json({ error: "This sign-in expired. Try connecting again." }, { status: 400 });
+
+    const credential = await exchangeSubscriptionCode(body.provider, { code: parsed.code, state: pending.state, verifier: pending.codeVerifier });
+    const now = new Date();
+    const accessTokenCiphertext = await encryptSecret(credential.access, encryptionKey);
+    const refreshTokenCiphertext = await encryptSecret(credential.refresh, encryptionKey);
+    const connection = {
+      id: crypto.randomUUID(),
+      organizationId: identity.organizationId,
+      provider: provider.id,
+      category: provider.category,
+      status: "connected" as const,
+      authMode: provider.authMode,
+      externalAccountId: credential.accountId ?? null,
+      externalAccountName: provider.title,
+      scopesJson: JSON.stringify(provider.permissions),
+      accessTokenCiphertext,
+      refreshTokenCiphertext,
+      expiresAt: credential.expiresAt,
+      metadataJson: JSON.stringify({ readOnly: provider.readOnly, webhook: provider.webhook }),
+      createdBy: identity.userId,
+      createdAt: now,
+      updatedAt: now,
+    };
+    await db.insert(integrationConnections).values(connection).onConflictDoUpdate({
+      target: [integrationConnections.organizationId, integrationConnections.provider],
+      set: { status: "connected", externalAccountId: connection.externalAccountId, externalAccountName: connection.externalAccountName, accessTokenCiphertext, refreshTokenCiphertext, expiresAt: connection.expiresAt, updatedAt: now },
+    });
+    await db.delete(oauthStates).where(eq(oauthStates.state, body.state));
+
+    const [stored] = await db.select({ id: integrationConnections.id }).from(integrationConnections).where(and(eq(integrationConnections.organizationId, identity.organizationId), eq(integrationConnections.provider, provider.id))).limit(1);
+    return Response.json({ connection: { id: stored?.id ?? connection.id, provider: provider.id, status: "connected" } });
+  } catch (error) {
+    return Response.json({ error: error instanceof Error ? error.message : "Could not connect this subscription" }, { status: 422 });
+  }
+}

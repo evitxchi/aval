@@ -937,9 +937,7 @@ html.aval-module-picking .content-shell { cursor: crosshair; }
 /* ── Intelligence settings (model providers) ────────────────────────────── */
 
 .intelligence-card { grid-column: 1 / -1; min-height: 0; }
-.intelligence-current { margin: 4px 0 14px; color: var(--muted); font-size: 10px; }
-.intelligence-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; }
-.intelligence-provider-card { display: flex; flex-direction: column; gap: 3px; padding: 14px; border: 1.5px dashed var(--line-strong); border-radius: 14px; background: var(--surface-soft); transition: border-color .18s var(--ease-snap), border-style .18s var(--ease-snap); }
+.intelligence-provider-card { display: flex; flex-direction: column; gap: 3px; margin: 14px 0; padding: 14px; border: 1.5px dashed var(--line-strong); border-radius: 14px; background: var(--surface-soft); transition: border-color .18s var(--ease-snap), border-style .18s var(--ease-snap); }
 .intelligence-provider-card.connected { border-style: solid; border-color: var(--line); }
 .intelligence-provider-card.active { border-style: solid; border-color: var(--ink); }
 .intelligence-provider-card h3 { margin: 8px 0 3px; font-size: 12.5px; font-weight: 500; }
@@ -948,6 +946,44 @@ html.aval-module-picking .content-shell { cursor: crosshair; }
 .intelligence-provider-actions .soft-button { min-height: 30px; padding: 0 10px; font-size: 9px; }
 
 [data-theme="dark"] .intelligence-provider-card { background: var(--surface-raised); }
+
+/* "Model being used" summary row — a read-only display of the org's active
+   provider + model. Switching happens via each provider row's own
+   "Use this" action below, not a second control here, to avoid two
+   different widgets governing the same value. */
+.intelligence-model-row { margin: 4px 0 16px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-soft); }
+.intelligence-model-row-label { margin: 0; color: var(--quiet); font-size: 8.5px; text-transform: uppercase; letter-spacing: .04em; }
+.intelligence-model-row-value { display: flex; align-items: center; gap: 9px; font-size: 11.5px; }
+.intelligence-model-row-value .brand-mark { width: 26px; height: 26px; }
+.intelligence-model-row-divider { color: var(--quiet); }
+.intelligence-model-row-model { color: var(--muted); font-size: 10px; }
+
+.intelligence-configure { margin-top: 18px; }
+.intelligence-configure-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.intelligence-configure-header h3 { margin: 0; font-size: 12px; font-weight: 500; }
+.intelligence-search { width: 220px; height: 36px; }
+.intelligence-search input { width: 100%; border: 0; outline: 0; background: transparent; font-size: 10px; color: var(--ink); }
+
+.provider-row-list { display: flex; flex-direction: column; gap: 8px; }
+.provider-row { border: 1.5px dashed var(--line-strong); border-radius: 16px; background: var(--surface-soft); overflow: hidden; transition: border-color .18s var(--ease-snap), border-style .18s var(--ease-snap); }
+.provider-row.connected { border-style: solid; border-color: var(--line); }
+.provider-row-summary { width: 100%; min-height: 52px; padding: 0 14px; display: flex; align-items: center; gap: 10px; border: 0; background: transparent; cursor: pointer; font-size: 11px; color: var(--ink); text-align: left; }
+.provider-row-summary .brand-mark { width: 28px; height: 28px; }
+.provider-row-summary > span:first-of-type { flex: 1; }
+.provider-row-chevron { flex-shrink: 0; color: var(--quiet); transition: transform .18s var(--ease-snap); }
+.provider-row-chevron.open { transform: rotate(180deg); }
+.provider-row-body { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .2s var(--ease-snap); }
+.provider-row-body-inner { overflow: hidden; min-height: 0; }
+.provider-row-body-inner > div, .provider-row-body-inner > form, .provider-row-body-inner > p { padding: 0 14px; }
+.provider-row-body-inner > *:first-child { padding-top: 2px; }
+.provider-row-body-inner > *:last-child { padding-bottom: 14px; }
+.provider-row-description { margin: 0 0 10px; color: var(--muted); font-size: 9.5px; line-height: 1.4; }
+.provider-row-divider { margin: 12px 0; display: flex; align-items: center; gap: 10px; color: var(--quiet); font-size: 8.5px; text-transform: uppercase; letter-spacing: .04em; }
+.provider-row-divider::before, .provider-row-divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.provider-connected-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.provider-connected-row .connection-status { padding: 6px 9px; }
+
+[data-theme="dark"] .provider-row { background: var(--surface-raised); }
 
 /* ── Automations timeline ────────────────────────────────────────────────── */
 

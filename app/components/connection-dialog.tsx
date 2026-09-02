@@ -1,21 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import type { FormEvent, ReactNode } from "react";
+import type { FormEvent } from "react";
 import { useTranslations } from "next-intl";
 import * as Dialog from "@radix-ui/react-dialog";
 import * as Tabs from "@radix-ui/react-tabs";
-import { Check, Key, NavArrowDown, NavArrowRight, NetworkLeft, ShieldCheck, User, Xmark } from "iconoir-react";
+import { Check, Key, NavArrowRight, NetworkLeft, ShieldCheck, User, Xmark } from "iconoir-react";
 import { useExperience } from "@/app/components/experience";
 import { BrandMark } from "@/app/components/brand-mark";
-
-// A controlled foldout (native `<details>` can't smoothly animate height
-// across all browsers) — 0fr/1fr grid-row trick, same easing as the rest of
-// this app's floating UI.
-function Foldout({ summary, children }: { summary: string; children: ReactNode }) {
-  const [open, setOpen] = useState(false);
-  return <div className="foldout"><button type="button" className="foldout-summary" aria-expanded={open} onClick={() => setOpen((current) => !current)}>{summary}<NavArrowDown width={12} height={12} className={open ? "foldout-chevron open" : "foldout-chevron"} /></button><div className="foldout-body" style={{ gridTemplateRows: open ? "1fr" : "0fr" }}><div className="foldout-body-inner">{children}</div></div></div>;
-}
+import { Foldout } from "@/app/components/foldout";
 
 /**
  * Shared by the Connections page (dashboard-client.tsx) and Settings →
@@ -30,6 +23,8 @@ export type Provider = {
   connection?: { id?: string; status: string; externalAccountName?: string | null; lastSyncAt?: string | null } | null;
   /** Model providers only (category "Model") — the catalog's suggested model id, shown as a placeholder for the Advanced override field below. */
   defaultModel?: string;
+  /** Subscription providers only (authMode "oauth_subscription_paste") — the API-key provider this one is an alternative to; intelligence-settings.tsx folds it into that provider's own row instead of listing it separately. */
+  subscriptionOf?: string;
 };
 
 const guides: Record<string, { aval: string[]; customer: string[]; proof: string }> = {
