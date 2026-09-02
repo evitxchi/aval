@@ -41,6 +41,7 @@
     "waitingOnAval": "Esperando a Aval…"
   },
   "AuthGate": {
+    "accountExistsSignInInstead": "Ya tienes una cuenta con ese correo. Inicia sesión en su lugar.",
     "alreadyHaveAnAccount": "¿Ya tienes una cuenta? Inicia sesión",
     "createAccount": "Crear cuenta",
     "emailLabel": "Correo electrónico",

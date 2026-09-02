@@ -41,6 +41,7 @@
     "waitingOnAval": "Waiting on Aval…"
   },
   "AuthGate": {
+    "accountExistsSignInInstead": "You already have an account with that email — sign in instead.",
     "alreadyHaveAnAccount": "Already have an account? Sign in",
     "createAccount": "Create account",
     "emailLabel": "Email",

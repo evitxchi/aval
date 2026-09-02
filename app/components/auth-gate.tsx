@@ -35,6 +35,14 @@ export function SignInScreen() {
       });
       const data = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) {
+        // A duplicate-email signup is a normal outcome, not a failure the
+        // user needs to interpret — the useful next step is signing in,
+        // not staring at an error (generic or specific) on the signup form.
+        if (formMode === "signup" && response.status === 409) {
+          setFormMode("signin");
+          setError(t("AuthGate.accountExistsSignInInstead"));
+          return;
+        }
         setError(data.error ?? t("AuthGate.somethingWentWrong"));
         return;
       }
