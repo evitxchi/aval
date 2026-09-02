@@ -247,3 +247,42 @@ fixed.
 all clean. Manually verified in a real browser (Playwright against the production build, since
 `vinext dev` was the one with the unrelated pre-existing flake) — screenshotted the persona
 picker and the header avatar before and after both bug fixes above.
+
+## 2026-09-02 — docxtemplater wired up: branded-template document fill
+
+**Context.** Last item from this session's original five-part plan (docs/DECISIONS.md's first
+2026-09-02 entry): `docxtemplater` and `pizzip` were installed but unused. This ships the actual
+integration — filling a user-supplied .docx template's placeholders with real data, as a
+complement to (not a replacement for) `lib/ask-aval/export.ts`'s existing hand-rolled exporter,
+which stays exactly as-is.
+
+**What shipped.** `lib/ask-aval/docx-template.ts`: `renderDocxFromTemplate(templateBytes, data)`
+wraps `pizzip` + `docxtemplater`, returning a `Uint8Array` via `generate({ type: "uint8array" })`
+— no Node `Buffer` dependency, so this runs directly in the Worker request path (unlike
+`export.ts`'s libraries, which need a DOM and stay client-side). `POST
+/api/assistant/fill-template` accepts multipart `template` (a .docx file) + `data` (JSON) and
+streams back the filled .docx — stateless, no template-storage surface yet (would need R2; see
+the deferred list below).
+
+**Bug caught by the test, not by inspection.** `docxtemplater`'s own default delimiter is
+single-brace (`{tag}`), not the mustache-style `{{tag}}` used throughout this integration's docs
+and tests. Left at the default, a template containing `{{title}}` parses as two back-to-back
+single-brace tags and throws "duplicate open/close tag" — confirmed by generating a real
+docx-library template buffer, round-tripping it through `renderDocxFromTemplate`, and reading
+`word/document.xml` back out of the result. Fixed with an explicit `delimiters: { start: "{{",
+end: "}}" }` in the `Docxtemplater` constructor options. Also hit, incidentally: Node's native
+TypeScript type-stripping (`node --test` on this project's Node 24) does not support TypeScript
+parameter-property syntax (`constructor(message: string, readonly x: number)`) — silently works
+today in `lib/ask-aval/anthropic.ts`'s `AnthropicError` only because no test file imports it
+directly; `DocxTemplateError` here uses a plain constructor + explicit field assignment instead,
+specifically so its own test file can import it.
+
+**Deliberately not done.** No template-upload/storage UI — an operator has no way yet to save a
+branded template for reuse; today's route takes the template bytes fresh on every call. No
+mapping from Ask Aval's draft data model (headline/narrative/metrics/document) to a template's
+placeholder names — that mapping is a product decision (what should a template author be able to
+reference?) better made with real example templates in hand, not invented here.
+
+**Verification.** `tsc --noEmit`, `npm run build` (route registered:
+`/api/assistant/fill-template`), `npm run lint`, `npm run i18n:check`, and `node --test` (45
+passing) all clean.
