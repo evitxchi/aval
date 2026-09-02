@@ -930,3 +930,33 @@ exercised against a real Claude Pro/Max or ChatGPT Plus/Pro account end-to-end �
 has no such account to authorize with, and no browser to complete the OAuth hop through — so
 this is type/build-verified, not live-request-verified, until a real deploy and a real account
 walk through it once.
+
+## 2026-09-02 — Persona avatars swapped for commissioned animated blob characters
+
+**Context.** User supplied a Python script and its output (`~/Downloads/create_blob_avatars.py`,
+eight generated 256×256 tiles) — a distinct black blob-character silhouette with white eyes on a
+colored rounded-square tile, each with its own named animation (breathe, sway, bounce, stretch,
+squish, rotate, wobble, hop) baked into a looping WEBP — and said these were "for the agents,"
+to replace the existing set.
+
+**Straight swap, not a new rendering system.** `AvalAgentAvatar` already supported an `icon`
+prop from the prior commissioned-icon pass this session; a looping WEBP animates natively as a
+plain `<img>`, so no component code changed. `public/personas/*.png` (the prior commissioned
+artwork) was removed and replaced 1:1 with `public/personas/*.webp`, and `agent-avatar/
+personas.ts`'s `icon` paths were updated to match — eight files for eight personas, an exact
+count match once `riskAnalyst`/`portfolioOutlook` (added earlier this session) are included, so
+every built-in persona now has one, not just the original six.
+
+**Persona-to-blob mapping was chosen, not incidental** — matched each blob's tile color to that
+persona's existing `theme` (`agent-avatar/themes.ts`) so the two color systems agree rather than
+picking two different colors for the same persona: `general`/avalBlue → blue-puddle,
+`financial`/aurora → green-pebble, `brokerage`/violet → purple-bean, `realEstate`/aqua →
+cyan-scallop, `marketResearch`/orchid → pink-cloud, `maintenance`/ember → coral-droplet,
+`riskAnalyst`/ember → orange-starburst (ember's second consumer, kept visually distinct from
+maintenance's coral), `portfolioOutlook`/aurora → yellow-clover (aurora's second consumer, kept
+distinct from financial's green).
+
+**Verification.** `tsc --noEmit`, `npm run lint` (same pre-existing `no-img-element` warning as
+the prior icon commit, no new ones), `npm run i18n:check`, `npm run build`, and `node --test`
+(56 passing) all clean. Not yet visually verified live — same standing limitation as the prior
+icon pass (no connected browser, no local D1-backed preview in this sandbox).
