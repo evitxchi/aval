@@ -16,6 +16,15 @@ export interface AvalAgentAvatarProps {
   interactive?: boolean;
   label?: string;
   className?: string;
+  /**
+   * A finished icon image (the six built-in personas' own commissioned
+   * artwork — a self-contained rounded-square glyph with its own baked-in
+   * background) — when set, this renders in place of the procedural
+   * shape+theme silhouette below, which stays reserved for personas with no
+   * fixed artwork of their own: custom, user-created personas, and the
+   * shape/theme swatch pickers used to build one.
+   */
+  icon?: string;
 }
 
 /**
@@ -38,10 +47,19 @@ export interface AvalAgentAvatarProps {
  * Every id is instance-scoped via useId() so multiple avatars in one
  * page never collide on <mask>/<gradient> references.
  */
-export function AvalAgentAvatar({ shape, theme: themeId, size = 40, selected = false, interactive = false, label, className }: AvalAgentAvatarProps) {
+export function AvalAgentAvatar({ shape, theme: themeId, size = 40, selected = false, interactive = false, label, className, icon }: AvalAgentAvatarProps) {
   const uid = useId().replace(/[^a-zA-Z0-9]/g, "");
   const geometry = SHAPES[shape];
   const theme = THEMES[themeId];
+
+  const iconContainerClassName = ["aval-agent-avatar", "aval-agent-avatar-icon", interactive && "aval-agent-avatar-interactive", selected && "aval-agent-avatar-selected", className].filter(Boolean).join(" ");
+  if (icon) {
+    return (
+      <div className={iconContainerClassName} style={{ width: size, height: size }} role={label ? "img" : undefined} aria-label={label}>
+        <img src={icon} alt="" width={size} height={size} />
+      </div>
+    );
+  }
 
   const maskId = `avatar-mask-${uid}`;
   const primaryGradId = `avatar-primary-${uid}`;

@@ -1001,6 +1001,15 @@ html.aval-module-picking .content-shell { cursor: crosshair; }
 
 .aval-agent-avatar-selected { border-color: rgba(255, 255, 255, 0.22); background: linear-gradient(155deg, #101219, #08090c); }
 
+/* Commissioned per-persona artwork (personas.ts's `icon`) already renders
+   its own finished rounded-square glyph — no procedural chrome needed
+   around it, just size/clip and a lightweight hover/selected treatment
+   in place of the SVG variant's bloom/rim opacity changes. */
+.aval-agent-avatar.aval-agent-avatar-icon { background: none; border: none; }
+.aval-agent-avatar-icon img { display: block; width: 100%; height: 100%; border-radius: 26%; transition: transform 160ms var(--ease-snap), filter 160ms var(--ease-snap); }
+.aval-agent-avatar-icon.aval-agent-avatar-interactive:hover img { transform: scale(1.05); }
+.aval-agent-avatar-icon.aval-agent-avatar-selected img { filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.28)); }
+
 .aval-agent-picker { display: flex; flex-wrap: wrap; gap: 10px; }
 .aval-agent-picker-item { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; background: none; border: none; padding: 0; }
 .aval-agent-picker-item span { font-size: 9px; color: var(--muted); text-align: center; max-width: 64px; line-height: 1.3; }

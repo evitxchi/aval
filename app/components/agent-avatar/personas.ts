@@ -14,16 +14,24 @@ export interface PersonaPreset {
   shape: ShapeId;
   theme: ThemeId;
   labelKey: string;
+  /**
+   * Commissioned artwork for this built-in persona (public/personas/*.png) —
+   * takes over rendering from the shape+theme silhouette below wherever
+   * AvalAgentAvatar is given it (see that component's `icon` prop). The
+   * shape/theme fields stay populated regardless, since a persona can still
+   * be displayed procedurally in a context with no icon slot.
+   */
+  icon: string;
 }
 
 export const PERSONA_PRESETS: Record<PersonaId, PersonaPreset> = {
   // Reuses the existing "Ask Aval" label rather than a new key — this is the same default assistant, just addressable by name in the picker.
-  general: { id: "general", shape: "fourPoint", theme: "avalBlue", labelKey: "AvalAssistant.askAval" },
-  financial: { id: "financial", shape: "arch", theme: "aurora", labelKey: "AgentPersonas.financialLabel" },
-  brokerage: { id: "brokerage", shape: "portal", theme: "violet", labelKey: "AgentPersonas.brokerageLabel" },
-  realEstate: { id: "realEstate", shape: "monolith", theme: "aqua", labelKey: "AgentPersonas.realEstateLabel" },
-  marketResearch: { id: "marketResearch", shape: "shard", theme: "orchid", labelKey: "AgentPersonas.marketResearchLabel" },
-  maintenance: { id: "maintenance", shape: "planes", theme: "ember", labelKey: "AgentPersonas.maintenanceLabel" },
+  general: { id: "general", shape: "fourPoint", theme: "avalBlue", labelKey: "AvalAssistant.askAval", icon: "/personas/general.png" },
+  financial: { id: "financial", shape: "arch", theme: "aurora", labelKey: "AgentPersonas.financialLabel", icon: "/personas/financial.png" },
+  brokerage: { id: "brokerage", shape: "portal", theme: "violet", labelKey: "AgentPersonas.brokerageLabel", icon: "/personas/brokerage.png" },
+  realEstate: { id: "realEstate", shape: "monolith", theme: "aqua", labelKey: "AgentPersonas.realEstateLabel", icon: "/personas/real-estate.png" },
+  marketResearch: { id: "marketResearch", shape: "shard", theme: "orchid", labelKey: "AgentPersonas.marketResearchLabel", icon: "/personas/market-research.png" },
+  maintenance: { id: "maintenance", shape: "planes", theme: "ember", labelKey: "AgentPersonas.maintenanceLabel", icon: "/personas/maintenance.png" },
 };
 
 export const PERSONA_IDS = Object.keys(PERSONA_PRESETS) as PersonaId[];

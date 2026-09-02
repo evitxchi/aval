@@ -287,12 +287,12 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
   // Built-in presets carry an i18n labelKey; a workspace-created persona
   // carries its own literal label (typed by the user, not translatable) —
   // this is the one place both are normalized to the same shape/theme/text.
-  const personaDisplay = (id: string): { shape: ShapeId; theme: ThemeId; label: string } => {
+  const personaDisplay = (id: string): { shape: ShapeId; theme: ThemeId; label: string; icon?: string } => {
     const builtIn = PERSONA_PRESETS[id as PersonaId];
-    if (builtIn) return { shape: builtIn.shape, theme: builtIn.theme, label: t(builtIn.labelKey) };
+    if (builtIn) return { shape: builtIn.shape, theme: builtIn.theme, label: t(builtIn.labelKey), icon: builtIn.icon };
     const custom = customPersonas.find((persona) => persona.id === id);
     if (custom) return { shape: custom.shape, theme: custom.theme, label: custom.label };
-    return { shape: PERSONA_PRESETS.general.shape, theme: PERSONA_PRESETS.general.theme, label: t(PERSONA_PRESETS.general.labelKey) };
+    return { shape: PERSONA_PRESETS.general.shape, theme: PERSONA_PRESETS.general.theme, label: t(PERSONA_PRESETS.general.labelKey), icon: PERSONA_PRESETS.general.icon };
   };
   const activePersona = personaDisplay(personaId);
 
@@ -526,7 +526,7 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
               {personaId === "general" ? (
                 <span className="aval-assistant-mark" aria-hidden="true" />
               ) : (
-                <AvalAgentAvatar shape={activePersona.shape} theme={activePersona.theme} size={38} label={activePersona.label} />
+                <AvalAgentAvatar shape={activePersona.shape} theme={activePersona.theme} icon={activePersona.icon} size={38} label={activePersona.label} />
               )}
               <span><strong>{activePersona.label}</strong><small><i />{t("AvalAssistant.liveDashboardContext")}</small></span>
             </div>
@@ -543,7 +543,7 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
                 <Page width={15} height={15} />{t("AvalAssistant.draftDocument")}
               </button>
               <button className={`aval-module-picker ${pickingPersona ? "active" : ""}`} type="button" onClick={() => setPickingPersona((current) => !current)} aria-pressed={pickingPersona}>
-                <AvalAgentAvatar shape={activePersona.shape} theme={activePersona.theme} size={17} />
+                <AvalAgentAvatar shape={activePersona.shape} theme={activePersona.theme} icon={activePersona.icon} size={17} />
                 {personaId === "general" ? t("AvalAssistant.selectAgent") : activePersona.label}
               </button>
             </div>
@@ -554,7 +554,7 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
                   const preset = PERSONA_PRESETS[id];
                   return (
                     <button key={id} type="button" className="aval-agent-picker-item" aria-pressed={personaId === id} onClick={() => { setPersonaId(id); setPickingPersona(false); }}>
-                      <AvalAgentAvatar shape={preset.shape} theme={preset.theme} size={40} selected={personaId === id} interactive />
+                      <AvalAgentAvatar shape={preset.shape} theme={preset.theme} icon={preset.icon} size={40} selected={personaId === id} interactive />
                       <span>{t(preset.labelKey)}</span>
                     </button>
                   );
