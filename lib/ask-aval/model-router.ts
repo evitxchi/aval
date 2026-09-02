@@ -34,7 +34,7 @@ interface CallParams {
  * calls already behave identically to how this app worked before model
  * routing existed.
  */
-async function resolveOverride(env: AskAvalEnv, orgId: string): Promise<{ providerId: string; apiKey: string } | null> {
+async function resolveOverride(env: AskAvalEnv, orgId: string): Promise<{ providerId: string; apiKey: string; model?: string } | null> {
   const encryptionKey = (env as unknown as Record<string, string | undefined>).INTEGRATION_TOKEN_ENCRYPTION_KEY;
   if (!encryptionKey) return null;
 
@@ -49,9 +49,9 @@ async function resolveOverride(env: AskAvalEnv, orgId: string): Promise<{ provid
   if (!connection?.accessTokenCiphertext || connection.status !== "connected") return null;
 
   try {
-    const credentials = JSON.parse(await decryptSecret(connection.accessTokenCiphertext, encryptionKey)) as { apiKey?: string };
+    const credentials = JSON.parse(await decryptSecret(connection.accessTokenCiphertext, encryptionKey)) as { apiKey?: string; model?: string };
     if (!credentials.apiKey) return null;
-    return { providerId: org.activeModelProvider, apiKey: credentials.apiKey };
+    return { providerId: org.activeModelProvider, apiKey: credentials.apiKey, model: credentials.model || undefined };
   } catch (err) {
     console.error("model_router_decrypt_failed", org.activeModelProvider, err);
     return null;
@@ -63,10 +63,11 @@ export async function callModel(env: AskAvalEnv, orgId: string, params: CallPara
   if (!override) return callClaude(env, params);
 
   if (override.providerId === "anthropic") {
-    return callClaude({ ...env, ANTHROPIC_API_KEY: override.apiKey, ANTHROPIC_MODEL: getProvider("anthropic")?.defaultModel }, params);
+    return callClaude({ ...env, ANTHROPIC_API_KEY: override.apiKey, ANTHROPIC_MODEL: override.model ?? getProvider("anthropic")?.defaultModel }, params);
   }
 
   const catalogEntry = getProvider(override.providerId);
-  if (!catalogEntry?.baseUrl || !catalogEntry.defaultModel) return callClaude(env, params);
-  return callOpenAiCompatible({ baseUrl: catalogEntry.baseUrl, apiKey: override.apiKey, model: catalogEntry.defaultModel, providerLabel: catalogEntry.title }, params);
+  const model = override.model ?? catalogEntry?.defaultModel;
+  if (!catalogEntry?.baseUrl || !model) return callClaude(env, params);
+  return callOpenAiCompatible({ baseUrl: catalogEntry.baseUrl, apiKey: override.apiKey, model, providerLabel: catalogEntry.title }, params);
 }

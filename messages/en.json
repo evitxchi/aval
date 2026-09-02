@@ -218,6 +218,7 @@
   },
   "ConnectionDialog": {
     "access": "Access",
+    "advanced": "Advanced",
     "authorize": "Authorize",
     "avalConfiguresOnce": "Aval configures once",
     "avalSetupRequired": "Aval setup required",
@@ -234,6 +235,8 @@
     "flow": "Flow",
     "identityVerifiedInitialSyncIsQueued": "Identity verified. Initial sync is queued.",
     "linkDevice": "I've scanned it, continue",
+    "modelOverrideHint": "Leave blank to use the recommended model. Enter an exact model id from this provider's docs to override it.",
+    "modelOverrideLabel": "Model",
     "normalize": "Normalize",
     "notYetAvailableBody": "Aval's team is finishing setup for this connection. There's nothing you need to do. Check back soon, or contact support if you're ready to connect now.",
     "notYetAvailableTitle": "Not available yet",

@@ -705,3 +705,24 @@ flagged here rather than folded in un-asked-for.
 
 **Verification.** `npm run i18n:check`, `tsc --noEmit`, `npm run lint`, `npm run build`, and
 `node --test` (56 passing) all clean.
+
+## 2026-09-02 — Closed the flagged gap: per-connection model override
+
+**Context.** The previous entry's dialog copy already promised "Choose the exact model in
+Advanced" for every model provider, but no such field existed anywhere — `lib/integrations/
+catalog.ts`'s `defaultModel` was hardcoded per provider with no way to override it. Closing
+that gap rather than leaving copy that describes a feature that isn't there.
+
+**No new plumbing needed on the backend.** `/api/integrations/connect` already stores
+`body.credentials` verbatim as encrypted JSON — it only validates the provider's declared
+`credentialFields` (just `apiKey` for every model provider), so an extra `model` key riding
+alongside `apiKey` was already safe to store; same for `/verify`, which only ever reads
+`credentials.apiKey`. The only real changes: `connection-dialog.tsx` gained an Advanced
+`Foldout` (model providers only) with a Model text input, defaulting to the catalog's
+`defaultModel` as a placeholder and explaining in a hint that blank means "use the
+recommended model"; and `lib/ask-aval/model-router.ts`'s `resolveOverride` now also reads
+`credentials.model`, preferring it over `catalogEntry.defaultModel` when both an Anthropic and
+an OpenAI-compatible override path resolve the model to call.
+
+**Verification.** `npm run i18n:check`, `tsc --noEmit`, `npm run lint`, `npm run build`, and
+`node --test` (56 passing) all clean.

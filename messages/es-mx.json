@@ -218,6 +218,7 @@
   },
   "ConnectionDialog": {
     "access": "Acceso",
+    "advanced": "Avanzado",
     "authorize": "Autorizar",
     "avalConfiguresOnce": "Aval configura una vez",
     "avalSetupRequired": "Aval requiere configuración",
@@ -234,6 +235,8 @@
     "flow": "Flujo",
     "identityVerifiedInitialSyncIsQueued": "Identidad verificada. Sincronización en cola.",
     "linkDevice": "Ya lo escaneé, continuar",
+    "modelOverrideHint": "Déjalo en blanco para usar el modelo recomendado. Escribe el id exacto de un modelo según la documentación del proveedor para anularlo.",
+    "modelOverrideLabel": "Modelo",
     "normalize": "Normalizar",
     "notYetAvailableBody": "El equipo de Aval está terminando la configuración de esta conexión. No necesitas hacer nada. Vuelve a intentarlo pronto, o contacta a soporte si quieres conectarte ahora.",
     "notYetAvailableTitle": "Aún no disponible",

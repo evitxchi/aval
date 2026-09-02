@@ -621,6 +621,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--ink); outli
 .foldout-body { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .2s var(--ease-snap); }
 .foldout-body-inner { overflow: hidden; min-height: 0; }
 .foldout-body-inner span { display: block; margin-top: 5px; color: var(--quiet); font: 7px ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
+.foldout-body-inner label { margin-top: 8px; }
+.foldout-hint { margin: 6px 0 0; color: var(--quiet); font-size: 8px; line-height: 1.5; }
 
 .settings-grid { margin-top: 18px; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
 .settings-card { min-height: 225px; padding: 23px; border: 1px solid var(--line); border-radius: 21px; background: var(--surface-raised); box-shadow: var(--shadow-sm); }
