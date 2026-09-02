@@ -26,7 +26,7 @@ export async function POST(request: Request) {
   const displayName = typeof body.displayName === "string" && body.displayName.trim() ? body.displayName.trim().slice(0, MAX_DISPLAY_NAME_CHARS) : email;
 
   if (!EMAIL_RE.test(email)) return Response.json({ error: "Enter a valid email address." }, { status: 400 });
-  if (password.length < 8) return Response.json({ error: "Password must be at least 8 characters." }, { status: 400 });
+  if (!password) return Response.json({ error: "Password is required." }, { status: 400 });
 
   await recordAttempt(ipScope);
   const db = getDb();

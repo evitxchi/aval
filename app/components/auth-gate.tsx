@@ -71,7 +71,6 @@ export function SignInScreen() {
             <input
               type="password"
               required
-              minLength={formMode === "signup" ? 8 : undefined}
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               placeholder={t("AuthGate.passwordPlaceholder")}
