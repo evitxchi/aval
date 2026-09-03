@@ -82,6 +82,11 @@ export async function POST(request: Request) {
   }
 
   if (result.status === "pending") return Response.json({ status: "pending" });
+  // A distinct code so the client can render the actual fix (enable the
+  // setting) rather than a generic failure the user has to interpret.
+  if (result.status === "needs_device_auth_enabled") {
+    return Response.json({ status: "needs_device_auth_enabled" }, { status: 409 });
+  }
   if (result.status === "failed") return Response.json({ error: result.detail }, { status: 400 });
 
   const credential = result.credential;

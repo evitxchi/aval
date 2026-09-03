@@ -244,6 +244,13 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--ink); outli
 .aval-chat-error strong { font-size: 11px; font-weight: 600; }
 .aval-chat-error p { margin: 0; font-size: 10px; line-height: 1.5; color: var(--muted); overflow-wrap: anywhere; }
 
+.device-setup-needed { display: flex; gap: 10px; align-items: flex-start; padding: 13px 14px; border: 1px solid color-mix(in srgb, var(--viz-orange) 40%, var(--line)); border-radius: 14px; background: color-mix(in srgb, var(--viz-orange) 7%, var(--surface)); }
+.device-setup-needed > svg { flex-shrink: 0; margin-top: 1px; color: var(--viz-orange); }
+.device-setup-needed > div { display: grid; gap: 4px; min-width: 0; }
+.device-setup-needed strong { font-size: 11px; font-weight: 600; }
+.device-setup-needed p { margin: 0; font-size: 10px; line-height: 1.55; color: var(--muted); }
+.device-setup-needed a { font-size: 10px; font-weight: 600; color: var(--ink); }
+
 /* Device-code login — the code is the whole interface, so it gets the weight. */
 .device-login { display: grid; gap: 11px; }
 .device-login-lead { margin: 0; font-size: 10.5px; color: var(--muted); }

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslations } from "next-intl";
-import { Check, NavArrowDown, Refresh, Search, ShieldCheck } from "iconoir-react";
+import { Check, NavArrowDown, Refresh, Search, ShieldCheck, WarningTriangle } from "iconoir-react";
 import { BrandMark } from "@/app/components/brand-mark";
 import { REASONING_EFFORT_LEVELS, modelOptionsFor, supportsReasoningEffort } from "@/lib/integrations/model-providers";
 import { Foldout } from "@/app/components/foldout";
@@ -54,6 +54,8 @@ function ProviderAccordionRow({ provider, twin, isOpen, onToggle, isActive, swit
   const [device, setDevice] = useState<{ deviceAuthId: string; userCode: string; verificationUrl: string; intervalSeconds: number } | null>(null);
   const [deviceError, setDeviceError] = useState("");
   const [copied, setCopied] = useState(false);
+  // True when the account has device-code authorization disabled.
+  const [needsDeviceAuth, setNeedsDeviceAuth] = useState(false);
   const [subscriptionStatus, setSubscriptionStatus] = useState<"idle" | "working" | "error">("idle");
   const [subscriptionError, setSubscriptionError] = useState("");
 
@@ -90,6 +92,7 @@ function ProviderAccordionRow({ provider, twin, isOpen, onToggle, isActive, swit
   const startDeviceLogin = async () => {
     setSubscriptionStatus("working");
     setDeviceError("");
+    setNeedsDeviceAuth(false);
     try {
       const response = await fetch("/api/integrations/subscription/device", {
         method: "POST",
@@ -177,6 +180,13 @@ function ProviderAccordionRow({ provider, twin, isOpen, onToggle, isActive, swit
         const data = await response.json() as { status?: string; error?: string };
         if (cancelled) return;
         if (data.status === "connected") { setDevice(null); onRefresh(); return; }
+        // Device-code auth is off on this ChatGPT account. Stop polling and
+        // show the one-time setting to enable, with a direct link.
+        if (data.status === "needs_device_auth_enabled") {
+          setDevice(null);
+          setNeedsDeviceAuth(true);
+          return;
+        }
         // Pending is the normal state while waiting; only a real 4xx (expired,
         // revoked) should surface as an error.
         if (!response.ok && data.status !== "pending") {
@@ -354,6 +364,16 @@ function ProviderAccordionRow({ provider, twin, isOpen, onToggle, isActive, swit
                 >
                   {subscriptionStatus === "working" ? t("IntelligenceSettings.connecting") : t("IntelligenceSettings.connectSubscription", { provider: twin.title })}
                 </button>
+                {needsDeviceAuth && (
+                  <div className="device-setup-needed">
+                    <WarningTriangle width={16} height={16}/>
+                    <div>
+                      <strong>{t("IntelligenceSettings.deviceAuthDisabledTitle")}</strong>
+                      <p>{t("IntelligenceSettings.deviceAuthDisabledBody")}</p>
+                      <a href="https://chatgpt.com/#settings/Security" target="_blank" rel="noopener noreferrer">{t("IntelligenceSettings.deviceAuthOpenSettings")}</a>
+                    </div>
+                  </div>
+                )}
                 {deviceError && <p className="auth-gate-error">{deviceError}</p>}
                 {subscriptionStatus === "error" && <p className="auth-gate-error">{subscriptionError}</p>}
               </div>

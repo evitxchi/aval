@@ -310,6 +310,8 @@ export async function startChatgptDeviceLogin(): Promise<DeviceCodeStart> {
 
 export type DevicePollResult =
   | { status: "pending" }
+  /** The account has device-code authorization turned off — a one-time setting the user must enable. */
+  | { status: "needs_device_auth_enabled" }
   | { status: "complete"; credential: SubscriptionCredential }
   | { status: "failed"; detail: string };
 
@@ -329,6 +331,18 @@ export async function pollChatgptDeviceLogin(deviceAuthId: string, userCode: str
     body: JSON.stringify({ device_auth_id: deviceAuthId, user_code: userCode }),
   });
 
+  // Device-code authorization is off by default on a ChatGPT account, and the
+  // approval page reports that as a 400 rather than as part of the pending
+  // 403/404 pattern. Surfacing it as a generic failure would leave the user
+  // decoding OpenAI's own message, which tells them to run a CLI command that
+  // has no equivalent here — so it is detected and named explicitly.
+  if (response.status === 400) {
+    const detail = await response.text().catch(() => "");
+    if (/device[_ ]?code|device auth|not enabled|disabled/i.test(detail)) {
+      return { status: "needs_device_auth_enabled" };
+    }
+    return { status: "failed", detail: `Device login failed (400).` };
+  }
   if (response.status === 403 || response.status === 404) return { status: "pending" };
   if (!response.ok) return { status: "failed", detail: `Device login failed (${response.status}).` };
 
