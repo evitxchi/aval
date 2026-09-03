@@ -1432,3 +1432,56 @@ request and queried for this work. It independently confirmed two choices alread
 wrapping the wide table in an `overflow-x` container, and keeping text fluid rather than clipped
 in fixed boxes — and its own instructions correctly state that its results are recommendations,
 not overrides, and that private project data must stay out of queries.
+
+## 2026-09-02 — Aval Setup moved into the agent module and made to actually change behavior
+
+**Context.** "Aval Setup should be in the agent module. Aval Setup should actually impact the way
+the intelligence operates/thinks" — plus a reference app's memory/teaching, connection and team
+surfaces, and "polish the layout."
+
+**Moved.** Setup now sits in the Agent nav group directly under Portfolio overview, rather than
+under Workspace next to Connections. It configures the agent, so it belongs with the agent's own
+surfaces.
+
+**Made to actually change behavior.** Two mechanisms on this page now genuinely alter the
+assistant rather than describing it:
+
+1. *The center agent's tool grant* (already shipped) decides which data tools the Ask Aval loop
+   may call at all.
+2. *Taught memory* (new) writes `learned_preferences` rows — the exact rows
+   `getPreferenceContext()` reads back into **every** future Ask Aval system prompt, in every
+   persona. This machinery already existed and was only reachable by correcting Aval
+   mid-conversation; nothing surfaced it or let a workspace set it deliberately. `GET/POST/DELETE
+   /api/agents/memory` and a Memory panel now do, and the panel labels each fact by origin
+   ("Learned in chat" vs "Set here") since both write the same table.
+
+**Deliberate deviation from the reference: no free-text teaching.** The reference app's "Teach
+Alven" is an open text box. Aval's memory is structurally forbidden from holding free text — the
+model classifies a correction into one of a small fixed set of generic behavioral tags, and only
+the tag is stored, so a tenant name, address, or dollar figure *cannot* land in memory even from
+a malformed client. Shipping a free-text box would have quietly broken that guarantee. Teaching
+is therefore a picker over the real taxonomy, and the panel says plainly why. This is a case
+where the reference's UX and this app's privacy model genuinely conflict, and the privacy model
+wins.
+
+**Taxonomy extracted.** `preferences.ts` imports `@/db`, so its constants couldn't be read by a
+test running under plain `node --test` (the same path-alias constraint documented in
+`infrastructure-sample.ts`). The taxonomy is pure data and shouldn't require a database to read,
+so it moved to `lib/ask-aval/preference-taxonomy.ts`, which `preferences.ts` re-exports. Three
+tests now pin the contract: the picker offers exactly the taxonomy and nothing else, every
+statement has a real human label rather than a raw-tag fallback, and every statement stays a
+fixed snake_case tag — the structural property that makes the privacy guarantee hold.
+
+**Layout.** `.setup-view` gets the same house padding/margin fix the Infrastructure view needed
+(`.panel` carries neither on its own). Added a "Connect a PMS" action node in the source column
+and a header action, both routing to the existing Connections view rather than a parallel
+connection flow, and a fact-count pill on the agent node tying the diagram to what it remembers.
+
+**Not built, deliberately.** The reference's phone/email provisioning ("Not provisioned /
+Subscribe"), team invites with access levels, and the org-chart approval modal have no
+counterpart in this codebase — there is no per-agent telephony, no teammate table, and no
+invitation flow. Building those as UI would have produced convincing controls that do nothing.
+They are worth building for real if wanted; they are not worth faking.
+
+**Verification.** 76 tests passing (up from 73), `/api/agents/memory` registered in the build,
+and typecheck/lint/i18n (909 keys)/build all clean.

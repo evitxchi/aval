@@ -225,6 +225,10 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--ink); outli
 .infra-caveat { color: var(--viz-orange); }
 
 /* Aval Setup ----------------------------------------------------------- */
+/* .panel has no padding/margin of its own in this codebase — see the
+   Infrastructure block above for the same fix. */
+.setup-view > section { margin-top: 10px; }
+.setup-view > section.panel { padding: 23px; }
 .setup-panel { margin-top: 18px; }
 /* Columns are capped rather than 1fr: at full width, 1fr stretched each node
    into a wide near-empty bar and pushed the connectors far from what they
@@ -239,6 +243,9 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--ink); outli
    the diagram shows the shape of what's withheld instead of silently
    shrinking and looking like the data doesn't exist. */
 .setup-node.is-off { opacity: .42; border-style: dashed; background: transparent; }
+.setup-node-action { border-style: dashed; background: transparent; color: var(--muted); cursor: pointer; font: inherit; text-align: left; transition: border-color .18s var(--ease-snap), color .18s var(--ease-snap), background .18s var(--ease-snap); }
+.setup-node-action:hover { border-color: var(--line-strong); color: var(--ink); background: var(--surface-soft); }
+.setup-memory-count { margin-top: 2px; padding: 3px 9px; border-radius: 999px; background: var(--surface-sunken); color: var(--muted); font-size: 8.5px; white-space: nowrap; }
 
 /* A fan-in bracket, not one line per row. Per-row rails have to match the
    node pitch exactly, and node height is content-dependent — a 4px mismatch
@@ -270,6 +277,27 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--ink); outli
 .setup-agent-card strong { font-size: 11px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .setup-agent-card small { font-size: 9px; color: var(--quiet); }
 .setup-agent-card > svg { flex-shrink: 0; }
+
+
+/* Memory — the taught-preference cards. */
+.memory-grid { margin-top: 18px; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
+.memory-card { display: grid; gap: 10px; align-content: start; padding: 15px 16px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface-soft); transition: border-color .18s var(--ease-snap), background .18s var(--ease-snap); }
+.memory-card.is-taught { border-color: var(--line-strong); background: var(--surface); }
+.memory-card-head { display: flex; align-items: flex-start; gap: 10px; }
+.memory-card-head > div { flex: 1 1 auto; min-width: 0; display: grid; gap: 3px; }
+.memory-card-head strong { font-size: 11px; font-weight: 600; }
+.memory-card-head small { font-size: 9.5px; color: var(--muted); line-height: 1.45; }
+.memory-card-head .status-pill { margin-left: 0; flex-shrink: 0; }
+.memory-card-actions { display: flex; align-items: center; gap: 14px; }
+.memory-card-actions .text-button { font-size: 9.5px; }
+.text-button.quiet { color: var(--quiet); }
+.memory-options { display: grid; gap: 5px; padding-top: 3px; }
+.memory-option { display: flex; align-items: center; gap: 7px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface); color: var(--ink); font: inherit; font-size: 9.5px; line-height: 1.4; text-align: left; cursor: pointer; transition: border-color .16s var(--ease-snap), background .16s var(--ease-snap); }
+.memory-option:hover:not(:disabled) { border-color: var(--line-strong); background: var(--surface-soft); }
+.memory-option.is-selected { border-color: var(--ink); }
+.memory-option:disabled { opacity: .55; cursor: default; }
+.memory-option > span { flex: 1 1 auto; min-width: 0; }
+.memory-option > svg { flex-shrink: 0; }
 
 @media (max-width: 900px) {
   /* The rails only make sense reading left-to-right; stacked, they'd be three
