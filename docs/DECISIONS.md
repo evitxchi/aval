@@ -1654,3 +1654,54 @@ of 200,000 used — precisely that state.)
 the component emits cross-checked against a matching rule in `globals.css`. Visual confirmation
 was *not* obtained — the local browser tooling kept unloading pages between calls this session,
 so this needs an eyeball on the live deploy.
+
+## 2026-09-02 — Built the hash-chained audit log (the deferred `awesome-llm-apps` item)
+
+**Context.** "For the ones that would benefit Aval and NEED the currently non-existing
+infrastructure, build out the necessary infrastructure." Of the four deferred items, the
+hash-chained audit trail (`trust_gated_agents.py`) was the clear first: it serves the app's
+central claim directly, and needs no infrastructure beyond a table.
+
+**Why it matters here specifically.** Aval's differentiator is that a figure it states was
+verified against real tool output by the faithfulness gate. Until now that claim was only as
+good as trusting the running process — there was no artifact anyone could check afterwards. The
+chain makes it checkable: each entry commits to the previous entry's hash, so an edit, deletion
+or reordering is detectable by recomputation. A property manager can hand an owner or auditor a
+verdict over the whole trail rather than an assurance.
+
+**It stores digests, not payloads — the load-bearing design decision.** Tool results carry
+resident names and account balances. An audit table holding them would be a second,
+indefinitely-retained copy of the most sensitive data in the app, created for bookkeeping. So
+each row keeps a SHA-256 of the payload plus non-identifying facts: which tool ran, how many
+numbers it returned, whether the gate passed. That still proves *what happened* and still lets a
+retained answer be re-checked against the data it was built from. Same trade as
+`learned_preferences`: keep the structure, drop the content. A test asserts a digest of
+`{resident: "Jane Doe", ...}` is 64 hex characters and contains no fragment of the input.
+
+**Failed answers are recorded, not only successful ones.** A trail that logs the gate's approvals
+but not its refusals would systematically overstate the system. The withheld-answer path appends
+a `verdict: fail` entry (count only, never the rejected figures) before returning the 502.
+
+**Three deliberate operational choices.**
+- *One batched write per answer, not one per tool call.* The loop runs up to four rounds and
+  several tools; a row per round would put D1 round-trips on the critical path of every question.
+  Events accumulate in memory and are written once, in parallel with the usage write.
+- *Appending never fails the answer.* This is bookkeeping, not the product. A failed write logs
+  and returns null; the answer still returns. The missing rows later surface as a sequence gap —
+  the chain saying it cannot vouch for that stretch, which is the honest outcome.
+- *A unique index on (org, sequence).* Two concurrent runs cannot both claim a position, so a
+  race loses one write loudly instead of forking the chain into two branches that each verify
+  in isolation. `GET /api/audit` also recomputes the verdict on every request rather than caching
+  it — a cached "verified" flag is precisely the unverifiable assertion this exists to replace.
+
+**Twelve tests, built around the three ways a trail can be corrupted:** an edited entry (hash
+mismatch — tested on both a changed label and a changed count, since rewriting a failed gate to
+look passed is the obvious attack), a deleted entry (sequence gap), and a reordered or spliced-in
+entry (link mismatch, tested with a well-formed entry carrying the right sequence but built on a
+foreign predecessor). Also: empty chains verify, appending continues rather than restarts, and
+two entries whose fields could otherwise run together still serialize distinctly — the reason the
+committed form joins on a unit separator, which cannot appear in a tool name, hex digest, or
+integer.
+
+**Verification.** 127 tests passing (up from 115). Migration `0013` applied to production D1,
+`/api/audit` live and auth-gated, typecheck/lint/build clean.

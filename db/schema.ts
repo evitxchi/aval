@@ -426,3 +426,38 @@ export const agentPersonas = sqliteTable(
   },
   (table) => [index("agent_personas_org_idx").on(table.organizationId)],
 );
+
+// A tamper-evident record of what Ask Aval did to produce each answer: which
+// tools ran, whether the faithfulness gate passed, and a digest of the answer.
+// Each row commits to the previous row's hash (see lib/audit/chain.ts), so the
+// trail can be re-verified and any edit, deletion or reordering surfaces.
+//
+// Deliberately stores DIGESTS, not payloads. Tool results carry resident names
+// and balances; keeping them here would make this table a second, indefinitely
+// retained copy of the most sensitive data in the app. `label` holds only a
+// tool name or a gate outcome, and `count` only a magnitude — neither is
+// identifying. Same trade as learned_preferences: keep the structure, drop the
+// content.
+export const answerAuditLog = sqliteTable(
+  "answer_audit_log",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id").notNull().references(() => organizations.id),
+    // 1-based, contiguous per organization — a gap is itself evidence.
+    sequence: integer("sequence").notNull(),
+    kind: text("kind").notNull(), // AuditEntryKind
+    label: text("label").notNull(),
+    payloadDigest: text("payload_digest").notNull(),
+    count: integer("count").notNull(),
+    previousHash: text("previous_hash").notNull(),
+    entryHash: text("entry_hash").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    // Enforces contiguity at the database level: two concurrent runs cannot
+    // both claim the same position, so a race fails loudly instead of forking
+    // the chain into two branches that each look valid alone.
+    uniqueIndex("answer_audit_log_org_sequence_uq").on(table.organizationId, table.sequence),
+    index("answer_audit_log_org_idx").on(table.organizationId),
+  ],
+);

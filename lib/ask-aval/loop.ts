@@ -10,6 +10,8 @@ import { TOOLS, runTool } from "./tools";
 import { checkUsageBlocked, recordUsage, type AskAvalSession } from "./usage";
 import { checkFaithfulness, withDerivedNumbers, round2 } from "./faithfulness";
 import { stripDashes } from "./style";
+import { appendAuditEvents } from "@/lib/audit/log";
+import { digestPayload, type AuditEvent } from "@/lib/audit/chain";
 
 const MAX_ROUNDS = 4;
 
@@ -31,6 +33,10 @@ export async function runAskAvalLoop(
 
   const seenNumbers = new Set<number>();
   const toolsUsed: string[] = [];
+  // Collected in memory and written once when the answer resolves — a row per
+  // tool call inside the loop would put D1 round-trips on the critical path of
+  // every question. See lib/audit/log.ts.
+  const auditEvents: AuditEvent[] = [];
   let inputTokens = 0;
   let outputTokens = 0;
 
@@ -57,10 +63,19 @@ export async function runAskAvalLoop(
         const gate = checkFaithfulness(answer, withDerivedNumbers(seenNumbers));
         if (!gate.ok) {
           console.error("ask_aval_faithfulness_violation", { orgId: session.orgId, unsupported: gate.unsupported });
-          await recordUsage(session, inputTokens, outputTokens);
+          // A withheld answer is exactly the event an audit trail must retain:
+          // the record has to show the gate refusing, not only the times it
+          // approved. Only the count is stored, never the rejected figures.
+          auditEvents.push({ kind: "verdict", label: "fail", payloadDigest: await digestPayload(gate.unsupported), count: gate.unsupported.length });
+          await Promise.all([recordUsage(session, inputTokens, outputTokens), appendAuditEvents(session.orgId, auditEvents)]);
           return json({ error: "The answer referenced figures that aren't in the underlying data, so it was withheld." }, 502);
         }
-        await recordUsage(session, inputTokens, outputTokens);
+        // A pass has no unsupported figures by definition, so the digest
+        // commits to the empty set rather than to a field the type doesn't
+        // carry on the success branch.
+        auditEvents.push({ kind: "verdict", label: "pass", payloadDigest: await digestPayload([]), count: 0 });
+        auditEvents.push({ kind: "answer", label: "", payloadDigest: await digestPayload(answer), count: toolsUsed.length });
+        await Promise.all([recordUsage(session, inputTokens, outputTokens), appendAuditEvents(session.orgId, auditEvents)]);
         return json({ ...answer, tools_used: toolsUsed });
       }
 
@@ -78,9 +93,14 @@ export async function runAskAvalLoop(
         try {
           const out = await runTool(use.name, use.input, session.orgId);
           out.numbers.forEach((n) => seenNumbers.add(round2(n)));
+          // The digest covers the tool's actual result, so a retained answer
+          // can later be checked against the data it was built from — without
+          // this table holding that data.
+          auditEvents.push({ kind: "tool_call", label: use.name, payloadDigest: await digestPayload(out.json), count: out.numbers.length });
           results.push({ type: "tool_result", tool_use_id: use.id, content: JSON.stringify(out.json) });
         } catch (err) {
           console.error("ask_aval_tool_error", use.name, err);
+          auditEvents.push({ kind: "tool_error", label: use.name, payloadDigest: await digestPayload(String(err)), count: 0 });
           results.push({ type: "tool_result", tool_use_id: use.id, content: JSON.stringify({ error: "Tool failed. Do not guess the value." }), is_error: true });
         }
       }
