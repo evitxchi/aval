@@ -1767,3 +1767,35 @@ recorded.
 
 **Verification.** 129 tests passing (up from 127). Migration `0014` applied to production D1;
 `/api/documents`, `/api/documents/extract` registered; typecheck/lint/i18n (932 keys)/build clean.
+
+## 2026-09-03 — A real Documents view, so the ingestion layer is reachable
+
+**Context.** The previous entry shipped document storage, extraction and a Lease Review agent —
+all backend. The Documents nav item still fell through to a generic operations placeholder, so
+none of it could actually be used. Infrastructure nothing surfaces is unfinished work.
+
+**Built.** `DocumentsView`: paste a document with a title and kind, see the library, run an
+extraction, delete. Replaces the placeholder branch in the view router.
+
+**Three presentation decisions that carry the honesty of the feature:**
+
+- *An unstated field renders as "Not stated in this document", drawn with a dashed border and
+  italic muted text* — visually distinct from a stated value. The extraction prompt treats a
+  blank as a correct answer; if the UI rendered it as an empty cell, a correct "the document
+  doesn't say this" would look identical to a rendering fault, and a reader would assume the
+  value exists somewhere.
+- *Every extracted value shows the document's own wording beneath it.* The point is that a
+  reviewer checks the reading against the source rather than trusting it.
+- *Truncation is stated on screen*, both when saving an over-long document and again on any
+  reading of one. An answer drawn from a lease whose second half was silently dropped is the
+  worst failure available to this feature.
+
+The empty state and the save copy both say plainly that Aval reads what is pasted and fetches
+nothing on its own, and that a document — unlike Aval's memory — is kept as written, since that
+is exactly what makes it reviewable. That difference is worth stating where a user is deciding
+what to paste.
+
+**Verification.** typecheck, lint, i18n (969 keys), build, and 129 tests all clean; every class
+the view emits cross-checked against a matching rule in `globals.css`. Visual confirmation was
+again unavailable — the local browser tooling has been unloading pages mid-call for several
+hours — so this needs an eyeball on the live deploy.

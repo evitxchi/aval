@@ -224,6 +224,43 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--ink); outli
 .fixture-row strong { font-size: 11px; font-weight: 600; }
 .infra-caveat { color: var(--viz-orange); }
 
+/* Documents ------------------------------------------------------------ */
+.documents-view > section { margin-top: 10px; }
+.documents-view > section.panel { padding: 23px; }
+
+.document-form { margin-top: 18px; display: grid; gap: 10px; }
+.document-form-row { display: flex; gap: 8px; }
+.document-kind-select { flex-shrink: 0; padding: 11px 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); font: inherit; font-size: 11px; cursor: pointer; }
+.document-textarea { width: 100%; padding: 13px 15px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); color: var(--ink); font: inherit; font-size: 11px; line-height: 1.6; resize: vertical; }
+.document-textarea:focus, .document-kind-select:focus { outline: none; border-color: var(--line-strong); }
+.document-form-actions { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.document-form-actions .empty-copy { flex: 1 1 260px; margin: 0; }
+
+.document-list { margin-top: 16px; display: grid; gap: 8px; }
+.document-row { display: flex; align-items: center; gap: 11px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-soft); transition: border-color .18s var(--ease-snap), background .18s var(--ease-snap); }
+.document-row.is-selected { border-color: var(--ink); background: var(--surface); }
+.document-row > svg { flex-shrink: 0; color: var(--muted); }
+.document-row > div { flex: 1 1 auto; min-width: 0; display: grid; gap: 2px; }
+.document-row strong { font-size: 11px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.document-row span { font-size: 9px; color: var(--quiet); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.document-row > button { flex-shrink: 0; }
+
+.extraction-grid { margin-top: 18px; display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
+.extraction-field { padding: 13px 15px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-soft); }
+/* A field the document doesn't state is a real answer, not a gap — drawn
+   distinctly so it can't be mistaken for a value that failed to render. */
+.extraction-field.is-absent { border-style: dashed; background: transparent; }
+.extraction-label { margin: 0; font-size: 9px; letter-spacing: .05em; text-transform: uppercase; color: var(--quiet); }
+.extraction-value { margin: 5px 0 0; font-size: 12px; font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
+.extraction-field.is-absent .extraction-value { font-weight: 400; font-size: 10px; color: var(--quiet); font-style: italic; }
+/* The document's own wording, so a value can be checked rather than trusted. */
+.extraction-quote { margin: 7px 0 0; padding-left: 9px; border-left: 2px solid var(--line); font-size: 9.5px; line-height: 1.5; color: var(--muted); overflow-wrap: anywhere; }
+
+@media (max-width: 620px) {
+  .document-form-row { flex-direction: column; }
+  .document-row { flex-wrap: wrap; }
+}
+
 /* Aval Setup ----------------------------------------------------------- */
 /* .panel has no padding/margin of its own in this codebase — see the
    Infrastructure block above for the same fix. */

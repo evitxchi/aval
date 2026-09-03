@@ -1038,6 +1038,197 @@ const OPERATIONS_TILE_SOURCES: Partial<Record<View, string>> = {
   maintenance: "Leasing & PMS",
   accounting: "Accounting",
 };
+interface DocumentRow { id: string; title: string; kind: string; charCount: number; createdAt: string }
+interface ExtractedFieldRow { label: string; value: string | null; sourceQuote: string | null }
+interface ExtractionResult { fields: ExtractedFieldRow[]; note: string | null; truncated: boolean }
+
+const DOCUMENT_KIND_LABEL_KEY: Record<string, string> = {
+  lease: "DocumentsView.kindLease",
+  ownerStatement: "DocumentsView.kindOwnerStatement",
+  lenderStatement: "DocumentsView.kindLenderStatement",
+  vendorEstimate: "DocumentsView.kindVendorEstimate",
+  other: "DocumentsView.kindOther",
+};
+
+const DOCUMENT_KINDS = ["lease", "ownerStatement", "lenderStatement", "vendorEstimate", "other"];
+
+/**
+ * Documents — what a workspace has given Aval to read, and the structured
+ * reading of any one of them.
+ *
+ * Extraction is deliberately presented as a draft, not a result: every value
+ * shows the document's own wording beside it, and a field the document does
+ * not state renders as an explicit "not stated" rather than an empty cell that
+ * could be mistaken for a rendering fault. That mirrors how the extraction
+ * prompt is written — a blank is a correct answer, an invented value is not.
+ */
+function DocumentsView() {
+  const t = useTranslations();
+  const currentLocale = useLocale();
+  const { notify } = useExperience();
+  const [documents, setDocuments] = useState<DocumentRow[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [title, setTitle] = useState("");
+  const [kind, setKind] = useState("lease");
+  const [text, setText] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [extraction, setExtraction] = useState<ExtractionResult | null>(null);
+  const [extracting, setExtracting] = useState(false);
+
+  const dateFmt = useMemo(() => new Intl.DateTimeFormat(currentLocale, { dateStyle: "medium" }), [currentLocale]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/documents")
+      .then((response) => (response.ok ? response.json() as Promise<{ documents: DocumentRow[] }> : null))
+      .then((body) => { if (!cancelled && body) setDocuments(body.documents); })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoaded(true); });
+    return () => { cancelled = true; };
+  }, []);
+
+  async function save() {
+    if (!text.trim()) return;
+    setSaving(true);
+    try {
+      const response = await fetch("/api/documents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, kind, contentText: text }),
+      });
+      if (!response.ok) throw new Error(String(response.status));
+      const body = await response.json() as { document: DocumentRow & { truncated: boolean } };
+      setDocuments((current) => [body.document, ...current]);
+      setTitle(""); setText(""); setAdding(false);
+      // Truncation is surfaced, never silent — an answer drawn from a document
+      // whose tail was dropped without saying so is the worst outcome here.
+      notify(
+        t("DocumentsView.savedTitle"),
+        body.document.truncated ? t("DocumentsView.savedTruncated") : t("DocumentsView.savedDetail"),
+      );
+    } catch {
+      notify(t("DocumentsView.saveFailedTitle"), t("DocumentsView.saveFailedDetail"));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function extract(documentId: string) {
+    setSelectedId(documentId);
+    setExtraction(null);
+    setExtracting(true);
+    try {
+      const response = await fetch("/api/documents/extract", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ documentId }),
+      });
+      if (!response.ok) throw new Error(String(response.status));
+      const body = await response.json() as { extraction: ExtractionResult };
+      setExtraction(body.extraction);
+    } catch {
+      notify(t("DocumentsView.readFailedTitle"), t("DocumentsView.readFailedDetail"));
+      setSelectedId(null);
+    } finally {
+      setExtracting(false);
+    }
+  }
+
+  async function remove(documentId: string) {
+    try {
+      const response = await fetch(`/api/documents?id=${encodeURIComponent(documentId)}`, { method: "DELETE" });
+      if (!response.ok) throw new Error(String(response.status));
+      const body = await response.json() as { documents: DocumentRow[] };
+      setDocuments(body.documents);
+      if (selectedId === documentId) { setSelectedId(null); setExtraction(null); }
+    } catch {
+      notify(t("DocumentsView.saveFailedTitle"), t("DocumentsView.saveFailedDetail"));
+    }
+  }
+
+  return <div className="view-wrap documents-view">
+    <AppHeader
+      title={t("DocumentsView.documents")}
+      subtitle={t("DocumentsView.subtitle")}
+      actions={<button className="primary-button" onClick={() => setAdding(!adding)}><Plus width={18} height={18}/>{t("DocumentsView.addDocument")}</button>}
+    />
+
+    {adding && <section className="panel" data-reveal>
+      <div className="panel-heading"><div><p className="eyebrow">{t("DocumentsView.newDocument")}</p><h2>{t("DocumentsView.pasteTheText")}</h2></div></div>
+      <div className="document-form">
+        <div className="document-form-row">
+          <input
+            className="teach-input"
+            placeholder={t("DocumentsView.titlePlaceholder")}
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            aria-label={t("DocumentsView.titlePlaceholder")}
+          />
+          <select className="document-kind-select" value={kind} onChange={(event) => setKind(event.target.value)} aria-label={t("DocumentsView.kind")}>
+            {DOCUMENT_KINDS.map((option) => <option key={option} value={option}>{t(DOCUMENT_KIND_LABEL_KEY[option])}</option>)}
+          </select>
+        </div>
+        <textarea
+          className="document-textarea"
+          placeholder={t("DocumentsView.textPlaceholder")}
+          value={text}
+          onChange={(event) => setText(event.target.value)}
+          rows={9}
+          aria-label={t("DocumentsView.textPlaceholder")}
+        />
+        <div className="document-form-actions">
+          <p className="empty-copy">{t("DocumentsView.privacyNote")}</p>
+          <button className="primary-button" onClick={save} disabled={!text.trim() || saving}>
+            {saving ? t("DocumentsView.saving") : t("DocumentsView.save")}
+          </button>
+        </div>
+      </div>
+    </section>}
+
+    <section className="panel" data-reveal>
+      <div className="panel-heading">
+        <div><p className="eyebrow">{t("DocumentsView.library")}</p><h2>{t("DocumentsView.storedDocuments", { count: documents.length })}</h2></div>
+      </div>
+      {!loaded
+        ? <p className="empty-copy">{t("DocumentsView.loading")}</p>
+        : documents.length === 0
+        ? <p className="empty-copy">{t("DocumentsView.emptyLibrary")}</p>
+        : <div className="document-list">
+            {documents.map((document) => <div className={`document-row${selectedId === document.id ? " is-selected" : ""}`} key={document.id}>
+              <Page width={16} height={16}/>
+              <div>
+                <strong>{document.title}</strong>
+                <span>{t(DOCUMENT_KIND_LABEL_KEY[document.kind] ?? "DocumentsView.kindOther")} · {t("DocumentsView.characters", { count: document.charCount.toLocaleString(currentLocale) })} · {dateFmt.format(new Date(document.createdAt))}</span>
+              </div>
+              <button className="soft-button" onClick={() => extract(document.id)} disabled={extracting}>
+                {extracting && selectedId === document.id ? t("DocumentsView.reading") : t("DocumentsView.read")}
+              </button>
+              <button className="text-button quiet" onClick={() => remove(document.id)}>{t("DocumentsView.delete")}</button>
+            </div>)}
+          </div>}
+    </section>
+
+    {extraction && <section className="panel" data-reveal>
+      <div className="panel-heading">
+        <div><p className="eyebrow">{t("DocumentsView.reading_")}</p><h2>{t("DocumentsView.whatTheDocumentStates")}</h2></div>
+        <span className="quiet-label">{t("DocumentsView.reviewBeforeActing")}</span>
+      </div>
+      {extraction.truncated && <p className="empty-copy infra-caveat">{t("DocumentsView.truncatedWarning")}</p>}
+      <div className="extraction-grid">
+        {extraction.fields.map((field) => <div className={`extraction-field${field.value ? "" : " is-absent"}`} key={field.label}>
+          <p className="extraction-label">{field.label}</p>
+          <p className="extraction-value">{field.value ?? t("DocumentsView.notStated")}</p>
+          {field.sourceQuote && <p className="extraction-quote">&ldquo;{field.sourceQuote}&rdquo;</p>}
+        </div>)}
+      </div>
+      {extraction.note && <p className="empty-copy">{extraction.note}</p>}
+      <p className="empty-copy">{t("DocumentsView.extractionDisclaimer")}</p>
+    </section>}
+  </div>;
+}
+
 function OperationsView({ view, openConnections, dataMode, providers }: { view: View; openConnections: () => void; dataMode: DataMode; providers: Provider[] }) {
   const { market } = useExperience();
   const t = useTranslations();
@@ -1773,7 +1964,7 @@ function DesktopApp({ authMode, displayName, email }: { authMode: AuthMode; disp
         ? <button type="button" onClick={signOutOfPasswordAccount}><LogOut width={17} height={17}/>{t("DesktopApp.signOut")}</button>
         // eslint-disable-next-line @next/next/no-html-link-for-pages -- external platform sign-out route, not part of this app router
         : <a href="/signout-with-chatgpt?return_to=/"><LogOut width={17} height={17}/>{t("DesktopApp.signOut")}</a>}
-      </div>}</aside><section className="content-shell" aria-label={t(titleKey)}>{view === "overview" && <Overview displayName={displayName} openConnections={openConnections} dataMode={dataMode} providers={providers} pendingTarget={pendingTarget} targetToken={targetToken} reviewStatuses={reviewStatuses} sentReceipts={sentReceipts} onApprove={approveInsight} onDeny={denyInsight} onSendReminders={sendReminderBatch} onCreateDraft={createDraftJob}/>} {view === "tasks" && <TasksView draftJobs={draftJobs} onCreateDraft={createDraftJob} onPauseDraft={pauseDraftJob} onResumeDraft={resumeDraftJob} onRetryDraft={retryDraftJob} onSendDraft={sendDraftJob}/>} {view === "reviewCenter" && <ReviewCenterView reviewStatuses={reviewStatuses} sentReceipts={sentReceipts} onApprove={approveInsight} onDeny={denyInsight} onSendReminders={sendReminderBatch}/>} {view === "inbox" && <InboxView pendingTarget={pendingTarget} targetToken={targetToken}/>} {view === "connections" && <ConnectionsView providers={providers} loading={loading} onOpen={openProvider}/>} {view === "settings" && <SettingsView openConnections={openConnections} displayName={displayName} email={email}/>} {view === "infrastructure" && <InfrastructureView dataMode={dataMode} onAddMeter={() => setAddMeterOpen(true)}/>} {view === "setup" && <SetupView dataMode={dataMode} openConnections={openConnections}/>} {(["properties", "leasing", "maintenance", "accounting", "documents"] as View[]).includes(view) && <OperationsView view={view} openConnections={openConnections} dataMode={dataMode} providers={providers}/>}</section>{selectedProvider && <ConnectionDialog provider={selectedProvider} onClose={() => setSelectedProvider(null)} onRefresh={loadProviders}/>}{addMeterOpen && <AddMeterDialog onClose={() => setAddMeterOpen(false)}/>}<Dialog.Root open={notifications} onOpenChange={setNotifications}><Dialog.Portal><Dialog.Overlay className="dialog-overlay subtle"/><Dialog.Content className="notification-drawer"><div className="drawer-heading"><div><p className="eyebrow">{t("DesktopApp.liveWorkspace")}</p><Dialog.Title>{t("DesktopApp.notifications")}</Dialog.Title></div><Dialog.Close className="icon-button" aria-label={t("Overview.close")}><Xmark width={20} height={20}/></Dialog.Close></div><div className="notification-list">{notificationItems.map((item) => <button key={item.id} className={item.read ? "" : "unread"} onClick={() => openNotification(item)}><BrandMark provider={resolveNotificationProvider(item)} small/><span><strong>{t(item.titleKey)}</strong><small>{t(item.detailKey, item.detailParams)}</small></span><span className="notif-trailing">{!item.read && <i className="unread-dot"/>}<time>{formatMinutesAgo(item.minutesAgo, currentLocale)}</time></span></button>)}</div><button className="wide-button" onClick={() => setNotificationItems((current) => current.map((item) => ({ ...item, read: true })))}><Check width={17} height={17}/>{unreadCount ? t("DesktopApp.markAllAsRead") : t("DesktopApp.allCaughtUp")}</button></Dialog.Content></Dialog.Portal></Dialog.Root><AvalAssistant view={view} onCreateDraft={createDraftJob}/></main>;
+      </div>}</aside><section className="content-shell" aria-label={t(titleKey)}>{view === "overview" && <Overview displayName={displayName} openConnections={openConnections} dataMode={dataMode} providers={providers} pendingTarget={pendingTarget} targetToken={targetToken} reviewStatuses={reviewStatuses} sentReceipts={sentReceipts} onApprove={approveInsight} onDeny={denyInsight} onSendReminders={sendReminderBatch} onCreateDraft={createDraftJob}/>} {view === "tasks" && <TasksView draftJobs={draftJobs} onCreateDraft={createDraftJob} onPauseDraft={pauseDraftJob} onResumeDraft={resumeDraftJob} onRetryDraft={retryDraftJob} onSendDraft={sendDraftJob}/>} {view === "reviewCenter" && <ReviewCenterView reviewStatuses={reviewStatuses} sentReceipts={sentReceipts} onApprove={approveInsight} onDeny={denyInsight} onSendReminders={sendReminderBatch}/>} {view === "inbox" && <InboxView pendingTarget={pendingTarget} targetToken={targetToken}/>} {view === "connections" && <ConnectionsView providers={providers} loading={loading} onOpen={openProvider}/>} {view === "settings" && <SettingsView openConnections={openConnections} displayName={displayName} email={email}/>} {view === "infrastructure" && <InfrastructureView dataMode={dataMode} onAddMeter={() => setAddMeterOpen(true)}/>} {view === "setup" && <SetupView dataMode={dataMode} openConnections={openConnections}/>} {view === "documents" && <DocumentsView/>} {(["properties", "leasing", "maintenance", "accounting"] as View[]).includes(view) && <OperationsView view={view} openConnections={openConnections} dataMode={dataMode} providers={providers}/>}</section>{selectedProvider && <ConnectionDialog provider={selectedProvider} onClose={() => setSelectedProvider(null)} onRefresh={loadProviders}/>}{addMeterOpen && <AddMeterDialog onClose={() => setAddMeterOpen(false)}/>}<Dialog.Root open={notifications} onOpenChange={setNotifications}><Dialog.Portal><Dialog.Overlay className="dialog-overlay subtle"/><Dialog.Content className="notification-drawer"><div className="drawer-heading"><div><p className="eyebrow">{t("DesktopApp.liveWorkspace")}</p><Dialog.Title>{t("DesktopApp.notifications")}</Dialog.Title></div><Dialog.Close className="icon-button" aria-label={t("Overview.close")}><Xmark width={20} height={20}/></Dialog.Close></div><div className="notification-list">{notificationItems.map((item) => <button key={item.id} className={item.read ? "" : "unread"} onClick={() => openNotification(item)}><BrandMark provider={resolveNotificationProvider(item)} small/><span><strong>{t(item.titleKey)}</strong><small>{t(item.detailKey, item.detailParams)}</small></span><span className="notif-trailing">{!item.read && <i className="unread-dot"/>}<time>{formatMinutesAgo(item.minutesAgo, currentLocale)}</time></span></button>)}</div><button className="wide-button" onClick={() => setNotificationItems((current) => current.map((item) => ({ ...item, read: true })))}><Check width={17} height={17}/>{unreadCount ? t("DesktopApp.markAllAsRead") : t("DesktopApp.allCaughtUp")}</button></Dialog.Content></Dialog.Portal></Dialog.Root><AvalAssistant view={view} onCreateDraft={createDraftJob}/></main>;
 }
 
 export function AvalDashboard({ authMode, displayName, email }: { authMode: AuthMode; displayName: string; email: string }) { return <ExperienceProvider><DesktopApp authMode={authMode} displayName={displayName} email={email}/></ExperienceProvider>; }
