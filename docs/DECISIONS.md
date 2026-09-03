@@ -1118,3 +1118,28 @@ this session.
 **Verification.** `tsc --noEmit`, `npm run lint`, `npm run i18n:check`, `npm run build`
 (confirmed `InterVariable.woff2` lands in both `dist/server` and `dist/client`, Monument fully
 gone), and `node --test` (56 passing, including the updated font/palette assertion) all clean.
+
+## 2026-09-02 — Aval Intelligence restored, with its own real logo
+
+**Context.** Two turns ago the "Aval supplies the model" row was removed from the Intelligence
+list at the user's own explicit request ("remove the aval intelligence for now"). The user
+asked for it back, and separately asked to use a specific logo for it (a screenshot matching
+this repo's own `public/favicon.png` exactly).
+
+**Row restored** as a plain entry in `provider-row-list`, sharing the identical summary/chevron/
+expand shell every real provider row uses — same structure as before its removal, just labeled
+"Aval Intelligence" instead of "Aval (default)" and describing a model *subscription* Aval
+supplies, matching how this round of work frames it (consistent with the subscription-provider
+language used everywhere else on this page now).
+
+**Logo:** `BrandMark`'s `"aval"` case rendered a plain black "a" text wordmark (`.aval-mark`)
+before this — never a real logo. `public/brand/aval-mark.png` already exists as this app's real
+mark (used by the sidebar brand lockup, the Ask Aval assistant icon, and the mobile header) and
+is pixel-identical to the favicon the user pointed at, just at higher resolution — reused that
+existing asset rather than referencing the tiny favicon or adding a new file. `BrandMark` gained
+`.brand-mark img`/`.brand-mark.small img` sizing rules paralleling its existing `svg` rules; the
+now-dead `.aval-mark` text-wordmark style was removed.
+
+**Verification.** `tsc --noEmit`, `npm run lint` (one new, same-class `no-img-element` warning,
+consistent with every other static-image warning already accepted in this codebase),
+`npm run i18n:check`, `npm run build`, and `node --test` (56 passing) all clean.

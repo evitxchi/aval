@@ -213,10 +213,10 @@ function ProviderAccordionRow({ provider, twin, isOpen, onToggle, isActive, swit
  * flow, and encrypted-credential storage as every other provider on the
  * Connections page — a model provider is just an IntegrationProvider with
  * category "Model" (lib/integrations/catalog.ts). Aval's own bundled
- * default is deliberately not offered here right now — the user asked for
- * it to come out while this page's layout settles; switching an org's
- * active provider back to Aval's own key can be restored as a plain row
- * once that's wanted again.
+ * default ("Aval Intelligence" — Aval supplies the model, no key or
+ * subscription needed) is a plain row in this same list, sharing the exact
+ * same summary/chevron/expand shell as every real provider, just simpler
+ * expanded content (a description and a "Use this" button, no forms).
  */
 export function IntelligenceSettings() {
   const t = useTranslations();
@@ -280,6 +280,24 @@ export function IntelligenceSettings() {
           </label>
         </div>
         <div className="provider-row-list">
+          <div className={`provider-row ${expanded === "aval" ? "is-open" : ""} ${!activeProvider ? "active" : ""}`}>
+            <button type="button" className="provider-row-summary" aria-expanded={expanded === "aval"} onClick={() => setExpanded((current) => (current === "aval" ? null : "aval"))}>
+              <BrandMark provider="aval" small />
+              <span className="provider-row-name">{t("IntelligenceSettings.avalDefault")}</span>
+              {!activeProvider && <span className="connection-status connected">{t("IntelligenceSettings.inUse")}</span>}
+              <NavArrowDown width={14} height={14} className={expanded === "aval" ? "provider-row-chevron open" : "provider-row-chevron"} />
+            </button>
+            <div className="provider-row-body" style={{ gridTemplateRows: expanded === "aval" ? "1fr" : "0fr" }}>
+              <div className="provider-row-body-inner">
+                <p className="provider-row-description">{t("IntelligenceSettings.avalDefaultDescription")}</p>
+                {activeProvider && (
+                  <button type="button" className="wide-button" disabled={switching !== null} onClick={() => void setActive(null)}>
+                    {t("IntelligenceSettings.useThis")}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
           {filtered.map((provider) => {
             const twin = twinByProvider.get(provider.id) ?? null;
             const isActive = activeProvider === provider.id || (twin ? activeProvider === twin.id : false);

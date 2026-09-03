@@ -766,6 +766,8 @@
   "IntelligenceSettings": {
     "apiKeyLabel": "API key",
     "apiKeyOption": "API key",
+    "avalDefault": "Aval Intelligence",
+    "avalDefaultDescription": "Runs on Aval's own model subscription. No key required, no separate billing.",
     "configureProviders": "Configure providers",
     "connect": "Connect",
     "connectFailed": "Could not complete this connection. Try again.",
