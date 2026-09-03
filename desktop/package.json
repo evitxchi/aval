@@ -8,6 +8,7 @@
     "start": "electron .",
     "test": "node --test test/*.test.cjs",
     "package:mac": "electron-builder --mac",
+    "package:mac:offline": "zsh scripts/package-offline-mac.sh",
     "package:win": "electron-builder --win",
     "package:linux": "electron-builder --linux"
   },
@@ -27,4 +28,3 @@
     "linux": { "category": "Office", "target": ["AppImage"] }
   }
 }
-
