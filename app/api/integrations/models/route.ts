@@ -29,7 +29,7 @@ export async function GET(request: Request) {
   if (!encryptionKey) return Response.json({ error: "Credential encryption is not configured" }, { status: 409 });
 
   const db = getDb();
-  const [connection] = await db.select({ accessTokenCiphertext: integrationConnections.accessTokenCiphertext, status: integrationConnections.status })
+  const [connection] = await db.select({ accessTokenCiphertext: integrationConnections.accessTokenCiphertext, status: integrationConnections.status, externalAccountId: integrationConnections.externalAccountId })
     .from(integrationConnections)
     .where(and(eq(integrationConnections.organizationId, identity.organizationId), eq(integrationConnections.provider, providerId)))
     .limit(1);
@@ -41,7 +41,9 @@ export async function GET(request: Request) {
     const decrypted = await decryptSecret(connection.accessTokenCiphertext, encryptionKey);
     const accessToken = isSubscriptionProviderId(providerId) ? decrypted : (JSON.parse(decrypted) as { apiKey?: string }).apiKey;
     if (!accessToken) return Response.json({ error: "No credential is stored for this provider." }, { status: 409 });
-    const models = await listModels(providerId, accessToken);
+    // The Codex model endpoint is account-scoped, so it needs the same
+    // ChatGPT-Account-ID the inference requests send.
+    const models = await listModels(providerId, accessToken, connection.externalAccountId ?? undefined);
     return Response.json({ provider: providerId, models, defaultModel: catalogEntry.defaultModel ?? null });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "Could not list models for this provider." }, { status: 502 });

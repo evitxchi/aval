@@ -1485,3 +1485,62 @@ They are worth building for real if wanted; they are not worth faking.
 
 **Verification.** 76 tests passing (up from 73), `/api/agents/memory` registered in the build,
 and typecheck/lint/i18n (909 keys)/build all clean.
+
+## 2026-09-02 — Overview hero, typed teaching box, and live Codex model discovery
+
+**The hero.** Portfolio overview now opens with a greeting block: "Welcome back, {first name}",
+a day counter, a typed line that cycles four phrases, and the year-of-activity heatmap (moved up
+out of the activity panel, which keeps the ledger strip).
+
+- *The day count is real.* It comes from `organizations.createdAt` via a new `GET /api/workspace`.
+  First attempt resolved it server-side in `page.tsx`, which broke the server-render tests:
+  importing `ensureOrganization` pulls `@/db` → `cloudflare:workers` into a page that otherwise
+  renders without a D1 binding, and it put a database round-trip on every dashboard load for a
+  secondary figure. It's a post-paint fetch instead; if it fails the counter stays hidden rather
+  than showing a fabricated "day 1". `daysSince` is covered by six tests — month and year
+  boundaries, a DST week, same-day (day 1, not day 0), and a clock skew that would otherwise
+  yield zero or negative.
+- *The typewriter honors `prefers-reduced-motion`*, showing the first phrase statically — a caret
+  blinking through a retyping sentence is precisely the continuous motion that setting exists to
+  stop. The full phrase set is also in a `.visually-hidden` span so assistive tech isn't served
+  whatever frame the animation happens to be on. The line reserves its height so growing and
+  clearing text doesn't shift the page on every keystroke.
+- `usePrefersReducedMotion` uses `useSyncExternalStore`, not an effect writing state: matchMedia
+  is an external store, React Compiler's lint correctly rejected the effect version, and this
+  gives a correct server snapshot for free.
+
+**The typed teaching box.** Teaching now accepts a free-typed sentence — "always get me three
+quotes before booking" — plus one-click suggestion chips with a Refresh that rotates a window
+over the untaught pool. The privacy guarantee is unchanged: `POST /api/agents/memory` classifies
+the sentence into the fixed taxonomy and stores **only the resulting tag**; the sentence is
+discarded and never written. Text that can't be placed confidently returns 422 and the UI says so
+rather than guessing — a confident wrong guess about how someone wants their money spent is worse
+than asking.
+
+`lib/ask-aval/preference-matching.ts` is a local scorer, not a model call: twelve statements make
+matching cheap, instant, deterministic, testable, and free to the workspace. Two real bugs the
+tests caught:
+
+1. `prefer_fastest_available_vendor`'s label reads "…over the cheapest", so tokenizing labels
+   filed "cheapest" under the *fastest* option and classified "pick the cheapest contractor"
+   exactly backwards. Vocabulary now drops label words another option's synonyms claim.
+2. A single decisive word in a longer sentence scored too low. Matches are now weighted by how
+   exclusive a word is (IDF-style), so "soonest" carries a sentence that is otherwise filler,
+   while padding still lowers confidence rather than raising it.
+
+The same class of bug appeared in the suggestion copy — "Email tenants rather than texting them"
+classified as WhatsApp — so each suggestion now names only its own option.
+
+**Live Codex model discovery.** Comparing the ChatGPT subscription path against a detailed
+reference of the Codex CLI flow, everything matched: client id, all three extra authorize params
+(`originator`, `codex_cli_simplified_flow`, `id_token_add_organizations`), PKCE, the
+`https://api.openai.com/auth` → `chatgpt_account_id` claim, the `backend-api/codex` rewrite, all
+four request headers, `store:false` + stripped `max_output_tokens` +
+`reasoning.encrypted_content`, and the 2-minute refresh skew. The one real gap was model
+discovery: `listModels` returned a hardcoded pair — exactly the frozen hand-typed guess its own
+comment claimed to avoid. It now queries the Codex backend's own
+`/models?client_version=…` with the account-scoped headers and filters `visibility !== "hide"`,
+and its fallback list is deliberately **empty**: an empty picker that admits it couldn't reach
+the list beats a populated one whose entries 404 on send.
+
+**Verification.** 96 tests passing (up from 90). typecheck/lint/i18n (921 keys)/build clean.

@@ -10,10 +10,10 @@ import {
   Coins, CoinsSwap, Dashboard, Database, FilterList, Flash, Globe, HalfMoon, HomeSimpleDoor, Key,
   Language, LogOut, NetworkLeft, NavArrowDown, NavArrowLeft, NavArrowRight, Page, Pause,
   Phone, Plus, ScaleFrameEnlarge, ScaleFrameReduce, Search, SendDiagonal, Settings, ShieldCheck, SmartphoneDevice,
-  SoundHigh, SoundOff, StatsUpSquare, SunLight, TaskList, Tools, User, WarningTriangle,
+  Refresh, SoundHigh, SoundOff, StatsUpSquare, SunLight, TaskList, Tools, User, WarningTriangle,
   ViewColumns3, ViewGrid, Xmark, XmarkCircle,
 } from "iconoir-react";
-import { AnimatedNumber, ExperienceProvider, useExperience } from "@/app/components/experience";
+import { AnimatedNumber, ExperienceProvider, useExperience, usePrefersReducedMotion } from "@/app/components/experience";
 import { Link, useRouter, usePathname } from "./navigation";
 import { AvalAssistant } from "@/app/components/aval-assistant";
 import type { AuthMode } from "@/app/components/auth-gate";
@@ -406,12 +406,112 @@ function DateRangePicker({ period, onChange, t, locale }: { period: string; onCh
   );
 }
 
+/** The phrases the hero cycles through. Each is a full sentence, typed then cleared. */
+const HERO_PHRASE_KEYS = [
+  "Overview.heroPhraseAllInOnePlace",
+  "Overview.heroPhraseLeasingToLedger",
+  "Overview.heroPhraseEveryDoorEveryDollar",
+  "Overview.heroPhraseAnswersNotDashboards",
+] as const;
+
+/**
+ * Types a phrase out, holds it, clears it, moves to the next — the marquee
+ * line under the greeting.
+ *
+ * Honors `prefers-reduced-motion` by showing the first phrase statically:
+ * a caret blinking through a retyping sentence is exactly the kind of
+ * continuous motion that setting exists to turn off. Also pauses while the
+ * tab is hidden, so returning to a backgrounded dashboard doesn't land
+ * mid-word after thousands of wasted timer ticks.
+ */
+function useTypewriter(phrases: string[]): { text: string; typing: boolean } {
+  const reduceMotion = usePrefersReducedMotion();
+  const [index, setIndex] = useState(0);
+  const [length, setLength] = useState(0);
+  const [erasing, setErasing] = useState(false);
+
+  const phrase = phrases[index % phrases.length] ?? "";
+
+  useEffect(() => {
+    if (reduceMotion || phrases.length === 0) return;
+    // Typing is quick, erasing quicker, and a finished sentence holds long
+    // enough to actually be read before it starts disappearing.
+    const done = length >= phrase.length;
+    const delay = erasing ? 24 : done ? 2100 : 52;
+    const timer = window.setTimeout(() => {
+      if (erasing) {
+        if (length <= 0) { setErasing(false); setIndex((current) => (current + 1) % phrases.length); }
+        else setLength((current) => current - 1);
+        return;
+      }
+      if (done) { setErasing(true); return; }
+      setLength((current) => current + 1);
+    }, delay);
+    return () => window.clearTimeout(timer);
+  }, [length, erasing, phrase, phrases.length, reduceMotion]);
+
+  if (reduceMotion) return { text: phrases[0] ?? "", typing: false };
+  return { text: phrase.slice(0, length), typing: true };
+}
+
+/** Whole days since the workspace was created, inclusive of today. */
+export function daysSince(createdAt: Date, now: Date): number {
+  const start = Date.UTC(createdAt.getUTCFullYear(), createdAt.getUTCMonth(), createdAt.getUTCDate());
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  return Math.max(1, Math.floor((today - start) / 86_400_000) + 1);
+}
+
+/**
+ * The dashboard's opening block: who's here, how long they've been here, and
+ * a typed line, over the year-of-activity heatmap.
+ */
+function OverviewHero({ displayName, t, locale }: { displayName: string; t: T; locale: string }) {
+  const phrases = useMemo(() => HERO_PHRASE_KEYS.map((key) => t(key)), [t]);
+  const { text, typing } = useTypewriter(phrases);
+  const firstName = displayName.trim().split(/\s+/)[0] || displayName;
+  const [days, setDays] = useState<number | null>(null);
+
+  // Fetched rather than server-rendered (see page.tsx). Stays null — and the
+  // counter stays hidden — if the call fails or the date is unparseable: a
+  // fabricated "day 1" would be worse than no counter at all.
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/workspace")
+      .then((response) => (response.ok ? response.json() as Promise<{ createdAt?: string }> : null))
+      .then((body) => {
+        if (cancelled || !body?.createdAt) return;
+        const created = new Date(body.createdAt);
+        if (!Number.isNaN(created.getTime())) setDays(daysSince(created, new Date()));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  return <section className="overview-hero" data-reveal>
+    <div className="overview-hero-copy">
+      <p className="eyebrow">{t("Overview.heroEyebrow")}</p>
+      <h1>{t("Overview.heroWelcome", { name: firstName })}</h1>
+      {days !== null && <p className="overview-hero-days">
+        <AnimatedNumber value={days}/> <span>{t("Overview.heroDaysWithAval", { count: days })}</span>
+      </p>}
+      <p className="overview-hero-typed" aria-live="off">
+        <span>{text}</span>
+        {typing && <i className="type-caret" aria-hidden="true"/>}
+      </p>
+      {/* The full set, readable by assistive tech and search without
+          depending on the animation's current frame. */}
+      <span className="visually-hidden">{phrases.join(". ")}</span>
+    </div>
+    <ActivityHeatmap t={t} locale={locale} compact/>
+  </section>;
+}
+
 /**
  * A year of daily activity as a heatmap. Reads the same class of work the
  * ledger and history drawer itemize — verified actions Aval completed — so the
  * three surfaces describe one underlying stream rather than three metrics.
  */
-function ActivityHeatmap({ t, locale }: { t: T; locale: string }) {
+function ActivityHeatmap({ t, locale, compact = false }: { t: T; locale: string; compact?: boolean }) {
   const weeks = useMemo(() => buildActivityYear(SAMPLE_TODAY), []);
   const weekdayFmt = useMemo(() => new Intl.DateTimeFormat(locale, { weekday: "short" }), [locale]);
   const monthFmt = useMemo(() => new Intl.DateTimeFormat(locale, { month: "short" }), [locale]);
@@ -434,7 +534,7 @@ function ActivityHeatmap({ t, locale }: { t: T; locale: string }) {
     return last.getMonth() === previousLast.getMonth() ? "" : monthFmt.format(last);
   });
 
-  return <div className="activity-heatmap">
+  return <div className={`activity-heatmap${compact ? " is-compact" : ""}`}>
     <div className="activity-heatmap-weekdays" aria-hidden="true">{weekdayLabels.map((label, index) => <span key={index}>{label}</span>)}</div>
     <div className="activity-heatmap-body">
       <div className="activity-heatmap-months" aria-hidden="true">{monthLabels.map((label, index) => <span key={index}>{label}</span>)}</div>
@@ -457,7 +557,8 @@ function ActivityHeatmap({ t, locale }: { t: T; locale: string }) {
   </div>;
 }
 
-function Overview({ openConnections, dataMode, providers, pendingTarget, targetToken, reviewStatuses, sentReceipts, onApprove, onDeny, onSendReminders, onCreateDraft }: {
+function Overview({ displayName, openConnections, dataMode, providers, pendingTarget, targetToken, reviewStatuses, sentReceipts, onApprove, onDeny, onSendReminders, onCreateDraft }: {
+  displayName: string;
   openConnections: () => void; dataMode: DataMode; providers: Provider[];
   pendingTarget: NotificationTarget | null; targetToken: number;
   reviewStatuses: Record<string, ReviewStatus>; sentReceipts: Record<string, InsightRecipient[]>;
@@ -542,6 +643,7 @@ function Overview({ openConnections, dataMode, providers, pendingTarget, targetT
   };
 
   return <div className="view-wrap">
+    <OverviewHero displayName={displayName} t={t} locale={currentLocale}/>
     <AppHeader
       title={t("Overview.portfolioOverview")}
       subtitle={dataMode === "live"
@@ -706,10 +808,7 @@ function Overview({ openConnections, dataMode, providers, pendingTarget, targetT
         {isSample && <button className="soft-button" onClick={() => setHistoryOpen(true)}><Archive width={17} height={17}/>{t("Overview.history")}</button>}
       </div>
       {isSample
-        ? <>
-            <div className="activity-flow">{sampleData.ledger.steps.map((step, index) => <span className="activity-segment" key={step.provider}>{index > 0 && <i className="flow-arrow">→</i>}<span className={`activity-card ${step.provider === "complete" ? "complete" : ""}`}><span>{step.provider === "complete" ? <CheckCircle width={24} height={24}/> : <BrandMark provider={step.provider} small/>}</span><p>{t(step.textKey)}</p></span></span>)}</div>
-            <ActivityHeatmap t={t} locale={currentLocale}/>
-          </>
+        ? <div className="activity-flow">{sampleData.ledger.steps.map((step, index) => <span className="activity-segment" key={step.provider}>{index > 0 && <i className="flow-arrow">→</i>}<span className={`activity-card ${step.provider === "complete" ? "complete" : ""}`}><span>{step.provider === "complete" ? <CheckCircle width={24} height={24}/> : <BrandMark provider={step.provider} small/>}</span><p>{t(step.textKey)}</p></span></span>)}</div>
         : <p className="empty-copy">{t("Overview.noVerifiedActionsYetAvalWill")}</p>}
     </section>
   </div>;
@@ -1177,17 +1276,21 @@ function SetupView({ dataMode, openConnections }: { dataMode: DataMode; openConn
   const [options, setOptions] = useState<PreferenceOption[]>([]);
   const [teaching, setTeaching] = useState<string | null>(null);
   const [busyTopic, setBusyTopic] = useState<string | null>(null);
+  const [draft, setDraft] = useState("");
+  const [draftState, setDraftState] = useState<"idle" | "saving" | "noMatch">("idle");
+  const [suggestions, setSuggestions] = useState<{ topic: string; text: string }[]>([]);
+  const [suggestionSeed, setSuggestionSeed] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     Promise.all([
       fetch("/api/agents/default").then((r) => (r.ok ? r.json() as Promise<{ defaultPersonaId?: string | null }> : null)).catch(() => null),
-      fetch("/api/agents/memory").then((r) => (r.ok ? r.json() as Promise<{ taught: TaughtPreference[]; options: PreferenceOption[] }> : null)).catch(() => null),
+      fetch("/api/agents/memory").then((r) => (r.ok ? r.json() as Promise<{ taught: TaughtPreference[]; options: PreferenceOption[]; suggestions: { topic: string; text: string }[] }> : null)).catch(() => null),
     ]).then(([agent, memory]) => {
       if (cancelled) return;
       const saved = agent?.defaultPersonaId;
       if (saved && PERSONA_IDS.includes(saved as PersonaId)) setSelected(saved as PersonaId);
-      if (memory) { setTaught(memory.taught); setOptions(memory.options); }
+      if (memory) { setTaught(memory.taught); setOptions(memory.options); setSuggestions(memory.suggestions ?? []); }
       setLoaded(true);
     });
     return () => { cancelled = true; };
@@ -1219,8 +1322,9 @@ function SetupView({ dataMode, openConnections }: { dataMode: DataMode; openConn
     try {
       const response = await fetch("/api/agents/memory", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ topic, statement }) });
       if (!response.ok) throw new Error(String(response.status));
-      const body = await response.json() as { taught: TaughtPreference[] };
+      const body = await response.json() as { taught: TaughtPreference[]; suggestions: { topic: string; text: string }[] };
       setTaught(body.taught);
+      setSuggestions(body.suggestions ?? []);
       setTeaching(null);
       notify(t("SetupView.taughtTitle"), t("SetupView.taughtDetail"));
     } catch {
@@ -1228,13 +1332,41 @@ function SetupView({ dataMode, openConnections }: { dataMode: DataMode; openConn
     } finally { setBusyTopic(null); }
   }
 
+  /**
+   * Teaches from a typed sentence. The server classifies it into the fixed
+   * taxonomy and stores only the resulting tag — the sentence itself is never
+   * persisted. A 422 means it couldn't be placed confidently, which is shown
+   * as "pick from the list" rather than guessed at.
+   */
+  async function teachFromText(text: string) {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    setDraftState("saving");
+    try {
+      const response = await fetch("/api/agents/memory", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: trimmed }) });
+      if (response.status === 422) { setDraftState("noMatch"); return; }
+      if (!response.ok) throw new Error(String(response.status));
+      const body = await response.json() as { taught: TaughtPreference[]; suggestions: { topic: string; text: string }[]; matched?: { topic: string; statement: string } };
+      setTaught(body.taught);
+      setSuggestions(body.suggestions ?? []);
+      setDraft("");
+      setDraftState("idle");
+      const label = body.taught.find((row) => row.topic === body.matched?.topic)?.label ?? "";
+      notify(t("SetupView.taughtTitle"), label || t("SetupView.taughtDetail"));
+    } catch {
+      setDraftState("idle");
+      notify(t("SetupView.teachFailedTitle"), t("SetupView.teachFailedDetail"));
+    }
+  }
+
   async function forget(topic: string) {
     setBusyTopic(topic);
     try {
       const response = await fetch(`/api/agents/memory?topic=${encodeURIComponent(topic)}`, { method: "DELETE" });
       if (!response.ok) throw new Error(String(response.status));
-      const body = await response.json() as { taught: TaughtPreference[] };
+      const body = await response.json() as { taught: TaughtPreference[]; suggestions: { topic: string; text: string }[] };
       setTaught(body.taught);
+      setSuggestions(body.suggestions ?? []);
     } catch {
       notify(t("SetupView.teachFailedTitle"), t("SetupView.teachFailedDetail"));
     } finally { setBusyTopic(null); }
@@ -1297,6 +1429,45 @@ function SetupView({ dataMode, openConnections }: { dataMode: DataMode; openConn
       <div className="panel-heading">
         <div><p className="eyebrow">{t("SetupView.memory")}</p><h2>{t("SetupView.whatAvalRemembers")}</h2></div>
         <span className="quiet-label">{t("SetupView.appliesEverywhere")}</span>
+      </div>
+
+      <div className="teach-box">
+        <div className="teach-input-row">
+          <input
+            type="text"
+            className="teach-input"
+            placeholder={t("SetupView.teachPlaceholder")}
+            value={draft}
+            onChange={(event) => { setDraft(event.target.value); if (draftState === "noMatch") setDraftState("idle"); }}
+            onKeyDown={(event) => { if (event.key === "Enter") teachFromText(draft); }}
+            disabled={draftState === "saving" || !loaded}
+            aria-label={t("SetupView.teachPlaceholder")}
+          />
+          <button type="button" className="primary-button" onClick={() => teachFromText(draft)} disabled={!draft.trim() || draftState === "saving" || !loaded}>
+            {draftState === "saving" ? t("SetupView.saving") : t("SetupView.teachAval")}
+          </button>
+        </div>
+        {draftState === "noMatch"
+          ? <p className="teach-hint is-warning">{t("SetupView.noMatchHint")}</p>
+          : <p className="teach-hint">{t("SetupView.teachHint")}</p>}
+
+        {suggestions.length > 0 && <div className="teach-suggestions">
+          <div className="teach-suggestions-head">
+            <span>{t("SetupView.notSureWhatToTeach")}</span>
+            <button type="button" className="text-button" onClick={() => setSuggestionSeed((seed) => seed + 1)}>
+              <Refresh width={13} height={13}/>{t("SetupView.refresh")}
+            </button>
+          </div>
+          <div className="teach-suggestion-chips">
+            {/* One rotating window over the pool, so Refresh always changes
+                what's on screen instead of reshuffling into the same three. */}
+            {Array.from({ length: Math.min(3, suggestions.length) }, (_, offset) => suggestions[(suggestionSeed * 3 + offset) % suggestions.length]).map((suggestion, index) => (
+              <button type="button" className="teach-chip" key={`${suggestion.topic}-${index}`} onClick={() => { setDraft(suggestion.text); setDraftState("idle"); }}>
+                {suggestion.text}
+              </button>
+            ))}
+          </div>
+        </div>}
       </div>
 
       <div className="memory-grid">
@@ -1602,7 +1773,7 @@ function DesktopApp({ authMode, displayName, email }: { authMode: AuthMode; disp
         ? <button type="button" onClick={signOutOfPasswordAccount}><LogOut width={17} height={17}/>{t("DesktopApp.signOut")}</button>
         // eslint-disable-next-line @next/next/no-html-link-for-pages -- external platform sign-out route, not part of this app router
         : <a href="/signout-with-chatgpt?return_to=/"><LogOut width={17} height={17}/>{t("DesktopApp.signOut")}</a>}
-      </div>}</aside><section className="content-shell" aria-label={t(titleKey)}>{view === "overview" && <Overview openConnections={openConnections} dataMode={dataMode} providers={providers} pendingTarget={pendingTarget} targetToken={targetToken} reviewStatuses={reviewStatuses} sentReceipts={sentReceipts} onApprove={approveInsight} onDeny={denyInsight} onSendReminders={sendReminderBatch} onCreateDraft={createDraftJob}/>} {view === "tasks" && <TasksView draftJobs={draftJobs} onCreateDraft={createDraftJob} onPauseDraft={pauseDraftJob} onResumeDraft={resumeDraftJob} onRetryDraft={retryDraftJob} onSendDraft={sendDraftJob}/>} {view === "reviewCenter" && <ReviewCenterView reviewStatuses={reviewStatuses} sentReceipts={sentReceipts} onApprove={approveInsight} onDeny={denyInsight} onSendReminders={sendReminderBatch}/>} {view === "inbox" && <InboxView pendingTarget={pendingTarget} targetToken={targetToken}/>} {view === "connections" && <ConnectionsView providers={providers} loading={loading} onOpen={openProvider}/>} {view === "settings" && <SettingsView openConnections={openConnections} displayName={displayName} email={email}/>} {view === "infrastructure" && <InfrastructureView dataMode={dataMode} onAddMeter={() => setAddMeterOpen(true)}/>} {view === "setup" && <SetupView dataMode={dataMode} openConnections={openConnections}/>} {(["properties", "leasing", "maintenance", "accounting", "documents"] as View[]).includes(view) && <OperationsView view={view} openConnections={openConnections} dataMode={dataMode} providers={providers}/>}</section>{selectedProvider && <ConnectionDialog provider={selectedProvider} onClose={() => setSelectedProvider(null)} onRefresh={loadProviders}/>}{addMeterOpen && <AddMeterDialog onClose={() => setAddMeterOpen(false)}/>}<Dialog.Root open={notifications} onOpenChange={setNotifications}><Dialog.Portal><Dialog.Overlay className="dialog-overlay subtle"/><Dialog.Content className="notification-drawer"><div className="drawer-heading"><div><p className="eyebrow">{t("DesktopApp.liveWorkspace")}</p><Dialog.Title>{t("DesktopApp.notifications")}</Dialog.Title></div><Dialog.Close className="icon-button" aria-label={t("Overview.close")}><Xmark width={20} height={20}/></Dialog.Close></div><div className="notification-list">{notificationItems.map((item) => <button key={item.id} className={item.read ? "" : "unread"} onClick={() => openNotification(item)}><BrandMark provider={resolveNotificationProvider(item)} small/><span><strong>{t(item.titleKey)}</strong><small>{t(item.detailKey, item.detailParams)}</small></span><span className="notif-trailing">{!item.read && <i className="unread-dot"/>}<time>{formatMinutesAgo(item.minutesAgo, currentLocale)}</time></span></button>)}</div><button className="wide-button" onClick={() => setNotificationItems((current) => current.map((item) => ({ ...item, read: true })))}><Check width={17} height={17}/>{unreadCount ? t("DesktopApp.markAllAsRead") : t("DesktopApp.allCaughtUp")}</button></Dialog.Content></Dialog.Portal></Dialog.Root><AvalAssistant view={view} onCreateDraft={createDraftJob}/></main>;
+      </div>}</aside><section className="content-shell" aria-label={t(titleKey)}>{view === "overview" && <Overview displayName={displayName} openConnections={openConnections} dataMode={dataMode} providers={providers} pendingTarget={pendingTarget} targetToken={targetToken} reviewStatuses={reviewStatuses} sentReceipts={sentReceipts} onApprove={approveInsight} onDeny={denyInsight} onSendReminders={sendReminderBatch} onCreateDraft={createDraftJob}/>} {view === "tasks" && <TasksView draftJobs={draftJobs} onCreateDraft={createDraftJob} onPauseDraft={pauseDraftJob} onResumeDraft={resumeDraftJob} onRetryDraft={retryDraftJob} onSendDraft={sendDraftJob}/>} {view === "reviewCenter" && <ReviewCenterView reviewStatuses={reviewStatuses} sentReceipts={sentReceipts} onApprove={approveInsight} onDeny={denyInsight} onSendReminders={sendReminderBatch}/>} {view === "inbox" && <InboxView pendingTarget={pendingTarget} targetToken={targetToken}/>} {view === "connections" && <ConnectionsView providers={providers} loading={loading} onOpen={openProvider}/>} {view === "settings" && <SettingsView openConnections={openConnections} displayName={displayName} email={email}/>} {view === "infrastructure" && <InfrastructureView dataMode={dataMode} onAddMeter={() => setAddMeterOpen(true)}/>} {view === "setup" && <SetupView dataMode={dataMode} openConnections={openConnections}/>} {(["properties", "leasing", "maintenance", "accounting", "documents"] as View[]).includes(view) && <OperationsView view={view} openConnections={openConnections} dataMode={dataMode} providers={providers}/>}</section>{selectedProvider && <ConnectionDialog provider={selectedProvider} onClose={() => setSelectedProvider(null)} onRefresh={loadProviders}/>}{addMeterOpen && <AddMeterDialog onClose={() => setAddMeterOpen(false)}/>}<Dialog.Root open={notifications} onOpenChange={setNotifications}><Dialog.Portal><Dialog.Overlay className="dialog-overlay subtle"/><Dialog.Content className="notification-drawer"><div className="drawer-heading"><div><p className="eyebrow">{t("DesktopApp.liveWorkspace")}</p><Dialog.Title>{t("DesktopApp.notifications")}</Dialog.Title></div><Dialog.Close className="icon-button" aria-label={t("Overview.close")}><Xmark width={20} height={20}/></Dialog.Close></div><div className="notification-list">{notificationItems.map((item) => <button key={item.id} className={item.read ? "" : "unread"} onClick={() => openNotification(item)}><BrandMark provider={resolveNotificationProvider(item)} small/><span><strong>{t(item.titleKey)}</strong><small>{t(item.detailKey, item.detailParams)}</small></span><span className="notif-trailing">{!item.read && <i className="unread-dot"/>}<time>{formatMinutesAgo(item.minutesAgo, currentLocale)}</time></span></button>)}</div><button className="wide-button" onClick={() => setNotificationItems((current) => current.map((item) => ({ ...item, read: true })))}><Check width={17} height={17}/>{unreadCount ? t("DesktopApp.markAllAsRead") : t("DesktopApp.allCaughtUp")}</button></Dialog.Content></Dialog.Portal></Dialog.Root><AvalAssistant view={view} onCreateDraft={createDraftJob}/></main>;
 }
 
 export function AvalDashboard({ authMode, displayName, email }: { authMode: AuthMode; displayName: string; email: string }) { return <ExperienceProvider><DesktopApp authMode={authMode} displayName={displayName} email={email}/></ExperienceProvider>; }

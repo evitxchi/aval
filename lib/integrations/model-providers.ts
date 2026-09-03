@@ -1,4 +1,5 @@
 import { MODEL_PROVIDER_IDS, getProvider, type ProviderId } from "./catalog";
+import { CHATGPT_CODEX_BASE_URL, CHATGPT_CODEX_HEADERS } from "./subscription-oauth";
 
 /**
  * Validates a pasted model-provider API key by making the cheapest possible
@@ -47,8 +48,45 @@ export function isModelProviderId(id: string): id is ProviderId {
  */
 const SUBSCRIPTION_MODELS: Record<string, string[]> = {
   claude: ["claude-sonnet-5", "claude-opus-5", "claude-fable-5-1", "claude-haiku-4-5-20251001"],
-  chatgpt: ["gpt-5.1-codex", "gpt-5.1-codex-mini"],
+  // Deliberately empty: the Codex backend publishes its own model list (see
+  // listChatgptCodexModels), and a hardcoded fallback here would quietly
+  // serve stale names the connected account may no longer be able to call.
+  // An empty picker that says "couldn't reach the list" is more honest than
+  // a populated one that 404s on send.
+  chatgpt: [],
 };
+
+/** Pinned in the query string the way the Codex CLI pins it; the backend gates its response on it. */
+const CODEX_CLIENT_VERSION = "0.145.0";
+
+/**
+ * The model list the Codex backend itself publishes for a connected ChatGPT
+ * subscription. Not `api.openai.com/v1/models` — a subscription can't call
+ * that at all; this is the same undocumented backend the inference requests
+ * go to, so it's the only list that reflects what the plan can actually run.
+ *
+ * Models marked `visibility: "hide"` are filtered out: they're returned but
+ * not offerable, and showing them produces a picker whose entries fail.
+ */
+async function listChatgptCodexModels(accessToken: string, accountId?: string): Promise<string[]> {
+  const response = await fetch(`${CHATGPT_CODEX_BASE_URL}/models?client_version=${encodeURIComponent(CODEX_CLIENT_VERSION)}`, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      ...CHATGPT_CODEX_HEADERS,
+      ...(accountId ? { "ChatGPT-Account-ID": accountId } : {}),
+    },
+  });
+  if (!response.ok) throw new Error(await describeError(response));
+  const payload = await response.json() as { data?: unknown; models?: unknown };
+  // The endpoint has shipped both shapes; accept either rather than break on
+  // whichever one it is answering with today.
+  const rows = Array.isArray(payload.data) ? payload.data : Array.isArray(payload.models) ? payload.models : [];
+  return rows
+    .filter((row): row is Record<string, unknown> => typeof row === "object" && row !== null)
+    .filter((row) => row.visibility !== "hide")
+    .map((row) => (typeof row.id === "string" ? row.id : typeof row.slug === "string" ? row.slug : ""))
+    .filter((id) => id.length > 0);
+}
 
 /**
  * The real, live list of model ids a provider currently offers — used by
@@ -60,8 +98,11 @@ const SUBSCRIPTION_MODELS: Record<string, string[]> = {
  * own equivalent endpoint; the two subscription providers fall back to the
  * short hand list above.
  */
-export async function listModels(provider: string, apiKey: string): Promise<string[]> {
-  if (provider === "claude" || provider === "chatgpt") return SUBSCRIPTION_MODELS[provider] ?? [];
+export async function listModels(provider: string, apiKey: string, accountId?: string): Promise<string[]> {
+  // ChatGPT asks the Codex backend for its real list; Claude's OAuth surface
+  // publishes no equivalent endpoint, so it keeps the short static list.
+  if (provider === "chatgpt") return listChatgptCodexModels(apiKey, accountId);
+  if (provider === "claude") return SUBSCRIPTION_MODELS[provider] ?? [];
 
   if (provider === "anthropic") {
     const response = await fetch("https://api.anthropic.com/v1/models?limit=100", {

@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { useLocale } from "next-intl";
 
@@ -179,4 +179,29 @@ export function AnimatedNumber({ value, prefix = "", suffix = "", decimals = 0 }
 
 function Confetti() {
   return <div className="confetti" aria-hidden="true">{Array.from({ length: 34 }, (_, index) => <i key={index} style={{ "--x": `${(index * 37) % 100}vw`, "--delay": `${(index % 8) * 28}ms`, "--spin": `${180 + (index % 5) * 90}deg` } as CSSProperties}/>)}</div>;
+}
+
+/**
+ * Tracks the OS "reduce motion" setting, live — a user who changes it while
+ * the dashboard is open shouldn't have to reload to be taken seriously.
+ *
+ * `useSyncExternalStore` rather than an effect writing state: matchMedia is
+ * an external store, and this is the hook built for subscribing to one. It
+ * also gives a correct server snapshot (`false`) for free, so SSR markup
+ * matches the client's first paint instead of hydrating a mismatch.
+ */
+const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
+
+function subscribeToReducedMotion(onChange: () => void): () => void {
+  const query = window.matchMedia(REDUCED_MOTION_QUERY);
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
+}
+
+export function usePrefersReducedMotion(): boolean {
+  return useSyncExternalStore(
+    subscribeToReducedMotion,
+    () => window.matchMedia(REDUCED_MOTION_QUERY).matches,
+    () => false,
+  );
 }
