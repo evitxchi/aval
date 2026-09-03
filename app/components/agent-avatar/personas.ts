@@ -7,7 +7,7 @@ import type { ThemeId } from "./themes";
  * imports, lib/ask-aval/personas.ts's server-only registry — see that
  * file's doc comment for why. Keep the id strings identical by hand.
  */
-export type PersonaId = "general" | "financial" | "brokerage" | "realEstate" | "marketResearch" | "maintenance" | "riskAnalyst" | "portfolioOutlook";
+export type PersonaId = "general" | "financial" | "brokerage" | "realEstate" | "marketResearch" | "maintenance" | "riskAnalyst" | "portfolioOutlook" | "leaseReview";
 
 export interface PersonaPreset {
   id: PersonaId;
@@ -38,6 +38,9 @@ export const PERSONA_PRESETS: Record<PersonaId, PersonaPreset> = {
   maintenance: { id: "maintenance", shape: "planes", theme: "ember", labelKey: "AgentPersonas.maintenanceLabel", icon: "/personas/maintenance.webp" },
   riskAnalyst: { id: "riskAnalyst", shape: "shard", theme: "ember", labelKey: "AgentPersonas.riskAnalystLabel", icon: "/personas/risk-analyst.webp" },
   portfolioOutlook: { id: "portfolioOutlook", shape: "monolith", theme: "aurora", labelKey: "AgentPersonas.portfolioOutlookLabel", icon: "/personas/portfolio-outlook.webp" },
+  // No commissioned blob artwork yet, so this one renders from its procedural
+  // shape+theme silhouette, same as a workspace-created custom persona.
+  leaseReview: { id: "leaseReview", shape: "portal", theme: "aqua", labelKey: "AgentPersonas.leaseReviewLabel" },
 };
 
 export const PERSONA_IDS = Object.keys(PERSONA_PRESETS) as PersonaId[];
@@ -62,6 +65,7 @@ export const PERSONA_TOOL_ACCESS: Record<PersonaId, string[] | null> = {
   maintenance: ["get_portfolio_metrics", "get_delinquent_accounts"],
   riskAnalyst: ["get_delinquent_accounts", "get_portfolio_metrics", "get_accounting_breakdown"],
   portfolioOutlook: ["get_metric_series", "get_portfolio_metrics"],
+  leaseReview: ["list_documents", "read_document"],
 };
 
 /** The data tools the Setup diagram draws as source nodes, with their label keys. */
@@ -72,4 +76,6 @@ export const DATA_SOURCE_NODES: { tool: string; labelKey: string }[] = [
   { tool: "get_metric_series", labelKey: "SetupView.sourceMetricSeries" },
   { tool: "get_accounting_breakdown", labelKey: "SetupView.sourceAccounting" },
   { tool: "get_delinquent_accounts", labelKey: "SetupView.sourceDelinquency" },
+  { tool: "list_documents", labelKey: "SetupView.sourceDocuments" },
+  { tool: "read_document", labelKey: "SetupView.sourceDocumentText" },
 ];

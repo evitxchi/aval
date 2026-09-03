@@ -64,6 +64,18 @@ const DOMAIN_VOCABULARY: Record<Exclude<PersonaId, "general">, DomainVocabulary>
     strong: ["risk", "risks", "risky", "exposure", "delinquent", "delinquency", "default", "defaults", "concentration", "downside", "threat", "vulnerable", "worry", "worried"],
     weak: ["problem", "problems", "concern", "concerns", "flag", "warning", "safe"],
   },
+  leaseReview: {
+    // "lease" alone is weak — it is ordinary vocabulary in a leasing funnel
+    // question too. Routing here requires wording that points at a *document*,
+    // since this agent can only read documents and holds no portfolio tools.
+    // Phrases here are matched loosely (see countTerm): the words must appear
+    // in order and close together, so "the lease says", "the lease say", and
+    // "does the lease state" all hit one entry rather than needing every
+    // conjugation enumerated.
+    shape: ["lease say", "lease state", "in the lease", "contract say", "document say", "per the lease", "clause", "clauses"],
+    strong: ["lease agreement", "addendum", "renewal clause", "termination clause", "security deposit", "contract", "document", "statement says"],
+    weak: ["lease", "leases", "terms", "obligation", "obligations", "signed", "tenant"],
+  },
   portfolioOutlook: {
     shape: ["outlook", "on track", "off track", "forecast", "projection", "pace", "trajectory"],
     strong: ["expect", "expected", "ahead", "behind"],
@@ -92,10 +104,27 @@ export interface AgentRoute {
   specialized: boolean;
 }
 
-/** Word-boundary match, so "rent" doesn't fire on "current" and "lead" doesn't fire on "leader". */
+/**
+ * Word-boundary match, so "rent" doesn't fire on "current" and "lead" doesn't
+ * fire on "leader".
+ *
+ * A multi-word term matches its words in order with a short gap allowed
+ * between them, so one entry covers the phrasings people actually write
+ * ("the lease says", "the lease clearly states") without enumerating every
+ * conjugation and filler word. The trailing boundary is relaxed for the last
+ * word so "say" also matches "says" and "state" matches "states".
+ */
 function countTerm(haystack: string, term: string): boolean {
-  const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, "i").test(haystack);
+  const escape = (word: string) => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const words = term.split(" ").filter(Boolean);
+  if (words.length === 0) return false;
+  if (words.length === 1) {
+    return new RegExp(`(^|[^a-z0-9])${escape(words[0])}([^a-z0-9]|$)`, "i").test(haystack);
+  }
+  // Up to two intervening words between each pair keeps "lease say" matching
+  // "lease clearly says" while still refusing to span a whole sentence.
+  const joined = words.map(escape).join("(?:\\s+[a-z0-9'-]+){0,2}\\s+");
+  return new RegExp(`(^|[^a-z0-9])${joined}`, "i").test(haystack);
 }
 
 /**

@@ -461,3 +461,31 @@ export const answerAuditLog = sqliteTable(
     index("answer_audit_log_org_idx").on(table.organizationId),
   ],
 );
+
+// Documents a workspace pastes in for Aval to read: leases, owner and lender
+// statements, vendor estimates. This is the ingestion layer two deferred agent
+// ideas needed (docs/DECISIONS.md) — document financial extraction, and a
+// lease-review persona that can answer about a specific contract.
+//
+// Unlike learned_preferences and answer_audit_log, this table DOES hold raw
+// third-party text, because that is the whole point: you cannot review a lease
+// without the lease. The controls are therefore explicit rather than
+// structural — org scoping like every other row, a hard size cap, and
+// user-initiated deletion — and `lib/ask-aval/handler.ts`'s standing rule that
+// tool output is data and never instructions matters more here than anywhere
+// else, since a lease is authored by someone outside the workspace.
+export const documents = sqliteTable(
+  "documents",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id").notNull().references(() => organizations.id),
+    title: text("title").notNull(),
+    kind: text("kind").notNull(), // DocumentKind, lib/documents/types.ts
+    contentText: text("content_text").notNull(),
+    // Denormalized so the list view can show size without reading every body.
+    charCount: integer("char_count").notNull(),
+    uploadedBy: text("uploaded_by").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [index("documents_org_idx").on(table.organizationId)],
+);

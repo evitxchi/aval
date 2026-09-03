@@ -71,3 +71,23 @@ test("instructions embedded in the prompt cannot redirect the route", () => {
   assert.ok(["financial", "maintenance"].includes(route.personaId));
   assert.ok(route.matched.length > 0);
 });
+
+test("document-shaped questions route to Lease Review", () => {
+  for (const prompt of [
+    "What does the lease say about renewal?",
+    "Per the lease, when can we raise rent?",
+    "Check the security deposit clause in the lease agreement",
+  ]) {
+    const route = routeToPersona(prompt);
+    assert.equal(route.personaId, "leaseReview", `"${prompt}" should reach the document agent`);
+  }
+});
+
+test("ordinary leasing questions do NOT route to Lease Review", () => {
+  // Lease Review holds only document tools, so sending a funnel or pricing
+  // question there would strip the portfolio data needed to answer it.
+  for (const prompt of ["How many leases did we sign last month?", "What is our lease-up pace?"]) {
+    const route = routeToPersona(prompt);
+    assert.notEqual(route.personaId, "leaseReview", `"${prompt}" must not lose its portfolio tools`);
+  }
+});

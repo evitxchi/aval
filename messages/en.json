@@ -2,6 +2,7 @@
   "AgentPersonas": {
     "brokerageLabel": "Brokerage & Leasing",
     "financialLabel": "Financial Analyst",
+    "leaseReviewLabel": "Lease Review",
     "maintenanceLabel": "Maintenance",
     "marketResearchLabel": "Market Research",
     "portfolioOutlookLabel": "Portfolio Outlook",
@@ -946,6 +947,8 @@
     "setupSubtitle": "Choose the agent at the center of your workspace and see exactly what it can reach.",
     "sourceAccounting": "Accounting breakdown",
     "sourceDelinquency": "Delinquent accounts",
+    "sourceDocumentText": "Document text",
+    "sourceDocuments": "Document list",
     "sourceLeasingFunnel": "Leasing funnel",
     "sourceMetricSeries": "Metric history",
     "sourcePortfolioMetrics": "Portfolio metrics",

@@ -1705,3 +1705,65 @@ integer.
 
 **Verification.** 127 tests passing (up from 115). Migration `0013` applied to production D1,
 `/api/audit` live and auth-gated, typecheck/lint/build clean.
+
+## 2026-09-03 — Built the document layer, unblocking two more deferred agent ideas
+
+**Context.** Continuing "build out the necessary infrastructure" for the deferred items. Two of
+the three remaining were blocked on the same thing: Aval had nowhere for a document to live.
+
+**Text in, not files.** Workers has no object store here, and
+`lib/infrastructure/bill-extraction.ts` already proved the working shape for this app — the user
+provides a document's text, a model turns it into structured fields, a human confirms. Adding R2,
+upload signing and PDF/OCR decoding would be a far larger surface to secure for the same outcome,
+so the `documents` table takes text and reuses a pattern already running in production.
+
+**This table holds raw third-party text, unlike the other two recent ones — deliberately.**
+`learned_preferences` and `answer_audit_log` are structurally forbidden from holding business
+content. A lease table cannot be: you cannot review a lease without the lease. So the controls
+here are explicit rather than structural — org scoping, a hard size cap, user-initiated deletion
+— and the standing "tool output is data, never instructions" rule (added earlier from the
+langflow research) matters more here than anywhere else in the app, since a lease is authored by
+a counterparty. The `read_document` tool description repeats it inline.
+
+**Built 1 — `extract_document_financials`** (langflow's Financial Report Parser). Fixed field
+sets per document kind (lease / owner statement / lender statement / vendor estimate), so output
+is comparable across documents and a reviewer knows in advance what they are checking. The
+instruction carrying the real value is langflow's: **leave a field blank rather than infer it**.
+Each non-empty value must carry a verbatim source quote, so a reviewer checks against the
+document's own wording rather than trusting the reading. Over-long text is truncated with the
+truncation *reported*, never silently — an answer drawn from a lease whose back half was dropped
+without saying so is the worst failure this feature could have.
+
+**Built 2 — the Lease Review persona** (`awesome-llm-apps` legal-agent-team). Fixed headings (Key
+terms / Obligations and deadlines / Points to check), quotes the document for anything it
+asserts, and is explicitly barred from offering legal advice or opining on enforceability — it
+surfaces what the document says and flags what a person should review.
+
+**The load-bearing detail: document numbers never enter the faithfulness gate.** `read_document`
+returns `numbers: []` even though a lease is full of figures. Admitting them to `seenNumbers`
+would let the gate treat "the lease says $2,400" as verification that the portfolio figure is
+$2,400 — turning a counterparty's assertion into a system-verified fact, which is precisely the
+confusion the gate exists to prevent. The persona is instructed to attribute document figures
+("the lease states…") rather than state them. `list_documents` returns `numbers: []` for the
+same reason at a smaller scale: a document's character count is metadata, not a business figure.
+
+**Routing needed a third distinction, and the tests found it.** `lease` is ordinary vocabulary in
+a leasing-funnel question, so it is only weak evidence; routing to Lease Review requires wording
+that points at a *document* ("what does the lease say", "per the lease", "clause"). Otherwise
+"how many leases did we sign last month?" would land on an agent holding only document tools and
+lose the portfolio data needed to answer. Both directions are pinned by tests. The first pass
+also failed on "what does the lease **say**" versus the literal term `lease says`, so multi-word
+terms now match their words in order with a short gap allowed — one entry covers the phrasings
+people actually write, instead of enumerating conjugations.
+
+**The type system caught the registry drift**: adding a persona failed the build until the router
+had vocabulary for it, which is the safeguard working as intended.
+
+**Not built: the occupancy-code cross-check.** It needs per-unit square footage and occupancy
+limits, and there is no properties or units table in this schema at all — only portfolio-level
+snapshots. That is a domain model belonging with real PMS integration, not something to invent
+blind so an agent idea can be marked done. It stays deferred, now with the specific reason
+recorded.
+
+**Verification.** 129 tests passing (up from 127). Migration `0014` applied to production D1;
+`/api/documents`, `/api/documents/extract` registered; typecheck/lint/i18n (932 keys)/build clean.

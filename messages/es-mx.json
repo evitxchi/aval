@@ -2,6 +2,7 @@
   "AgentPersonas": {
     "brokerageLabel": "Corretaje y arrendamiento",
     "financialLabel": "Analista financiero",
+    "leaseReviewLabel": "Revisión de contratos",
     "maintenanceLabel": "Mantenimiento",
     "marketResearchLabel": "Estudio de mercado",
     "portfolioOutlookLabel": "Panorama del Portafolio",
@@ -946,6 +947,8 @@
     "setupSubtitle": "Elige el agente al centro de tu espacio de trabajo y observa exactamente a qué puede acceder.",
     "sourceAccounting": "Desglose contable",
     "sourceDelinquency": "Cuentas morosas",
+    "sourceDocumentText": "Texto del documento",
+    "sourceDocuments": "Lista de documentos",
     "sourceLeasingFunnel": "Embudo de arrendamiento",
     "sourceMetricSeries": "Histórico de métricas",
     "sourcePortfolioMetrics": "Métricas del portafolio",

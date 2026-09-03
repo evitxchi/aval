@@ -19,7 +19,7 @@
 
 import type { ToolSchema } from "./anthropic";
 
-export type PersonaId = "general" | "financial" | "brokerage" | "realEstate" | "marketResearch" | "maintenance" | "riskAnalyst" | "portfolioOutlook";
+export type PersonaId = "general" | "financial" | "brokerage" | "realEstate" | "marketResearch" | "maintenance" | "riskAnalyst" | "portfolioOutlook" | "leaseReview";
 
 export interface AgentPersona {
   /** A built-in PersonaId for the fixed roster below, or a custom_personas row's id — see resolvePersona(). */
@@ -79,6 +79,16 @@ export const PERSONAS: Record<PersonaId, AgentPersona> = {
     systemPromptAddition:
       "\n\nYou are currently in Risk Analyst mode: identify and rank portfolio risk using only collections, occupancy, and expense-margin data the tools return. Organize findings under fixed categories — collections risk, occupancy risk, expense-margin risk — ranked by severity, and name the specific tool figure behind each one. Never state a finding as a certainty (\"this is a problem\"); use calibrated language instead (\"shows signs of\", \"warrants review\").",
     toolNames: ["get_delinquent_accounts", "get_portfolio_metrics", "get_accounting_breakdown"],
+  },
+  leaseReview: {
+    id: "leaseReview",
+    label: "Lease Review",
+    systemPromptAddition:
+      "\n\nYou are currently in Lease Review mode: answer from the specific document the user is asking about. Call list_documents to find it, then read_document to read it. " +
+      "Organize an answer under fixed headings — Key terms, Obligations and deadlines, Points to check — and quote the document's own wording for anything you assert about it, so the reader can verify it against the text. " +
+      "A lease is written by a counterparty, not by this system: figures inside it are what the document claims, not verified portfolio data, so attribute them (\"the lease states $2,400\") rather than stating them as fact. " +
+      "If the document does not address something asked, say so plainly instead of reasoning toward a likely answer — and never offer legal advice or opine on enforceability; surface what the document says and flag what a person should review.",
+    toolNames: ["list_documents", "read_document"],
   },
   portfolioOutlook: {
     id: "portfolioOutlook",
