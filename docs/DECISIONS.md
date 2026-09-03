@@ -1612,3 +1612,45 @@ sentence into the fixed taxonomy and discards the sentence. That gets the ergono
 memory while keeping the privacy property, which is the better end of both trades.
 
 **Verification.** 115 tests passing (up from 96). typecheck/lint/i18n/build clean.
+
+## 2026-09-02 — Ported the pricing component's visual ideas onto the real billing card
+
+**Context.** A pasted shadcn/Tailwind pricing block, to be applied to Settings → Usage and
+billing. Same call as the earlier pricing paste: keep Aval's real Stripe-wired billing logic and
+its own CSS, port the visual ideas only.
+
+**Ported:** a "Popular" badge on the highlighted plan, an animated price (reusing the existing
+`AnimatedNumber` rather than adding `@number-flow/react`), a check-marked feature list, a larger
+price treatment with tabular figures, and elevation for the highlighted card. The palette is
+monochrome, so the recommended plan lifts via border and shadow rather than recoloring.
+
+**Not ported: the monthly/annual toggle.** It's the component's centerpiece, and it can't be
+built honestly right now. `lib/billing/plans.ts` carries monthly prices only — there is no annual
+term and no discount rate. Shipping the toggle would advertise a "Save 20%" that doesn't exist
+and show per-month figures nothing can actually charge. Prices *are* built inline at checkout
+(`price_data`), so annual is technically reachable without pre-creating Stripe prices — but the
+discount rate is a commercial decision, and how a monthly token allowance grants across an annual
+term (12× upfront vs. monthly refresh) is a billing-correctness decision that would charge people
+wrongly if guessed. Both belong to whoever owns pricing, not to a visual port.
+
+**Also not ported: invented feature bullets.** The reference lists "24-hour support response
+time", "SSO Authentication", "Dedicated account manager". Aval's catalog carries prices and token
+allowances and nothing else, so those would be fabricated service commitments on a real purchase
+screen. The bullets shown are derived strictly from plan data: the allowance, the plan's position
+in the ladder ("Everything in Growth"), and a true multiple of the viewer's *current* allowance.
+
+**`recommended` is declared in the catalog**, not inferred in the view as "the middle one", so
+highlighting a plan stays a deliberate decision in one place and adding or reordering a tier
+can't silently move the badge.
+
+**Two real fixes found while porting.** The whole plan card was a single `<button>` — a block of
+name, price, allowance and CTA text as one opaque control. It's now an `<article>` with its own
+button, so the card is readable and only the action is actionable. And the usage bar pins at 100%
+once consumption passes the grant, which made "exactly at your limit" and "well past it" render
+identically; over-quota now carries color as well as length. (The live screenshot showed 279,241
+of 200,000 used — precisely that state.)
+
+**Verification.** typecheck, lint, i18n (929 keys), build, and 115 tests all clean; every class
+the component emits cross-checked against a matching rule in `globals.css`. Visual confirmation
+was *not* obtained — the local browser tooling kept unloading pages between calls this session,
+so this needs an eyeball on the live deploy.

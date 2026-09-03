@@ -10,11 +10,18 @@ export interface Plan {
   name: string;
   priceUsdCents: number;
   monthlyTokenAllowance: number;
+  /**
+   * Marks the plan the pricing card highlights. Declared here rather than
+   * inferred in the view (e.g. "the middle one") so that highlighting a plan
+   * stays a deliberate product decision recorded in one place, and so
+   * reordering or adding a tier can't silently move the badge.
+   */
+  recommended?: boolean;
 }
 
 export const PLANS: Plan[] = [
   { id: "starter", name: "Starter", priceUsdCents: 0, monthlyTokenAllowance: 100_000 },
-  { id: "growth", name: "Growth", priceUsdCents: 2900, monthlyTokenAllowance: 1_000_000 },
+  { id: "growth", name: "Growth", priceUsdCents: 2900, monthlyTokenAllowance: 1_000_000, recommended: true },
   { id: "scale", name: "Scale", priceUsdCents: 9900, monthlyTokenAllowance: 5_000_000 },
 ];
 
