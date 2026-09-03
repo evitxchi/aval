@@ -8,6 +8,8 @@ import { BrandMark } from "@/app/components/brand-mark";
 import { REASONING_EFFORT_LEVELS, modelOptionsFor, supportsReasoningEffort } from "@/lib/integrations/model-providers";
 import { Foldout } from "@/app/components/foldout";
 import type { Provider } from "@/app/components/connection-dialog";
+import { useDesktopCodex } from "@/app/components/desktop-codex";
+import type { DesktopCodexState } from "@/app/components/desktop-codex";
 
 type SubscriptionSession = { state: string; authorizeUrl: string };
 type AuthMode = "apiKey" | "subscription";
@@ -629,6 +631,83 @@ function ModelBeingUsedRow({ providers, activeProvider, activeEntry, onSwitchPro
   );
 }
 
+function DesktopModelBeingUsedRow({ state, onModel }: { state: DesktopCodexState; onModel: (model: string) => Promise<unknown> }) {
+  const t = useTranslations();
+  return (
+    <section className="intelligence-model-row desktop-model-row">
+      <p className="intelligence-model-row-label">{t("IntelligenceSettings.modelBeingUsed")}</p>
+      <div className="intelligence-model-row-controls">
+        <span className="intelligence-model-picker-trigger desktop-model-provider">
+          <BrandMark provider="chatgpt" small />
+          <span>ChatGPT</span>
+        </span>
+        <span className="intelligence-model-row-divider">/</span>
+        <label className="desktop-model-select-label">
+          <span className="sr-only">{t("DesktopCodex.chooseModel")}</span>
+          <select value={state.selectedModel ?? ""} onChange={(event) => void onModel(event.target.value)} disabled={state.models.length === 0}>
+            {state.models.length === 0 && <option value="">{t("DesktopCodex.defaultModel")}</option>}
+            {state.models.map((model) => <option key={model.id} value={model.id}>{model.displayName}</option>)}
+          </select>
+        </label>
+      </div>
+    </section>
+  );
+}
+
+function DesktopChatGPTCard({ state, connect, cancelLogin, logout, setActive, refresh }: {
+  state: DesktopCodexState;
+  connect: () => Promise<unknown>;
+  cancelLogin: () => Promise<unknown>;
+  logout: () => Promise<unknown>;
+  setActive: (active: boolean) => Promise<unknown>;
+  refresh: () => Promise<unknown>;
+}) {
+  const t = useTranslations();
+  const [actionError, setActionError] = useState<string | null>(null);
+  const chatgptAccount = state.account?.type === "chatgpt" ? state.account : null;
+  const connected = chatgptAccount !== null;
+  const waiting = state.status === "opening_browser" || state.status === "waiting_for_login";
+  const starting = state.status === "starting" || state.status === "restarting";
+  const run = async (operation: () => Promise<unknown>) => {
+    setActionError(null);
+    try { await operation(); } catch (error) { setActionError(error instanceof Error ? error.message : t("IntelligenceSettings.connectFailed")); }
+  };
+  return (
+    <section className={`desktop-chatgpt-card ${connected ? "connected" : ""} ${state.active ? "active" : ""}`}>
+      <div className="desktop-chatgpt-heading">
+        <BrandMark provider="chatgpt" />
+        <div>
+          <span><strong>ChatGPT</strong><i>{t("DesktopCodex.experimental")}</i></span>
+          <p>{t("DesktopCodex.planConnection")}</p>
+        </div>
+        {state.active && <span className="connection-status connected">{t("IntelligenceSettings.inUse")}</span>}
+      </div>
+      {connected ? (
+        <div className="desktop-chatgpt-connected">
+          <span><ShieldCheck width={16} height={16} /><span><strong>{chatgptAccount?.email ?? t("DesktopCodex.chatgptAccount")}</strong><small>{t("DesktopCodex.planLabel", { plan: chatgptAccount?.planType ?? "unknown" })}</small></span></span>
+          <div>
+            {!state.active && <button type="button" className="soft-button" onClick={() => void run(() => setActive(true))}>{t("IntelligenceSettings.useThis")}</button>}
+            <button type="button" className="text-button" onClick={() => void run(logout)}>{t("DesktopCodex.disconnect")}</button>
+          </div>
+        </div>
+      ) : waiting ? (
+        <div className="desktop-chatgpt-waiting">
+          <Refresh width={16} height={16} className="spinning" />
+          <span><strong>{t("DesktopCodex.finishInBrowser")}</strong><small>{t("DesktopCodex.waitingSecurely")}</small></span>
+          <button type="button" className="text-button" onClick={() => void run(cancelLogin)}>{t("DesktopCodex.cancel")}</button>
+        </div>
+      ) : (
+        <div className="desktop-chatgpt-actions">
+          <button type="button" className="soft-button" disabled={starting || !state.available} onClick={() => void run(connect)}>{starting ? t("DesktopCodex.starting") : t("DesktopCodex.connectPlan")}</button>
+          {!state.available && <button type="button" className="text-button" onClick={() => void run(refresh)}>{t("DesktopCodex.retry")}</button>}
+        </div>
+      )}
+      {(actionError || state.lastError) && <p className="auth-gate-error">{actionError ?? state.lastError}</p>}
+      <p className="desktop-chatgpt-privacy"><ShieldCheck width={14} height={14} />{t("DesktopCodex.privacy")}</p>
+    </section>
+  );
+}
+
 /**
  * Settings → Intelligence: which model powers agents and Ask Aval for this
  * org. Reuses the exact same /api/integrations catalog, connect/verify
@@ -642,6 +721,7 @@ function ModelBeingUsedRow({ providers, activeProvider, activeEntry, onSwitchPro
  */
 export function IntelligenceSettings() {
   const t = useTranslations();
+  const desktop = useDesktopCodex();
   const [providers, setProviders] = useState<Provider[] | null>(null);
   const [activeProvider, setActiveProvider] = useState<string | null>(null);
   const [switching, setSwitching] = useState<string | null>(null);
@@ -667,6 +747,7 @@ export function IntelligenceSettings() {
     setSwitching(providerId ?? "aval");
     setError(null);
     try {
+      if (desktop.state?.active) await desktop.setActive(false);
       const response = await fetch("/api/integrations", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -687,26 +768,31 @@ export function IntelligenceSettings() {
   const twinByProvider = new Map(providers.filter((provider) => provider.subscriptionOf).map((provider) => [provider.subscriptionOf as string, provider]));
   const filtered = modelProviders.filter((provider) => provider.title.toLowerCase().includes(search.trim().toLowerCase()));
   const activeEntry = providers.find((provider) => provider.id === activeProvider);
+  const desktopInUse = desktop.state?.active === true && desktop.state.account?.type === "chatgpt";
 
   return (
     <article className="settings-card intelligence-card" data-reveal>
       <p className="eyebrow">{t("IntelligenceSettings.eyebrow")}</p>
       <h2>{t("IntelligenceSettings.title")}</h2>
 
-      <ModelBeingUsedRow
-        key={activeProvider ?? "aval"}
-        providers={providers}
-        activeProvider={activeProvider}
-        activeEntry={activeEntry}
-        onSwitchProvider={(id) => void setActive(id)}
-        onConfigureProvider={(providerId) => {
-          setSearch("");
-          setExpanded(providerId);
-          setApiKeySetupRequest((current) => current + 1);
-          window.requestAnimationFrame(() => document.querySelector(`[data-provider-id="${providerId}"]`)?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
-        }}
-        onModelChanged={load}
-      />
+      {desktopInUse && desktop.state ? (
+        <DesktopModelBeingUsedRow state={desktop.state} onModel={desktop.setModel} />
+      ) : (
+        <ModelBeingUsedRow
+          key={activeProvider ?? "aval"}
+          providers={providers}
+          activeProvider={activeProvider}
+          activeEntry={activeEntry}
+          onSwitchProvider={(id) => void setActive(id)}
+          onConfigureProvider={(providerId) => {
+            setSearch("");
+            setExpanded(providerId);
+            setApiKeySetupRequest((current) => current + 1);
+            window.requestAnimationFrame(() => document.querySelector(`[data-provider-id="${providerId}"]`)?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
+          }}
+          onModelChanged={load}
+        />
+      )}
 
       {error && <p className="auth-gate-error">{error}</p>}
 
@@ -719,6 +805,16 @@ export function IntelligenceSettings() {
           </label>
         </div>
         <div className="provider-row-list">
+          {desktop.bridge && desktop.state && (
+            <DesktopChatGPTCard
+              state={desktop.state}
+              connect={desktop.connect}
+              cancelLogin={desktop.cancelLogin}
+              logout={desktop.logout}
+              setActive={desktop.setActive}
+              refresh={desktop.refresh}
+            />
+          )}
           <div className={`provider-row ${expanded === "aval" ? "is-open" : ""} ${!activeProvider ? "active" : ""}`}>
             <button type="button" className="provider-row-summary" aria-expanded={expanded === "aval"} onClick={() => setExpanded((current) => (current === "aval" ? null : "aval"))}>
               <BrandMark provider="aval" small />
@@ -738,7 +834,9 @@ export function IntelligenceSettings() {
             </div>
           </div>
           {filtered.map((provider) => {
-            const twin = twinByProvider.get(provider.id) ?? null;
+            // In the desktop shell ChatGPT has its own safe local card. The
+            // OpenAI row remains an explicitly separate API-key option.
+            const twin = desktop.bridge && provider.id === "openai" ? null : twinByProvider.get(provider.id) ?? null;
             const isActive = activeProvider === provider.id || (twin ? activeProvider === twin.id : false);
             return (
               <ProviderAccordionRow

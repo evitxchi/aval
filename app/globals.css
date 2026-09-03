@@ -1433,3 +1433,40 @@ html.aval-module-picking .content-shell { cursor: crosshair; }
 .aval-agent-tools-list label { display: flex; align-items: center; gap: 6px; font-size: 9.5px; color: var(--muted); cursor: pointer; }
 .aval-agent-tools-list input { margin: 0; }
 .aval-agent-create-error { margin: 0; padding: 6px 8px; border-radius: 8px; background: color-mix(in srgb, var(--viz-red) 12%, transparent); color: var(--viz-red); font-size: 9px; line-height: 1.4; }
+
+/* Aval Desktop local ChatGPT bridge --------------------------------------- */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.desktop-service-bar { min-height: 34px; padding: 0 18px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--line); background: var(--surface-soft); color: var(--muted); font-size: 9.5px; }
+.desktop-service-bar.connected svg { color: var(--viz-green); }
+.desktop-service-bar.warning svg { color: var(--viz-amber); }
+.desktop-service-bar strong { margin-left: auto; color: var(--ink); font-size: 9px; font-weight: 500; }
+.desktop-chatgpt-card { padding: 16px; display: grid; gap: 13px; border: 1px solid var(--line-strong); border-radius: 16px; background: linear-gradient(145deg, var(--surface-raised), var(--surface-soft)); }
+.desktop-chatgpt-card.active { border-color: var(--ink); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 8%, transparent); }
+.desktop-chatgpt-heading { display: flex; align-items: center; gap: 11px; }
+.desktop-chatgpt-heading > .brand-mark { width: 34px; height: 34px; flex: 0 0 auto; }
+.desktop-chatgpt-heading > div { min-width: 0; flex: 1; display: grid; gap: 3px; }
+.desktop-chatgpt-heading > div > span { display: flex; align-items: center; gap: 7px; }
+.desktop-chatgpt-heading strong { font-size: 12px; font-weight: 600; }
+.desktop-chatgpt-heading i { padding: 2px 6px; border: 1px solid var(--line-strong); border-radius: 999px; color: var(--quiet); font-size: 7px; font-style: normal; letter-spacing: .04em; text-transform: uppercase; }
+.desktop-chatgpt-heading p { margin: 0; color: var(--muted); font-size: 9.5px; line-height: 1.45; }
+.desktop-chatgpt-connected, .desktop-chatgpt-waiting { display: flex; align-items: center; gap: 11px; padding: 11px 12px; border-radius: 12px; background: var(--surface-raised); }
+.desktop-chatgpt-connected > span, .desktop-chatgpt-waiting > span { min-width: 0; display: flex; align-items: center; gap: 8px; color: var(--viz-green); }
+.desktop-chatgpt-connected > span > span, .desktop-chatgpt-waiting > span > span { display: grid; gap: 2px; color: var(--ink); }
+.desktop-chatgpt-connected strong, .desktop-chatgpt-waiting strong { overflow: hidden; text-overflow: ellipsis; font-size: 10px; font-weight: 500; }
+.desktop-chatgpt-connected small, .desktop-chatgpt-waiting small { color: var(--quiet); font-size: 8.5px; }
+.desktop-chatgpt-connected > div { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+.desktop-chatgpt-connected .soft-button { min-height: 31px; padding: 0 11px; }
+.desktop-chatgpt-waiting > button { margin-left: auto; }
+.desktop-chatgpt-actions { display: flex; align-items: center; gap: 12px; }
+.desktop-chatgpt-actions .soft-button { min-height: 36px; }
+.desktop-chatgpt-privacy { margin: 0; padding-top: 11px; display: flex; align-items: flex-start; gap: 7px; border-top: 1px solid var(--line); color: var(--quiet); font-size: 8.5px; line-height: 1.5; }
+.desktop-chatgpt-privacy svg { flex: 0 0 auto; margin-top: 1px; }
+.desktop-model-provider { cursor: default; }
+.desktop-model-select-label select { min-width: 190px; height: 34px; padding: 0 30px 0 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-raised); color: var(--ink); font: inherit; font-size: 10px; }
+[data-theme="dark"] .desktop-chatgpt-card, [data-theme="dark"] .desktop-chatgpt-connected, [data-theme="dark"] .desktop-chatgpt-waiting { box-shadow: none; }
+
+@media (max-width: 720px) {
+  .desktop-chatgpt-connected { align-items: flex-start; flex-direction: column; }
+  .desktop-chatgpt-connected > div { width: 100%; margin-left: 0; justify-content: space-between; }
+  .desktop-model-select-label select { min-width: 0; max-width: 190px; }
+}

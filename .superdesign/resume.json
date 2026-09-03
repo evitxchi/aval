@@ -50,6 +50,52 @@
         }
       },
       "updatedAt": "2026-09-03T21:18:00Z"
+    },
+    "desktop:chatgpt-provider": {
+      "targetKind": "new-ui",
+      "projectId": "d0d8e392-c082-412b-af30-d332521675c2",
+      "activeDraftId": "a2e3c5e1-4fda-4edf-8a2d-579ebd1df9a2",
+      "designSystemPath": ".superdesign/design-system.md",
+      "referenceIds": [
+        "5812f342-bbc4-4a46-82ea-4d3ea59d9915",
+        "public-brand-aval-mark.png"
+      ],
+      "brandAssets": {
+        "logo": {
+          "assetKey": "public-brand-aval-mark.png",
+          "url": "https://vgbujcuwptvheqijyjbe.supabase.co/storage/v1/object/public/hmac-uploads/projects/d0d8e392-c082-412b-af30-d332521675c2/brand-assets/public-brand-aval-mark.png/aval-mark.png",
+          "sourcePath": "public/brand/aval-mark.png"
+        }
+      },
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        ".superdesign/init/theme.md:1:22",
+        "app/[locale]/dashboard-client.tsx:1735:1744",
+        "app/[locale]/dashboard-client.tsx:1879:1976",
+        "app/components/intelligence-settings.tsx",
+        "app/components/brand-mark.tsx",
+        "app/components/foldout.tsx",
+        "app/globals.css:1:139",
+        "app/globals.css:1248:1350"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "e6029b4c1ebbbb3a0af063953be5251ed9ae5e2a4935db1793a33447be495d9b",
+        ".superdesign/init/theme.md": "f7a29994f6e9fdff8fc0bdab137d5db9f62ebebd245924d9c999bb081c4914e3",
+        "app/[locale]/dashboard-client.tsx": "55d5a782ab6c2a601b8f48ea825d12ebf1d17a8b2b5693c89a7fedbab69fb6aa",
+        "app/components/intelligence-settings.tsx": "204642f50e7edfffe9eb08cfee789ec43e5a9f9a862ce1a8cad1aac53ab2b08c",
+        "app/components/brand-mark.tsx": "e845f9fe62f3bb1b0c4af42b137ff75e277e42e4b1d71a3b324e8926abf60ac4",
+        "app/components/foldout.tsx": "382fe7d3a2c37e3709fa446918a232d1d66d806ff05684dd605aefb5b9d0fd6b",
+        "app/globals.css": "8055420c9d29116bb5863d94e8c7c241d735d33cb275c73ea76e92b925ab822f"
+      },
+      "components": [],
+      "drafts": {
+        "a2e3c5e1-4fda-4edf-8a2d-579ebd1df9a2": {
+          "title": "Aval Desktop Intelligence",
+          "visualDirection": "Aval-native desktop shell with separate local ChatGPT App Server and OpenAI API-key methods",
+          "currentVersion": 2
+        }
+      },
+      "updatedAt": "2026-09-03T21:40:08Z"
     }
   }
 }

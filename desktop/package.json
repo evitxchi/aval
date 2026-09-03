@@ -1,0 +1,30 @@
+{
+  "name": "aval-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Trusted desktop shell for Aval with a local Codex App Server bridge",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/*.test.cjs",
+    "package:mac": "electron-builder --mac",
+    "package:win": "electron-builder --win",
+    "package:linux": "electron-builder --linux"
+  },
+  "devDependencies": {
+    "electron": "44.1.0",
+    "electron-builder": "26.16.0"
+  },
+  "build": {
+    "appId": "com.evalxnder.aval",
+    "productName": "Aval",
+    "asar": true,
+    "directories": { "output": "dist" },
+    "files": ["main.cjs", "preload.cjs", "codex-app-server.cjs", "package.json"],
+    "extraResources": [{ "from": "../public/icon-512.png", "to": "icon.png" }],
+    "mac": { "category": "public.app-category.business", "icon": "../public/icon-512.png", "target": ["dmg", "zip"] },
+    "win": { "target": "nsis" },
+    "linux": { "category": "Office", "target": ["AppImage"] }
+  }
+}
+

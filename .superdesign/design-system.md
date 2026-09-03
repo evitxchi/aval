@@ -38,6 +38,19 @@ When that state is known:
 - Preserve honest connection semantics: authorization can remain “connected,” but the active inference route must visibly read unavailable.
 - Normal JSON 401/403 credential failures retain the reconnect guidance; do not conflate them with the hosted edge challenge.
 
+## Desktop-local ChatGPT integration
+
+The packaged desktop app reuses Aval's existing dashboard shell and adds one trusted local capability: a narrow Electron bridge to the locally spawned Codex App Server. This is the supported design direction for ChatGPT Plus / Pro inside Aval; the hosted browser app must not imply it can run the same subscription route from Cloudflare Workers.
+
+- Present ChatGPT Plus / Pro and the OpenAI API key as two separate connection methods. Do not merge their billing, credentials, or status language.
+- Label the subscription route `Desktop only` and describe it as `Managed locally by Codex App Server`.
+- The primary signed-out action is `Connect ChatGPT`. OAuth opens in the system browser and completion returns automatically through App Server notifications; never show callback URLs, authorization codes, or token fields.
+- Expose local lifecycle state compactly: `Starting local service`, `Ready to connect`, `Waiting for browser approval`, `Connected`, `Restarting`, `Codex not installed`, and `Update required`.
+- Be precise about privacy: OAuth credentials and refresh are managed locally by Codex. Prompts still go to OpenAI when ChatGPT is used. Never claim that inference or all data stays on-device.
+- Keep App Server's current experimental status visible but subordinate: one quiet information row or badge with a documentation link, not an alarming error banner.
+- The desktop chrome may add only a restrained, drag-safe title-bar region and a small local-service indicator. It must not replace or visually fork Aval's existing 244px sidebar and rounded content shell.
+- Browser Aval should show the subscription method as available in the desktop app, with Aval Intelligence and API-key providers remaining usable on the web.
+
 ## Accessibility and responsive behavior
 
 - Maintain visible keyboard focus and semantic buttons.

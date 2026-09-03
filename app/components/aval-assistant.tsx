@@ -9,6 +9,7 @@ import { useExperience } from "@/app/components/experience";
 import type { CreateDraftInput, DraftFormat } from "@/app/components/ask-aval-tasks";
 import { MarkdownPreview } from "@/app/components/markdown-preview";
 import { AvalAgentAvatar, PERSONA_IDS, PERSONA_PRESETS, SHAPE_IDS, THEME_IDS, type PersonaId, type ShapeId, type ThemeId } from "@/app/components/agent-avatar";
+import { useDesktopCodex } from "@/app/components/desktop-codex";
 
 interface CustomPersonaSummary {
   id: string;
@@ -164,6 +165,7 @@ function describeModule(element: HTMLElement): SelectedModule {
 
 export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateDraft: (input: CreateDraftInput) => void }) {
   const { notify } = useExperience();
+  const desktop = useDesktopCodex();
   const t = useTranslations();
   const locale = useLocale();
   const [open, setOpen] = useState(false);
@@ -368,6 +370,27 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
     setThinkingPhraseKey(pickRandomThinkingPhraseKey());
     setThinking(true);
     try {
+      if (desktop.bridge && desktop.state?.active && desktop.state.account?.type === "chatgpt") {
+        // The hosted service supplies authenticated, org-scoped facts only.
+        // The actual model turn happens in the desktop main process, where
+        // credentials and raw App Server RPC are unavailable to this page.
+        const contextResponse = await fetch(`/api/assistant/context?view=${encodeURIComponent(view)}`, { cache: "no-store" });
+        const dashboardContext = await contextResponse.json().catch(() => ({})) as Record<string, unknown> & { error?: string };
+        if (!contextResponse.ok) throw new Error(dashboardContext.error ?? t("AvalAssistant.contextUnavailable"));
+        const answer = await desktop.bridge.ask<Answer>({
+          conversationId: "ask-aval",
+          question: trimmed,
+          locale,
+          context: {
+            ...dashboardContext,
+            focusedModule: focusedModule ? { label: focusedModule.label, visibleText: focusedModule.snapshot } : null,
+            selectedAgent: activePersona.label,
+          },
+        });
+        if (!isAnswerShaped(answer)) throw new Error(t("AvalAssistant.unavailable"));
+        setMessages((current) => [...current, { id: nextId.current++, role: "assistant", answer: { ...answer, metrics: answer.metrics ?? [] } }]);
+        return;
+      }
       const response = await fetch("/api/assistant/ask", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -626,7 +649,9 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
 
           <form className="aval-chat-composer" onSubmit={onSubmit}>
             <input ref={inputRef} value={input} onChange={(event) => setInput(event.target.value)} placeholder={selectedModule ? t("AvalAssistant.askAboutModulePlaceholder", { module: selectedModule.label }) : t("AvalAssistant.askAboutYourPortfolio")} aria-label={t("AvalAssistant.askAval")} />
-            <button type="submit" disabled={!input.trim() || thinking} aria-label={t("AvalAssistant.sendMessage")}><SendDiagonal width={18} height={18} /></button>
+            {thinking && desktop.bridge && desktop.state?.active
+              ? <button type="button" onClick={() => void desktop.bridge?.cancelTurn("ask-aval")} aria-label={t("AvalAssistant.cancelAnswer")}><Xmark width={18} height={18} /></button>
+              : <button type="submit" disabled={!input.trim() || thinking} aria-label={t("AvalAssistant.sendMessage")}><SendDiagonal width={18} height={18} /></button>}
           </form>
           <p className="aval-chat-disclaimer">{t("AvalAssistant.avalShowsItsEvidenceAndAsks")}</p>
         </section>
