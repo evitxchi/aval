@@ -348,6 +348,8 @@ function ModelBeingUsedRow({ providers, activeProvider, activeEntry, onSwitchPro
   // True when the list came from the static fallback because the account's own
   // catalog was unreachable — shown to the user rather than hidden.
   const [modelsUnverified, setModelsUnverified] = useState(false);
+  // The token was sent and refused, which needs a reconnect rather than a retry.
+  const [modelsRejected, setModelsRejected] = useState(false);
   const [loadingModels, setLoadingModels] = useState(false);
   const [savingModel, setSavingModel] = useState(false);
 
@@ -364,6 +366,7 @@ function ModelBeingUsedRow({ providers, activeProvider, activeEntry, onSwitchPro
       if (!response.ok) throw new Error(data.error ?? t("IntelligenceSettings.modelListFailed"));
       setModels(data.models ?? []);
       setModelsUnverified(data.verified === false);
+      setModelsRejected(data.unverifiedReason === "credential_rejected");
     } catch (error) {
       setModelsError(error instanceof Error ? error.message : t("IntelligenceSettings.modelListFailed"));
     } finally {
@@ -430,7 +433,9 @@ function ModelBeingUsedRow({ providers, activeProvider, activeEntry, onSwitchPro
               {loadingModels && <p className="intelligence-model-menu-status">{t("IntelligenceSettings.loadingModels")}</p>}
               {modelsError && <p className="intelligence-model-menu-status error">{modelsError}</p>}
               {!modelsError && modelsUnverified && (
-                <p className="intelligence-model-menu-status warn">{t("IntelligenceSettings.modelsUnverified")}</p>
+                <p className="intelligence-model-menu-status warn">
+                  {modelsRejected ? t("IntelligenceSettings.modelsCredentialRejected") : t("IntelligenceSettings.modelsUnverified")}
+                </p>
               )}
               {!loadingModels && !modelsError && filteredModels.map((id) => (
                 <button type="button" key={id} disabled={savingModel} onClick={() => void chooseModel(id)}>{id}</button>
@@ -538,7 +543,7 @@ export function IntelligenceSettings() {
               <div className="provider-row-body-inner">
                 <p className="provider-row-description">{t("IntelligenceSettings.avalDefaultDescription")}</p>
                 {activeProvider && (
-                  <button type="button" className="wide-button" disabled={switching !== null} onClick={() => void setActive(null)}>
+                  <button type="button" className="soft-button" disabled={switching !== null} onClick={() => void setActive(null)}>
                     {t("IntelligenceSettings.useThis")}
                   </button>
                 )}

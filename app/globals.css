@@ -898,7 +898,11 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--ink); outli
 .foldout-body { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .2s var(--ease-snap); }
 .foldout-body-inner { overflow: hidden; min-height: 0; }
 .foldout-body-inner span { display: block; margin-top: 5px; color: var(--quiet); font: 7px ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
-.foldout-body-inner label { margin-top: 8px; }
+/* Labels here sit outside .credential-form, so they were inheriting full body
+   type and rendering "Model" / "Reasoning effort" at heading size above their
+   own controls. Matches the credential-form label treatment instead. */
+.foldout-body-inner label { display: grid; gap: 5px; margin-top: 10px; color: var(--muted); font-size: 9px; }
+.foldout-body-inner .foldout-hint { margin-top: 9px; }
 .foldout-hint { margin: 6px 0 0; color: var(--quiet); font-size: 8px; line-height: 1.5; }
 
 .settings-grid { margin-top: 18px; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
@@ -1286,7 +1290,11 @@ html.aval-module-picking .content-shell { cursor: crosshair; }
 .provider-row-body { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .2s var(--ease-snap); border-top: 0 solid var(--line); }
 .provider-row.is-open .provider-row-body { border-top-width: 1px; }
 .provider-row-body-inner { overflow: hidden; min-width: 0; min-height: 0; }
-.provider-row-body-inner > div, .provider-row-body-inner > form, .provider-row-body-inner > p, .provider-row-body-inner > label.provider-row-auth-select { padding: 0 16px; }
+.provider-row-body-inner > div, .provider-row-body-inner > form, .provider-row-body-inner > p, .provider-row-body-inner > button, .provider-row-body-inner > label.provider-row-auth-select { padding: 0 16px; }
+/* A padded <button> would inherit the row inset as button padding, making it
+   16px taller than it should be — margin gives the same inset without
+   changing the control itself. */
+.provider-row-body-inner > button { padding: 0 15px; margin: 0 16px 4px; }
 .provider-row-body-inner > *:first-child { padding-top: 14px; }
 .provider-row-body-inner > *:last-child { padding-bottom: 16px; }
 .provider-row-description { margin: 0 0 12px; color: var(--muted); font-size: 9.5px; line-height: 1.5; }

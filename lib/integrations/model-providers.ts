@@ -116,10 +116,16 @@ export async function listModelsDetailed(provider: string, apiKey: string, accou
       if (models.length > 0) return { models, verified: true };
       return { models: SUBSCRIPTION_MODELS.chatgpt, verified: false, reason: "empty_response" };
     } catch (error) {
+      const message = error instanceof Error ? error.message : "unreachable";
+      // A 401/403 from this endpoint means the stored token was sent and
+      // rejected — the connection is stale, not the network. That is
+      // actionable ("reconnect") in a way a generic failure isn't, so it is
+      // reported distinctly rather than folded into one vague warning.
+      const rejected = /\b401\b|\b403\b|unauthor|forbidden/i.test(message);
       return {
         models: SUBSCRIPTION_MODELS.chatgpt,
         verified: false,
-        reason: error instanceof Error ? error.message : "unreachable",
+        reason: rejected ? "credential_rejected" : message,
       };
     }
   }

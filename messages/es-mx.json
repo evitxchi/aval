@@ -828,6 +828,7 @@
     "loadingModels": "Cargando modelos…",
     "modelBeingUsed": "Modelo en uso",
     "modelListFailed": "No se pudo cargar la lista de modelos. Intenta de nuevo.",
+    "modelsCredentialRejected": "Tu conexión de ChatGPT fue rechazada, así que no se pudo confirmar esta lista. Vuelve a conectar el proveedor abajo para solucionarlo; mientras tanto, estos son los predeterminados conocidos.",
     "modelsUnverified": "No se pudo obtener la lista de modelos de tu cuenta, así que estos son los predeterminados conocidos. Si uno falla al enviar, vuelve a conectar el proveedor.",
     "noModelsMatch": "Ningún modelo coincide con tu búsqueda.",
     "pasteOrConnect": "Pega una clave de API, o conecta tu plan de {provider}.",
