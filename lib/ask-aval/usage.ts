@@ -8,7 +8,7 @@
 
 import { and, eq, gte } from "drizzle-orm";
 import { getDb } from "@/db";
-import { aiUsage } from "@/db/schema";
+import { aiUsage, organizations } from "@/db/schema";
 import { hasTokensRemaining } from "@/lib/billing/usage";
 import type { AskAvalEnv } from "./anthropic";
 
@@ -37,7 +37,40 @@ async function isDailyCapExceeded(env: AskAvalEnv, session: AskAvalSession): Pro
 export type UsageBlockReason = "daily_cap" | "token_balance";
 
 /** Two independent gates: a coarse daily-call safety valve, and the real plan/top-up token balance. */
+/**
+ * True when the workspace supplies its own model credential (an API key it
+ * pays for, or a ChatGPT/Claude subscription it already subscribes to).
+ *
+ * `activeModelProvider` is only set once a provider has been connected and
+ * selected, so it is exactly the "someone else is paying for inference"
+ * signal — see lib/ask-aval/model-router.ts, which reads the same column to
+ * decide where a call is routed.
+ */
+async function usesOwnCredential(orgId: string): Promise<boolean> {
+  try {
+    const [org] = await getDb()
+      .select({ activeModelProvider: organizations.activeModelProvider })
+      .from(organizations)
+      .where(eq(organizations.id, orgId))
+      .limit(1);
+    return Boolean(org?.activeModelProvider);
+  } catch (err) {
+    // A failed read must not silently un-meter a workspace Aval is paying
+    // for, so the safe answer here is "no, keep metering".
+    console.error("ask_aval_own_credential_check_failed", err);
+    return false;
+  }
+}
+
 export async function checkUsageBlocked(env: AskAvalEnv, session: AskAvalSession): Promise<UsageBlockReason | null> {
+  // Aval's token balance exists because Aval pays for the model calls on its
+  // own plans. A workspace on its own key or subscription is billed by
+  // OpenAI/Anthropic directly, so charging it Aval tokens as well would be
+  // double-billing — and blocking it at zero balance denies it a service it
+  // is already paying for elsewhere. The daily cap is skipped for the same
+  // reason: it is a spend guard on Aval's money, not a rate limit.
+  if (await usesOwnCredential(session.orgId)) return null;
+
   if (!(await hasTokensRemaining(session.orgId))) return "token_balance";
   if (await isDailyCapExceeded(env, session)) return "daily_cap";
   return null;
@@ -47,13 +80,19 @@ export async function recordUsage(session: AskAvalSession, inputTokens: number, 
   try {
     const db = getDb();
     const { day } = todayKey();
+    // Recorded either way — a workspace should still be able to see what it
+    // used — but a call paid for by the workspace's own provider is written
+    // with zero billable tokens, since the balance in lib/billing/usage.ts is
+    // a sum of these rows and would otherwise be debited for spend that never
+    // touched Aval's account.
+    const billable = !(await usesOwnCredential(session.orgId));
     await db.insert(aiUsage).values({
       id: crypto.randomUUID(),
       organizationId: session.orgId,
       userId: session.userId,
       day,
-      inputTokens,
-      outputTokens,
+      inputTokens: billable ? inputTokens : 0,
+      outputTokens: billable ? outputTokens : 0,
       createdAt: new Date(),
     });
   } catch (err) {
