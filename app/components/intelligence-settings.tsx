@@ -458,6 +458,9 @@ function ModelBeingUsedRow({ providers, activeProvider, activeEntry, onSwitchPro
   const [modelsUnverified, setModelsUnverified] = useState(false);
   // The token was sent and refused, which needs a reconnect rather than a retry.
   const [modelsRejected, setModelsRejected] = useState(false);
+  // OpenAI blocks this backend at its edge for datacenter origins, which no
+  // reconnect can fix — see IntelligenceSettings.modelsEdgeBlocked.
+  const [modelsEdgeBlocked, setModelsEdgeBlocked] = useState(false);
   // The provider's own error text, shown so a failure can be acted on.
   const [modelsDetail, setModelsDetail] = useState("");
   const [loadingModels, setLoadingModels] = useState(false);
@@ -477,6 +480,7 @@ function ModelBeingUsedRow({ providers, activeProvider, activeEntry, onSwitchPro
       setModels(data.models ?? []);
       setModelsUnverified(data.verified === false);
       setModelsRejected(data.unverifiedReason === "credential_rejected");
+      setModelsEdgeBlocked(data.unverifiedReason === "edge_blocked");
       setModelsDetail(data.unverifiedDetail ?? "");
     } catch (error) {
       setModelsError(error instanceof Error ? error.message : t("IntelligenceSettings.modelListFailed"));
@@ -545,7 +549,11 @@ function ModelBeingUsedRow({ providers, activeProvider, activeEntry, onSwitchPro
               {modelsError && <p className="intelligence-model-menu-status error">{modelsError}</p>}
               {!modelsError && modelsUnverified && (
                 <p className="intelligence-model-menu-status warn">
-                  {modelsRejected ? t("IntelligenceSettings.modelsCredentialRejected") : t("IntelligenceSettings.modelsUnverified")}
+                  {modelsEdgeBlocked
+                    ? t("IntelligenceSettings.modelsEdgeBlocked")
+                    : modelsRejected
+                    ? t("IntelligenceSettings.modelsCredentialRejected")
+                    : t("IntelligenceSettings.modelsUnverified")}
                   {modelsDetail && <span className="intelligence-model-menu-detail">{modelsDetail}</span>}
                 </p>
               )}

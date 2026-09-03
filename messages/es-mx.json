@@ -839,6 +839,7 @@
     "modelBeingUsed": "Modelo en uso",
     "modelListFailed": "No se pudo cargar la lista de modelos. Intenta de nuevo.",
     "modelsCredentialRejected": "Tu conexión de ChatGPT fue rechazada, así que no se pudo confirmar esta lista. Vuelve a conectar el proveedor abajo para solucionarlo; mientras tanto, estos son los predeterminados conocidos.",
+    "modelsEdgeBlocked": "El sistema perimetral de OpenAI bloquea las solicitudes de ChatGPT de Aval desde su Worker alojado en Cloudflare, así que no se puede confirmar esta lista; volver a conectar no lo cambiará. Usa una clave de API de OpenAI o Aval Intelligence.",
     "modelsUnverified": "No se pudo obtener la lista de modelos de tu cuenta, así que estos son los predeterminados conocidos. Si uno falla al enviar, vuelve a conectar el proveedor.",
     "noModelsMatch": "Ningún modelo coincide con tu búsqueda.",
     "pasteOrConnect": "Pega una clave de API, o conecta tu plan de {provider}.",

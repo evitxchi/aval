@@ -1,5 +1,6 @@
 import { MODEL_PROVIDER_IDS, getProvider, type ProviderId } from "./catalog";
 import { CHATGPT_CODEX_BASE_URL, CHATGPT_CODEX_HEADERS } from "./subscription-oauth";
+import { isHostedEdgeChallenge } from "./provider-errors";
 
 /**
  * Validates a pasted model-provider API key by making the cheapest possible
@@ -149,6 +150,17 @@ export async function listModelsDetailed(provider: string, apiKey: string, accou
       // 401/403 into one label hid which of several distinct causes it was
       // (stale token, missing header, account setting), and each needs a
       // different fix.
+      // An HTML body means the request never reached the API: chatgpt.com is
+      // behind bot management, and a Cloudflare Worker's origin (datacenter
+      // IP, no browser TLS fingerprint) is challenged at the edge. Verified
+      // by comparison — the same request from a residential IP returns a
+      // JSON 401, this one returns an HTML 403. No header or credential
+      // changes that, so it must not be reported as a credential problem.
+      const responseStatus = Number(message.match(/^(\d{3}):/)?.[1] ?? 0);
+      const edgeBlocked = isHostedEdgeChallenge(responseStatus, message);
+      if (edgeBlocked) {
+        return { models: SUBSCRIPTION_MODELS.chatgpt, verified: false, reason: "edge_blocked" };
+      }
       const rejected = /\b401\b|\b403\b|unauthor|forbidden/i.test(message);
       return {
         models: SUBSCRIPTION_MODELS.chatgpt,

@@ -15,6 +15,7 @@
 
 import { AnthropicError, type ContentBlock, type Message, type MessagesResponse, type ToolResultBlock, type ToolSchema, type ToolUseBlock } from "./anthropic";
 import { CHATGPT_CODEX_BASE_URL, CHATGPT_CODEX_HEADERS } from "@/lib/integrations/subscription-oauth";
+import { isHostedEdgeChallenge } from "@/lib/integrations/provider-errors";
 
 const TIMEOUT_MS = 25_000;
 const DEFAULT_MODEL = "gpt-5.1-codex";
@@ -177,9 +178,31 @@ export async function callChatgptOAuth(
     });
 
     if (!response.ok) {
-      const body = await response.json().catch(() => null) as { error?: { message?: string } } | null;
-      console.error("chatgpt_oauth_error", response.status, body?.error?.message?.slice(0, 500));
-      throw new AnthropicError(`ChatGPT subscription request failed (${response.status})`, response.status, response.status === 429 || response.status >= 500);
+      const raw = await response.text().catch(() => "");
+      console.error("chatgpt_oauth_error", response.status, raw.slice(0, 800));
+
+      // An HTML body means bot management intercepted this at OpenAI's edge
+      // before it reached the API — a Cloudflare Worker's origin is
+      // challenged, while the same request from a residential IP is not.
+      // Retrying cannot help, and calling it a request failure hides a
+      // structural limit the user needs to know about to pick another path.
+      if (isHostedEdgeChallenge(response.status, raw)) {
+        throw new AnthropicError(
+          "OpenAI's edge is blocking Aval's ChatGPT requests from its hosted Cloudflare Worker. Reconnecting can't fix this deployment constraint. Switch to an OpenAI API key or Aval Intelligence in Settings → Intelligence.",
+          403,
+          false,
+        );
+      }
+
+      let detail = "";
+      try {
+        detail = (JSON.parse(raw) as { error?: { message?: string } }).error?.message ?? "";
+      } catch { /* not JSON */ }
+      throw new AnthropicError(
+        detail ? `ChatGPT request failed: ${detail}` : `ChatGPT subscription request failed (${response.status})`,
+        response.status,
+        response.status === 429 || response.status >= 500,
+      );
     }
 
     // The endpoint streams. Aval's loop is turn-based, so rather than plumb
