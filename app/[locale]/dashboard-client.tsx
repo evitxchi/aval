@@ -23,7 +23,7 @@ import { BillingSettings } from "@/app/components/billing-settings";
 import { IntelligenceSettings } from "@/app/components/intelligence-settings";
 import { ConnectionDialog, type Provider } from "@/app/components/connection-dialog";
 import { AutomationTimeline } from "@/app/components/automation-timeline";
-import { derivedSample, derivePropertyTotals, deriveMaintenanceReported, rankInsights, sampleData, type InsightCandidate, type InsightRecipient, type NotificationItem, type NotificationTarget, type ReviewStatus } from "@/app/data/sample";
+import { activityIntensity, buildActivityYear, derivedSample, derivePropertyTotals, deriveMaintenanceReported, rankInsights, sampleData, type InsightCandidate, type InsightRecipient, type NotificationItem, type NotificationTarget, type ReviewStatus } from "@/app/data/sample";
 import { infrastructureSummary } from "@/app/data/infrastructure-sample";
 import type { UtilityType } from "@/lib/infrastructure/types";
 import { AccountingSankey, LeasingTrendChart, MaintenanceRoseChart, PropertyOccupancyChart } from "@/app/components/charts";
@@ -402,6 +402,57 @@ function DateRangePicker({ period, onChange, t, locale }: { period: string; onCh
   );
 }
 
+/**
+ * A year of daily activity as a heatmap. Reads the same class of work the
+ * ledger and history drawer itemize — verified actions Aval completed — so the
+ * three surfaces describe one underlying stream rather than three metrics.
+ */
+function ActivityHeatmap({ t, locale }: { t: T; locale: string }) {
+  const weeks = useMemo(() => buildActivityYear(SAMPLE_TODAY), []);
+  const weekdayFmt = useMemo(() => new Intl.DateTimeFormat(locale, { weekday: "short" }), [locale]);
+  const monthFmt = useMemo(() => new Intl.DateTimeFormat(locale, { month: "short" }), [locale]);
+  const dayFmt = useMemo(() => new Intl.DateTimeFormat(locale, { dateStyle: "long" }), [locale]);
+
+  // Sunday-first, matching the grid's own row order. Only every other label is
+  // shown — seven stacked labels at this row height reads as noise.
+  const weekdayLabels = Array.from({ length: 7 }, (_, index) => (index % 2 === 1 ? weekdayFmt.format(new Date(2026, 7, 9 + index)) : ""));
+
+  // One label per column, printed only where the month actually turns over.
+  // Keyed off the month the previous column already showed rather than off a
+  // "is there a day 1-7 in this week" test — a week straddling a boundary and
+  // the week after it both contain such a day, which double-prints the name.
+  // The leading column is usually a partial month whose label would sit off the
+  // left edge of its own run of weeks, so it stays blank.
+  const monthLabels = weeks.map((week, index) => {
+    if (index === 0) return "";
+    const last = week[week.length - 1].date;
+    const previousLast = weeks[index - 1][weeks[index - 1].length - 1].date;
+    return last.getMonth() === previousLast.getMonth() ? "" : monthFmt.format(last);
+  });
+
+  return <div className="activity-heatmap">
+    <div className="activity-heatmap-weekdays" aria-hidden="true">{weekdayLabels.map((label, index) => <span key={index}>{label}</span>)}</div>
+    <div className="activity-heatmap-body">
+      <div className="activity-heatmap-months" aria-hidden="true">{monthLabels.map((label, index) => <span key={index}>{label}</span>)}</div>
+      <div className="activity-heatmap-grid" role="img" aria-label={t("Overview.activityHeatmapAria")}>
+        {weeks.map((week, weekIndex) => <div className="activity-heatmap-week" key={weekIndex}>
+          {week.map((day) => <div
+            className="activity-heatmap-day"
+            key={day.date.toISOString()}
+            data-level={activityIntensity(day.count)}
+            title={day.count < 0 ? dayFmt.format(day.date) : t("Overview.activityDayTooltip", { date: dayFmt.format(day.date), count: day.count })}
+          />)}
+        </div>)}
+      </div>
+      <div className="activity-heatmap-legend">
+        <span>{t("Overview.activityLess")}</span>
+        {[0, 1, 2, 3, 4].map((level) => <div className="activity-heatmap-day" data-level={level} key={level}/>)}
+        <span>{t("Overview.activityMore")}</span>
+      </div>
+    </div>
+  </div>;
+}
+
 function Overview({ openConnections, dataMode, providers, pendingTarget, targetToken, reviewStatuses, sentReceipts, onApprove, onDeny, onSendReminders, onCreateDraft }: {
   openConnections: () => void; dataMode: DataMode; providers: Provider[];
   pendingTarget: NotificationTarget | null; targetToken: number;
@@ -651,7 +702,10 @@ function Overview({ openConnections, dataMode, providers, pendingTarget, targetT
         {isSample && <button className="soft-button" onClick={() => setHistoryOpen(true)}><Archive width={17} height={17}/>{t("Overview.history")}</button>}
       </div>
       {isSample
-        ? <div className="activity-flow">{sampleData.ledger.steps.map((step, index) => <span className="activity-segment" key={step.provider}>{index > 0 && <i className="flow-arrow">→</i>}<span className={`activity-card ${step.provider === "complete" ? "complete" : ""}`}><span>{step.provider === "complete" ? <CheckCircle width={24} height={24}/> : <BrandMark provider={step.provider} small/>}</span><p>{t(step.textKey)}</p></span></span>)}</div>
+        ? <>
+            <div className="activity-flow">{sampleData.ledger.steps.map((step, index) => <span className="activity-segment" key={step.provider}>{index > 0 && <i className="flow-arrow">→</i>}<span className={`activity-card ${step.provider === "complete" ? "complete" : ""}`}><span>{step.provider === "complete" ? <CheckCircle width={24} height={24}/> : <BrandMark provider={step.provider} small/>}</span><p>{t(step.textKey)}</p></span></span>)}</div>
+            <ActivityHeatmap t={t} locale={currentLocale}/>
+          </>
         : <p className="empty-copy">{t("Overview.noVerifiedActionsYetAvalWill")}</p>}
     </section>
   </div>;

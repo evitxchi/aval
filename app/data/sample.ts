@@ -656,3 +656,83 @@ export function assertSampleConsistency(): void {
     }
   }
 }
+
+export interface ActivityDay {
+  /** Midnight local time on the day this cell represents. */
+  date: Date;
+  /** Verified actions Aval completed that day — the same class of work the ledger and history drawer itemize. */
+  count: number;
+}
+
+/** Cells per column in the activity grid — one row per weekday, Sunday first. */
+export const ACTIVITY_DAYS_PER_WEEK = 7;
+/** Columns in the activity grid. 53 covers a full year plus the partial weeks at each end. */
+export const ACTIVITY_WEEKS = 53;
+
+// A year of day counts is far too much to hand-author, but it still has to be
+// stable: the dashboard is screenshotted, asserted against in tests, and must
+// not shuffle itself on every render or every deploy. So the series is derived
+// from the day's own date rather than from Math.random() or the wall clock —
+// the same input always yields the same year.
+function activityCountFor(dayIndex: number, weekday: number): number {
+  // Cheap integer hash (xorshift-style mixing) — deterministic, and spread out
+  // enough that neighbouring days don't visibly march up and down in lockstep.
+  let hash = (dayIndex + 1) * 2654435761;
+  hash ^= hash >>> 13;
+  hash = (hash * 1597334677) >>> 0;
+  const roll = (hash >>> 8) % 100;
+
+  // Property management is a weekday business: reminders, vendor dispatches and
+  // ledger sweeps cluster Monday–Friday, and the weekend is mostly quiet rather
+  // than empty (payment reminders and inbound maintenance don't stop).
+  const isWeekend = weekday === 0 || weekday === 6;
+  if (isWeekend) {
+    if (roll < 55) return 0;
+    if (roll < 82) return 1;
+    return 2;
+  }
+  if (roll < 8) return 0;
+  if (roll < 30) return 1;
+  if (roll < 58) return 2;
+  if (roll < 84) return 3;
+  return 4;
+}
+
+/**
+ * A 53-week grid of daily activity ending on the week that contains `endDate`.
+ * Returned in column-major order (week by week, each week Sunday → Saturday) so
+ * the view can render it straight into columns without regrouping.
+ */
+export function buildActivityYear(endDate: Date): ActivityDay[][] {
+  const end = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
+  // Wind back to the Sunday of the final week so every column is a full week.
+  const finalSunday = new Date(end);
+  finalSunday.setDate(finalSunday.getDate() - finalSunday.getDay());
+  const firstSunday = new Date(finalSunday);
+  firstSunday.setDate(firstSunday.getDate() - (ACTIVITY_WEEKS - 1) * ACTIVITY_DAYS_PER_WEEK);
+
+  const weeks: ActivityDay[][] = [];
+  for (let week = 0; week < ACTIVITY_WEEKS; week += 1) {
+    const column: ActivityDay[] = [];
+    for (let weekday = 0; weekday < ACTIVITY_DAYS_PER_WEEK; weekday += 1) {
+      const dayIndex = week * ACTIVITY_DAYS_PER_WEEK + weekday;
+      const date = new Date(firstSunday);
+      date.setDate(date.getDate() + dayIndex);
+      // Days after "today" exist in the grid (the final week is a full column)
+      // but have no activity to report yet — they render as untracked, not zero.
+      column.push({ date, count: date > end ? -1 : activityCountFor(dayIndex, weekday) });
+    }
+    weeks.push(column);
+  }
+  return weeks;
+}
+
+/** Buckets a day's count into one of five intensity steps the CSS ramp paints. */
+export function activityIntensity(count: number): number {
+  if (count < 0) return -1;
+  if (count === 0) return 0;
+  if (count === 1) return 1;
+  if (count === 2) return 2;
+  if (count === 3) return 3;
+  return 4;
+}

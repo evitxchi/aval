@@ -1277,3 +1277,46 @@ that will primarily surface it exists.
 
 **Verification.** `tsc --noEmit`, `npm run lint`, `npm run i18n:check`, `npm run build`
 (confirmed `/api/agents/default` registered), and `node --test` (56 passing) all clean.
+
+## 2026-09-02 — A year-of-activity heatmap on the Overview dashboard
+
+**Context.** A request to add a GitHub-style contribution calendar to the main dashboard,
+"in our colors," pasted as a shadcn/Tailwind component built on `date-fns`.
+
+**What it shows.** Aval has no "contributions," so the cells count *verified actions Aval
+completed that day* — the same class of work the ledger strip and the History drawer already
+itemize, so the three surfaces describe one underlying stream rather than three unrelated
+metrics. It sits inside the existing "Aval, now" activity panel, directly under the ledger flow.
+
+**No new dependencies.** The pasted component needed `date-fns` and Tailwind utility classes;
+neither is in this codebase, and a 53×7 fixed grid needs no calendar library — plain `Date`
+arithmetic covers it. The markup uses Aval's own CSS classes like every other panel.
+
+**Deterministic, not random.** A hand-authored year of 371 counts is unmaintainable, but the
+series still has to be stable: the dashboard is screenshotted and asserted against, and must not
+reshuffle on every render or deploy. So counts are derived from an integer hash of the day index
+(`buildActivityYear` in `app/data/sample.ts`), anchored to the existing `SAMPLE_TODAY`. Weekdays
+are weighted busier than weekends, since property management is a weekday business. Days after
+`SAMPLE_TODAY` are present so the final column is a full week but carry `-1` and render as
+untracked outlines — absent, not a real zero-activity day.
+
+**Colors.** The reference's GitHub greens would have been the one component ignoring the theme.
+The ramp is instead mixed from the ink token —
+`color-mix(in srgb, var(--ink) N%, var(--surface-sunken))` — so it re-derives itself in dark mode
+(light squares on dark ground) with no second palette to maintain. Verified in both themes.
+
+**Two bugs found and fixed while verifying, not after shipping.** (1) The month-label rule
+`week.find(day => day.date.getDate() <= 7)` double-printed a month: a week straddling a boundary
+*and* the week after it both contain a day in the 1–7 range. Now a column is labelled only when
+its month differs from the previous column's. (2) That rewrite first used a mutable accumulator
+across the `.map`, which React Compiler's purity lint correctly rejects — callbacks may be
+memoized and re-run independently — so it compares against `weeks[index - 1]` instead.
+(3) `overflow: hidden` on the 12px-wide label spans clipped every month to two characters
+("Se", "Oc", "No"). Only every fourth-or-so column carries a label, so the names now overflow
+visibly into the blank neighbours.
+
+**Verification.** Local `vinext dev` still hits the known pre-existing `NextIntlClientProvider`
+flake, so the panel was rendered standalone against the real compiled `globals.css` in both
+themes and screenshotted, plus a data-shape check (53×7, Sunday-aligned, deterministic across
+calls, 12 unique ordered month labels, 4 future cells). `tsc --noEmit`, `npm run lint`,
+`npm run i18n:check` (767 keys), `npm run build`, and `node --test` (56 passing) all clean.

@@ -695,7 +695,11 @@
     "workOrderRomaSur2cDetail": "No hot water · 7h open",
     "workOrdersDetail": "{days} days avg close",
     "workOrdersEmptyDescription": "Open work orders once maintenance is connected.",
-    "workOrdersLabel": "Open work orders"
+    "workOrdersLabel": "Open work orders",
+    "activityHeatmapAria": "A year of daily verified actions, one square per day",
+    "activityDayTooltip": "{date}: {count} verified actions",
+    "activityLess": "Less",
+    "activityMore": "More"
   },
   "ReviewCenter": {
     "emptyFilter": "Nothing here yet.",

@@ -695,7 +695,11 @@
     "workOrderRomaSur2cDetail": "Sin agua caliente · 7h abierta",
     "workOrdersDetail": "{days} días para cerrar",
     "workOrdersEmptyDescription": "Órdenes abiertas una vez que conectes mantenimiento.",
-    "workOrdersLabel": "Órdenes abiertas"
+    "workOrdersLabel": "Órdenes abiertas",
+    "activityHeatmapAria": "Un año de acciones verificadas diarias, un cuadro por día",
+    "activityDayTooltip": "{date}: {count} acciones verificadas",
+    "activityLess": "Menos",
+    "activityMore": "Más"
   },
   "ReviewCenter": {
     "emptyFilter": "Todavía no hay nada aquí.",
