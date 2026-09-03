@@ -899,6 +899,7 @@
     "loadingModels": "Loading models…",
     "modelBeingUsed": "Model being used",
     "modelListFailed": "Could not load the model list. Try again.",
+    "modelsUnverified": "Couldn't reach your account's model list, so these are the known defaults. If one is rejected when you send, reconnect the provider.",
     "noModelsMatch": "No models match your search.",
     "pasteOrConnect": "Paste an API key, or connect your {provider} plan.",
     "pasteRedirectHint": "That tab is showing a connection error at localhost:1455. Nothing is wrong — a website can't listen on your machine the way a desktop app can, so the code is delivered in the address bar instead. Select the whole URL there, copy it, and paste it below.",

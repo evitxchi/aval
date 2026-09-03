@@ -899,6 +899,7 @@
     "loadingModels": "Cargando modelos…",
     "modelBeingUsed": "Modelo en uso",
     "modelListFailed": "No se pudo cargar la lista de modelos. Intenta de nuevo.",
+    "modelsUnverified": "No se pudo obtener la lista de modelos de tu cuenta, así que estos son los predeterminados conocidos. Si uno falla al enviar, vuelve a conectar el proveedor.",
     "noModelsMatch": "Ningún modelo coincide con tu búsqueda.",
     "pasteOrConnect": "Pega una clave de API, o conecta tu plan de {provider}.",
     "pasteRedirectHint": "Esa pestaña muestra un error de conexión en localhost:1455. No hay ningún problema: un sitio web no puede escuchar en tu equipo como lo hace una app de escritorio, así que el código llega en la barra de direcciones. Selecciona la URL completa, cópiala y pégala abajo.",

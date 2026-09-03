@@ -48,12 +48,11 @@ export function isModelProviderId(id: string): id is ProviderId {
  */
 const SUBSCRIPTION_MODELS: Record<string, string[]> = {
   claude: ["claude-sonnet-5", "claude-opus-5", "claude-fable-5-1", "claude-haiku-4-5-20251001"],
-  // Deliberately empty: the Codex backend publishes its own model list (see
-  // listChatgptCodexModels), and a hardcoded fallback here would quietly
-  // serve stale names the connected account may no longer be able to call.
-  // An empty picker that says "couldn't reach the list" is more honest than
-  // a populated one that 404s on send.
-  chatgpt: [],
+  // Used only when live discovery fails, and surfaced to the user as
+  // unverified when it is (see listModels). An empty picker leaves someone
+  // unable to pick anything at all; a labelled fallback lets them proceed
+  // while still saying the list could not be confirmed against the account.
+  chatgpt: ["gpt-5.1-codex", "gpt-5.1-codex-mini", "gpt-5-codex"],
 };
 
 /** Pinned in the query string the way the Codex CLI pins it; the backend gates its response on it. */
@@ -98,6 +97,31 @@ async function listChatgptCodexModels(accessToken: string, accountId?: string): 
  * own equivalent endpoint; the two subscription providers fall back to the
  * short hand list above.
  */
+/**
+ * Live discovery, with a labelled fallback.
+ *
+ * `verified: false` means the account's own catalog could not be reached and
+ * the names came from a static list — the UI says so rather than presenting
+ * them as confirmed, because a model this account cannot call will fail at
+ * send time and the user deserves to know that is possible before choosing.
+ */
+export async function listModelsDetailed(provider: string, apiKey: string, accountId?: string): Promise<{ models: string[]; verified: boolean; reason?: string }> {
+  if (provider === "chatgpt") {
+    try {
+      const models = await listChatgptCodexModels(apiKey, accountId);
+      if (models.length > 0) return { models, verified: true };
+      return { models: SUBSCRIPTION_MODELS.chatgpt, verified: false, reason: "empty_response" };
+    } catch (error) {
+      return {
+        models: SUBSCRIPTION_MODELS.chatgpt,
+        verified: false,
+        reason: error instanceof Error ? error.message : "unreachable",
+      };
+    }
+  }
+  return { models: await listModels(provider, apiKey, accountId), verified: true };
+}
+
 export async function listModels(provider: string, apiKey: string, accountId?: string): Promise<string[]> {
   // ChatGPT asks the Codex backend for its real list; Claude's OAuth surface
   // publishes no equivalent endpoint, so it keeps the short static list.

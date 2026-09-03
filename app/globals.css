@@ -591,7 +591,6 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--ink); outli
 .entrata-mark { background: #6b3fa0; font-weight: 600; }
 .rentmanager-mark { background: #22406b; font-size: 13px; font-weight: 600; }
 .doorloop-mark { background: #12a89d; font-weight: 600; }
-.openai-mark { background: #0f0f10; font-size: 12px; font-weight: 600; }
 .zai-mark { background: #4f46e5; font-weight: 600; }
 .siliconflow-mark { background: #7c3aed; font-size: 12px; font-weight: 600; }
 
@@ -1249,6 +1248,7 @@ html.aval-module-picking .content-shell { cursor: crosshair; }
 .intelligence-model-search input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font-size: 10px; color: var(--ink); }
 .intelligence-model-menu-status { margin: 4px 9px; padding: 6px 0; color: var(--quiet); font-size: 9px; }
 .intelligence-model-menu-status.error { color: var(--viz-red); }
+.intelligence-model-menu-status.warn { color: var(--viz-orange); }
 .intelligence-model-menu-footer { display: flex; justify-content: flex-end; padding: 4px; border-top: 1px solid var(--line); margin: 4px -6px 0; }
 .intelligence-model-menu-footer button { min-height: 26px; padding: 0 6px; border: 0; background: transparent; color: var(--quiet); cursor: pointer; }
 .intelligence-model-menu-footer button:hover { color: var(--ink); }

@@ -4,7 +4,7 @@ import { getDb } from "@/db";
 import { integrationConnections } from "@/db/schema";
 import { decryptSecret } from "@/lib/integrations/crypto";
 import { getProvider } from "@/lib/integrations/catalog";
-import { isModelProviderId, listModels } from "@/lib/integrations/model-providers";
+import { isModelProviderId, listModelsDetailed } from "@/lib/integrations/model-providers";
 import { isSubscriptionProviderId } from "@/lib/integrations/subscription-oauth";
 import { getApiIdentity } from "@/lib/integrations/session";
 
@@ -43,8 +43,16 @@ export async function GET(request: Request) {
     if (!accessToken) return Response.json({ error: "No credential is stored for this provider." }, { status: 409 });
     // The Codex model endpoint is account-scoped, so it needs the same
     // ChatGPT-Account-ID the inference requests send.
-    const models = await listModels(providerId, accessToken, connection.externalAccountId ?? undefined);
-    return Response.json({ provider: providerId, models, defaultModel: catalogEntry.defaultModel ?? null });
+    const result = await listModelsDetailed(providerId, accessToken, connection.externalAccountId ?? undefined);
+    return Response.json({
+      provider: providerId,
+      models: result.models,
+      // Passed through so the picker can say the list is unconfirmed rather
+      // than presenting a fallback as the account's real catalog.
+      verified: result.verified,
+      unverifiedReason: result.reason ?? null,
+      defaultModel: catalogEntry.defaultModel ?? null,
+    });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "Could not list models for this provider." }, { status: 502 });
   }

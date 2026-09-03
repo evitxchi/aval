@@ -322,6 +322,9 @@ function ModelBeingUsedRow({ providers, activeProvider, activeEntry, onSwitchPro
   const [modelSearch, setModelSearch] = useState("");
   const [models, setModels] = useState<string[] | null>(null);
   const [modelsError, setModelsError] = useState<string | null>(null);
+  // True when the list came from the static fallback because the account's own
+  // catalog was unreachable — shown to the user rather than hidden.
+  const [modelsUnverified, setModelsUnverified] = useState(false);
   const [loadingModels, setLoadingModels] = useState(false);
   const [savingModel, setSavingModel] = useState(false);
 
@@ -334,9 +337,10 @@ function ModelBeingUsedRow({ providers, activeProvider, activeEntry, onSwitchPro
     setModelsError(null);
     try {
       const response = await fetch(`/api/integrations/models?provider=${encodeURIComponent(activeProvider)}`);
-      const data = await response.json() as { models?: string[]; error?: string };
+      const data = await response.json() as { models?: string[]; error?: string; verified?: boolean; unverifiedReason?: string | null };
       if (!response.ok) throw new Error(data.error ?? t("IntelligenceSettings.modelListFailed"));
       setModels(data.models ?? []);
+      setModelsUnverified(data.verified === false);
     } catch (error) {
       setModelsError(error instanceof Error ? error.message : t("IntelligenceSettings.modelListFailed"));
     } finally {
@@ -402,6 +406,9 @@ function ModelBeingUsedRow({ providers, activeProvider, activeEntry, onSwitchPro
               </label>
               {loadingModels && <p className="intelligence-model-menu-status">{t("IntelligenceSettings.loadingModels")}</p>}
               {modelsError && <p className="intelligence-model-menu-status error">{modelsError}</p>}
+              {!modelsError && modelsUnverified && (
+                <p className="intelligence-model-menu-status warn">{t("IntelligenceSettings.modelsUnverified")}</p>
+              )}
               {!loadingModels && !modelsError && filteredModels.map((id) => (
                 <button type="button" key={id} disabled={savingModel} onClick={() => void chooseModel(id)}>{id}</button>
               ))}
