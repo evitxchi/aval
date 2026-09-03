@@ -172,6 +172,50 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--ink); outli
 .metric-card.is-empty .empty-spark { margin: 8px 0 6px; }
 .funnel-stage-labels .empty-spark { width: 26px; height: 14px; margin: 0 0 6px; }
 .status-pill.optional { background: var(--surface-sunken); color: var(--muted); }
+/* Due-state pills reuse the viz palette rather than the flat ink pill, since
+   "overdue" has to read as a warning at a glance in a long list. */
+.status-pill.current { background: var(--surface-sunken); color: var(--muted); }
+.status-pill.dueSoon { background: color-mix(in srgb, var(--viz-amber) 18%, var(--surface)); color: var(--viz-amber); }
+.status-pill.overdue { background: color-mix(in srgb, var(--viz-red) 15%, var(--surface)); color: var(--viz-red); }
+
+/* Infrastructure ------------------------------------------------------- */
+.infra-filter { flex-wrap: wrap; }
+.infra-table-scroll { margin-top: 14px; overflow-x: auto; }
+.infra-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.infra-table th { padding: 0 12px 8px 0; text-align: left; font-size: 9px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; color: var(--quiet); white-space: nowrap; }
+.infra-table td { padding: 11px 12px 11px 0; border-top: 1px solid var(--line); vertical-align: top; color: var(--ink); }
+.infra-table td strong { display: block; font-size: 11px; font-weight: 600; }
+.infra-table td small { display: block; margin-top: 2px; font-size: 9px; color: var(--quiet); }
+.infra-table td:first-child { min-width: 168px; }
+.life-bar { width: 84px; height: 5px; border-radius: 999px; background: var(--surface-sunken); overflow: hidden; }
+.life-bar i { display: block; height: 100%; border-radius: 999px; background: var(--ink); }
+.life-bar i[data-condition="monitor"] { background: var(--viz-amber); }
+.life-bar i[data-condition="plan"] { background: var(--viz-orange); }
+.life-bar i[data-condition="urgent"] { background: var(--viz-red); }
+.condition-label.plan { color: var(--viz-orange); }
+.condition-label.urgent { color: var(--viz-red); }
+.infra-due { margin-left: auto; display: grid; justify-items: end; gap: 3px; text-align: right; }
+.infra-due .status-pill { margin-left: 0; }
+.infra-due small { font-size: 9px; color: var(--quiet); white-space: nowrap; }
+
+.capital-forecast { margin-top: 18px; display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 8px; align-items: end; }
+.capital-year { display: grid; justify-items: center; gap: 6px; min-width: 0; }
+.capital-bar-track { width: 100%; height: 108px; display: flex; align-items: flex-end; }
+.capital-bar-track i { width: 100%; min-height: 2px; border-radius: 6px 6px 0 0; background: var(--ink); transition: height .5s var(--ease-snap); }
+/* A year with nothing due still gets a visible baseline, so the gap reads as
+   "nothing scheduled" rather than as a rendering failure. */
+.capital-bar-track i[data-empty="true"] { background: var(--surface-sunken); }
+.capital-year strong { font-size: 9px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.capital-year span { font-size: 9px; color: var(--quiet); }
+
+.fixture-grid { margin-top: 14px; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
+.fixture-row { display: flex; align-items: baseline; gap: 8px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-soft); min-width: 0; }
+.fixture-row > span { flex: 1 1 auto; min-width: 0; font-size: 10px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fixture-row b { font-size: 12px; font-weight: 600; }
+.fixture-row small { font-size: 8px; color: var(--quiet); white-space: nowrap; }
+.fixture-row strong { font-size: 11px; font-weight: 600; }
+.infra-caveat { color: var(--viz-orange); }
+
 .coverage-panel .wide-button { margin-top: 12px; }
 .activity-panel { margin-top: 10px; padding: 23px; }
 .activity-flow { margin-top: 20px; display: grid; grid-template-columns: repeat(7, auto); align-items: center; gap: 9px; overflow: auto; padding-bottom: 2px; }

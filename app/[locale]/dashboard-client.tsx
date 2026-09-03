@@ -10,7 +10,7 @@ import {
   Coins, CoinsSwap, Dashboard, Database, FilterList, Flash, Globe, HalfMoon, HomeSimpleDoor, Key,
   Language, LogOut, NetworkLeft, NavArrowDown, NavArrowLeft, NavArrowRight, Page, Pause,
   Phone, Plus, ScaleFrameEnlarge, ScaleFrameReduce, Search, SendDiagonal, Settings, ShieldCheck, SmartphoneDevice,
-  SoundHigh, SoundOff, StatsUpSquare, SunLight, TaskList, Tools, User,
+  SoundHigh, SoundOff, StatsUpSquare, SunLight, TaskList, Tools, User, WarningTriangle,
   ViewColumns3, ViewGrid, Xmark, XmarkCircle,
 } from "iconoir-react";
 import { AnimatedNumber, ExperienceProvider, useExperience } from "@/app/components/experience";
@@ -24,7 +24,8 @@ import { IntelligenceSettings } from "@/app/components/intelligence-settings";
 import { ConnectionDialog, type Provider } from "@/app/components/connection-dialog";
 import { AutomationTimeline } from "@/app/components/automation-timeline";
 import { activityIntensity, buildActivityYear, derivedSample, derivePropertyTotals, deriveMaintenanceReported, rankInsights, sampleData, type InsightCandidate, type InsightRecipient, type NotificationItem, type NotificationTarget, type ReviewStatus } from "@/app/data/sample";
-import { infrastructureSummary } from "@/app/data/infrastructure-sample";
+import { formatMoney } from "@/lib/finance/money";
+import { buildingAssets, capitalForecast, complianceItems, fixtureLoad, FIXTURE_UNIT_TABLE_CEILING, infrastructureSummary, preventiveTasks, totalAnnualReserveCents, type AssetCategory, type AssetCondition, type DueStatus } from "@/app/data/infrastructure-sample";
 import type { UtilityType } from "@/lib/infrastructure/types";
 import { AccountingSankey, LeasingTrendChart, MaintenanceRoseChart, PropertyOccupancyChart } from "@/app/components/charts";
 
@@ -978,19 +979,158 @@ const UTILITY_LABEL_KEY: Record<UtilityType, string> = {
   water: "InfrastructureView.water",
   gas: "InfrastructureView.gas",
 };
+const ASSET_CATEGORY_LABEL_KEY: Record<AssetCategory, string> = {
+  hvac: "InfrastructureView.categoryHvac",
+  plumbing: "InfrastructureView.categoryPlumbing",
+  electrical: "InfrastructureView.categoryElectrical",
+  envelope: "InfrastructureView.categoryEnvelope",
+  safety: "InfrastructureView.categorySafety",
+  conveyance: "InfrastructureView.categoryConveyance",
+};
+
+const DUE_STATUS_LABEL_KEY: Record<DueStatus, string> = {
+  current: "InfrastructureView.statusCurrent",
+  dueSoon: "InfrastructureView.statusDueSoon",
+  overdue: "InfrastructureView.statusOverdue",
+};
+
+const ASSET_CONDITION_LABEL_KEY: Record<AssetCondition, string> = {
+  good: "InfrastructureView.conditionGood",
+  monitor: "InfrastructureView.conditionMonitor",
+  plan: "InfrastructureView.conditionPlan",
+  urgent: "InfrastructureView.conditionUrgent",
+};
+
 function InfrastructureView({ dataMode, onAddMeter }: { dataMode: DataMode; onAddMeter: () => void }) {
   const t = useTranslations();
+  const currentLocale = useLocale();
   const isSample = dataMode === "sample";
+  const [assetFilter, setAssetFilter] = useState<AssetCategory | "all">("all");
+
+  const dueFmt = useMemo(() => new Intl.DateTimeFormat(currentLocale, { month: "short", day: "numeric", year: "numeric" }), [currentLocale]);
+  const assets = assetFilter === "all" ? buildingAssets : buildingAssets.filter((asset) => asset.category === assetFilter);
+  const annualReserve = formatMoney(totalAnnualReserveCents(), "USD");
+  const overdueCompliance = complianceItems.filter((item) => item.status === "overdue").length;
+  const overduePm = preventiveTasks.filter((task) => task.status === "overdue").length;
+  const atRiskAssets = buildingAssets.filter((asset) => asset.condition === "plan" || asset.condition === "urgent").length;
+  const forecastPeak = Math.max(...capitalForecast.map((year) => year.totalCents), 1);
+
   return <div className="view-wrap">
     <AppHeader title={t("InfrastructureView.infrastructure")} subtitle={t("InfrastructureView.infrastructureSubtitle")} actions={<button className="primary-button" onClick={onAddMeter}><Flash width={18} height={18}/>{t("InfrastructureView.addMeter")}</button>}/>
-    {isSample
-      ? <section className="metric-grid">{infrastructureSummary.map((row) => <article className="metric-card" data-reveal key={row.utilityType}>
-          <div className="metric-top"><span>{t(UTILITY_LABEL_KEY[row.utilityType])}</span><Flash width={18} height={18}/></div>
-          <strong>{row.totalCostFormatted}</strong>
-          <div className="metric-meta"><span>{row.usageVariancePct >= 0 ? "+" : ""}{row.usageVariancePct.toFixed(1)}%</span> {t("InfrastructureView.vsPriorPeriod")}</div>
-          <p className="empty-copy">{t("InfrastructureView.totalUsage")}: {row.totalUsage.toLocaleString()} {row.unitOfMeasure} · {t("InfrastructureView.metersCount", { count: row.meterCount })} · {t("InfrastructureView.billsCount", { count: row.billCount })}</p>
-        </article>)}</section>
-      : <section className="panel locked-panel" data-reveal><div className="locked-visual"><div className="locking-lines"><i/><i/><i/></div><span><Flash width={23} height={23}/></span></div><div><p className="eyebrow">{t("InfrastructureView.infrastructure")}</p><h2>{t("InfrastructureView.emptyDescription")}</h2><button className="primary-button" onClick={onAddMeter}>{t("InfrastructureView.addMeter")}<NavArrowRight width={17} height={17}/></button></div></section>}
+    {!isSample
+      ? <section className="panel locked-panel" data-reveal><div className="locked-visual"><div className="locking-lines"><i/><i/><i/></div><span><Flash width={23} height={23}/></span></div><div><p className="eyebrow">{t("InfrastructureView.infrastructure")}</p><h2>{t("InfrastructureView.emptyDescription")}</h2><button className="primary-button" onClick={onAddMeter}>{t("InfrastructureView.addMeter")}<NavArrowRight width={17} height={17}/></button></div></section>
+      : <>
+        <section className="metric-grid">
+          {infrastructureSummary.map((row) => <article className="metric-card" data-reveal key={row.utilityType}>
+            <div className="metric-top"><span>{t(UTILITY_LABEL_KEY[row.utilityType])}</span><Flash width={18} height={18}/></div>
+            <strong>{row.totalCostFormatted}</strong>
+            <div className="metric-meta"><span className={row.usageVariancePct >= 0 ? "negative" : "positive"}>{row.usageVariancePct >= 0 ? "+" : ""}{row.usageVariancePct.toFixed(1)}%</span> {t("InfrastructureView.vsPriorPeriod")}</div>
+            <p className="empty-copy">{row.totalUsage.toLocaleString(currentLocale)} {row.unitOfMeasure} · {t("InfrastructureView.metersCount", { count: row.meterCount })} · {t("InfrastructureView.billsCount", { count: row.billCount })}</p>
+          </article>)}
+          <article className="metric-card" data-reveal>
+            <div className="metric-top"><span>{t("InfrastructureView.annualReserve")}</span><Tools width={18} height={18}/></div>
+            <strong>{annualReserve}</strong>
+            <div className="metric-meta">{t("InfrastructureView.acrossTrackedAssets", { count: buildingAssets.length })}</div>
+            <p className="empty-copy">{t("InfrastructureView.reserveExplainer")}</p>
+          </article>
+          <article className="metric-card" data-reveal>
+            <div className="metric-top"><span>{t("InfrastructureView.needsAttention")}</span><WarningTriangle width={18} height={18}/></div>
+            <strong>{overdueCompliance + overduePm}</strong>
+            <div className="metric-meta">{t("InfrastructureView.overdueBreakdown", { compliance: overdueCompliance, tasks: overduePm })}</div>
+            <p className="empty-copy">{t("InfrastructureView.assetsNearingEndOfLife", { count: atRiskAssets })}</p>
+          </article>
+        </section>
+
+        <section className="panel" data-reveal>
+          <div className="panel-heading">
+            <div><p className="eyebrow">{t("InfrastructureView.assetRegister")}</p><h2>{t("InfrastructureView.equipmentAndServiceLife")}</h2></div>
+            <div className="segmented text infra-filter">
+              <button className={assetFilter === "all" ? "active" : ""} onClick={() => setAssetFilter("all")}>{t("InfrastructureView.filterAll")}</button>
+              {(Object.keys(ASSET_CATEGORY_LABEL_KEY) as AssetCategory[]).map((category) => <button key={category} className={assetFilter === category ? "active" : ""} onClick={() => setAssetFilter(category)}>{t(ASSET_CATEGORY_LABEL_KEY[category])}</button>)}
+            </div>
+          </div>
+          <div className="infra-table-scroll">
+            <table className="infra-table">
+              <thead><tr>
+                <th>{t("InfrastructureView.colAsset")}</th>
+                <th>{t("InfrastructureView.colProperty")}</th>
+                <th>{t("InfrastructureView.colAge")}</th>
+                <th>{t("InfrastructureView.colLifeUsed")}</th>
+                <th>{t("InfrastructureView.colReplace")}</th>
+                <th>{t("InfrastructureView.colCost")}</th>
+                <th>{t("InfrastructureView.colReserve")}</th>
+              </tr></thead>
+              <tbody>
+                {assets.map((asset) => <tr key={asset.id}>
+                  <td><strong>{t(asset.labelKey)}</strong><small>{t(ASSET_CATEGORY_LABEL_KEY[asset.category])} · {t(asset.locationKey)}</small></td>
+                  <td>{t(asset.propertyKey)}</td>
+                  <td>{t("InfrastructureView.yearsOf", { age: asset.ageYears, life: asset.expectedLifeYears })}</td>
+                  <td>
+                    <div className="life-bar" title={`${asset.lifeConsumedPct.toFixed(0)}%`}><i style={{ width: `${Math.min(asset.lifeConsumedPct, 100)}%` }} data-condition={asset.condition}/></div>
+                    <small className={`condition-label ${asset.condition}`}>{t(ASSET_CONDITION_LABEL_KEY[asset.condition])}</small>
+                  </td>
+                  <td>{asset.replacementYear}</td>
+                  <td>{asset.replacementCostFormatted}</td>
+                  <td>{asset.annualReserveFormatted}<small>{t("InfrastructureView.perYear")}</small></td>
+                </tr>)}
+              </tbody>
+            </table>
+          </div>
+          {assets.length === 0 && <p className="empty-copy">{t("InfrastructureView.noAssetsInCategory")}</p>}
+        </section>
+
+        <section className="overview-grid" data-reveal>
+          <article className="panel">
+            <div className="panel-heading"><div><p className="eyebrow">{t("InfrastructureView.compliance")}</p><h2>{t("InfrastructureView.inspectionsAndCertificates")}</h2></div><ShieldCheck width={22} height={22}/></div>
+            {complianceItems.map((item) => <div className="source-row" key={item.id}>
+              <div><strong>{t(item.labelKey)}</strong><span>{t(item.authorityKey)} · {t(item.propertyKey)}</span></div>
+              <div className="infra-due">
+                <span className={`status-pill ${item.status}`}>{t(DUE_STATUS_LABEL_KEY[item.status])}</span>
+                <small>{item.status === "overdue" ? t("InfrastructureView.overdueByDays", { days: Math.abs(item.daysUntilDue) }) : t("InfrastructureView.dueOn", { date: dueFmt.format(item.dueDate) })}</small>
+              </div>
+            </div>)}
+          </article>
+          <article className="panel">
+            <div className="panel-heading"><div><p className="eyebrow">{t("InfrastructureView.preventiveMaintenance")}</p><h2>{t("InfrastructureView.recurringWork")}</h2></div><Tools width={22} height={22}/></div>
+            {preventiveTasks.map((task) => <div className="source-row" key={task.id}>
+              <div><strong>{t(task.labelKey)}</strong><span>{t(ASSET_CATEGORY_LABEL_KEY[task.category])} · {t("InfrastructureView.everyDays", { days: task.cadenceDays })}</span></div>
+              <div className="infra-due">
+                <span className={`status-pill ${task.status}`}>{t(DUE_STATUS_LABEL_KEY[task.status])}</span>
+                <small>{task.daysUntilDue < 0 ? t("InfrastructureView.overdueByDays", { days: Math.abs(task.daysUntilDue) }) : t("InfrastructureView.inDays", { days: task.daysUntilDue })}</small>
+              </div>
+            </div>)}
+          </article>
+        </section>
+
+        <section className="panel" data-reveal>
+          <div className="panel-heading"><div><p className="eyebrow">{t("InfrastructureView.capitalPlanning")}</p><h2>{t("InfrastructureView.replacementForecast")}</h2></div><span className="quiet-label">{t("InfrastructureView.tenYearHorizon")}</span></div>
+          <div className="capital-forecast">
+            {capitalForecast.map((year) => <div className="capital-year" key={year.year}>
+              <div className="capital-bar-track"><i style={{ height: `${(year.totalCents / forecastPeak) * 100}%` }} data-empty={year.totalCents === 0 ? "true" : undefined}/></div>
+              <strong>{year.totalCents === 0 ? "—" : year.totalFormatted}</strong>
+              <span>{year.year}</span>
+            </div>)}
+          </div>
+          <p className="empty-copy">{t("InfrastructureView.forecastExplainer")}</p>
+        </section>
+
+        <section className="panel" data-reveal>
+          <div className="panel-heading"><div><p className="eyebrow">{t("InfrastructureView.plumbingLoad")}</p><h2>{t("InfrastructureView.fixtureUnitLoad")}</h2></div><span className="quiet-label">{t("InfrastructureView.wsfuTotal", { units: fixtureLoad.totalUnits })}</span></div>
+          <div className="fixture-grid">
+            {fixtureLoad.fixtures.map((fixture) => <div className="fixture-row" key={fixture.type}>
+              <span>{t(`InfrastructureView.fixture_${fixture.type}`)}</span>
+              <b>{fixture.count}</b>
+              <small>{t("InfrastructureView.wsfuEach", { units: fixture.unitsEach })}</small>
+              <strong>{fixture.unitsTotal.toFixed(1)}</strong>
+            </div>)}
+          </div>
+          <p className={`empty-copy${fixtureLoad.beyondTableRange ? " infra-caveat" : ""}`}>
+            {fixtureLoad.beyondTableRange
+              ? t("InfrastructureView.pipeSizeBeyondTable", { units: fixtureLoad.totalUnits, ceiling: FIXTURE_UNIT_TABLE_CEILING })
+              : t("InfrastructureView.pipeSizeEstimate", { size: fixtureLoad.estimatedPipeSizeInches })}
+          </p>
+        </section>
+      </>}
   </div>;
 }
 

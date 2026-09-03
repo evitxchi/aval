@@ -1320,3 +1320,52 @@ flake, so the panel was rendered standalone against the real compiled `globals.c
 themes and screenshotted, plus a data-shape check (53×7, Sunday-aligned, deterministic across
 calls, 12 unique ordered month labels, 4 future cells). `tsc --noEmit`, `npm run lint`,
 `npm run i18n:check` (767 keys), `npm run build`, and `node --test` (56 passing) all clean.
+
+## 2026-09-02 — Infrastructure built out into a real property-management page
+
+**Context.** "Improve infrastructure page. Should be more complex, detailed, complete —
+everything a property management person would want in terms of property management
+infrastructure." The page was four utility tiles and an empty state.
+
+**What was missing.** Utility spend is the part of infrastructure that arrives as a bill; it is
+not the job. The rest is knowing what equipment exists, how close it is to end of life, what
+inspections are legally due, and what has to be funded in which year. Four sections were added,
+all on the module's existing discipline — raw facts in one place, every displayed figure derived
+through the same libraries the real API routes use, nothing formatted by hand:
+
+- **Asset register.** Eight tracked systems across two properties with install year, published
+  service life, age, a life-consumed bar, replacement year and cost, and the annual reserve each
+  asset alone should be accruing. Filterable by category. Condition (`good` / `monitor` / `plan`
+  / `urgent`) is *read off* consumed service life rather than assigned by hand, so two managers
+  looking at the same register agree on what "urgent" means.
+- **Compliance.** Inspections and certificates with the authority that requires each one — the
+  answer to "says who?" — sorted soonest-first, which puts overdue items at the top for free.
+  Due dates are last-completion plus that item's own cadence, not stored strings.
+- **Preventive maintenance.** Recurring work with cadence and days-until-due, same sort.
+- **Capital forecast.** A 10-year timeline bucketing each asset into the year its service life
+  expires. Quiet years are kept so the run reads as a timeline rather than a list that skips
+  them, and anything *already* past due is carried into the first column instead of falling off
+  the back of the chart — deferred capital is still owed, and dropping it is how it gets
+  forgotten.
+- **Plumbing fixture load.** `lib/infrastructure/plumbing.ts` had been in the repo since the
+  module landed with nothing surfacing it. Fixture-unit load is what tells a manager whether a
+  riser can take another unit's fixtures before a renovation, so it belongs here.
+
+**An honesty guard on the pipe sizing.** `estimatedPipeSizeInches` documents that a load past
+its band table returns the top band as a *fallback* and must be flagged for engineering review.
+The sample portfolio's load (701 WSFU) is well past that 450 ceiling, so rendering a confident
+"3 in" would have been exactly the unearned precision the faithfulness gate exists to prevent.
+`deriveFixtureLoad` now returns `beyondTableRange`, and the view says the load needs engineered
+sizing instead of printing a number.
+
+**Pluralization.** The first pass rendered "1 days overdue" for a task exactly one day late.
+The count-bearing strings are now ICU plurals, matching the pattern already used elsewhere in
+`messages/` — which also gets Spanish's own plural rules right rather than assuming English's.
+
+**Verification.** 13 new tests (69 total, up from 56) covering: published rows matching a fresh
+derivation, reserve as cost-over-life, condition bands, due-status thresholds, soonest-first
+ordering, due date as last-completion-plus-cadence, every asset bucketed exactly once across the
+forecast horizon, past-due capital carried forward, and the beyond-table flag. Rendered against
+the real compiled `globals.css` at 1280px and 720px and checked for escaping elements — no
+horizontal overflow, panels stack, forecast stays legible. `tsc --noEmit`, `npm run lint`,
+`npm run i18n:check` (859 keys), and `npm run build` all clean.
