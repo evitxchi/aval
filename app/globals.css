@@ -221,6 +221,20 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--ink); outli
 .fixture-row strong { font-size: 11px; font-weight: 600; }
 .infra-caveat { color: var(--viz-orange); }
 
+/* Subscription connect — the paste step is the normal path for a hosted app,
+   not a fallback, so it is presented as a numbered step rather than fine
+   print under an input. */
+.subscription-start { display: grid; gap: 10px; }
+.subscription-start .foldout-hint { margin: 0; }
+.subscription-paste { display: grid; gap: 12px; }
+.subscription-step { display: flex; gap: 11px; padding: 13px 14px; border: 1px solid var(--line-strong); border-radius: 14px; background: var(--surface-soft); }
+.subscription-step-number { flex-shrink: 0; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--ink); color: var(--inverse-ink); font-size: 10px; font-weight: 600; }
+.subscription-step > div { min-width: 0; display: grid; gap: 4px; }
+.subscription-step strong { font-size: 11px; font-weight: 600; }
+.subscription-step p { margin: 0; font-size: 10px; line-height: 1.55; color: var(--muted); }
+.subscription-paste-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.subscription-paste-actions .text-button { font-size: 10px; }
+
 /* Documents ------------------------------------------------------------ */
 .documents-view > section { margin-top: 10px; }
 .documents-view > section.panel { padding: 23px; }

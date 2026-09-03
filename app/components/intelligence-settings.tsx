@@ -168,21 +168,50 @@ function ProviderAccordionRow({ provider, twin, isOpen, onToggle, isActive, swit
                 <button type="button" className="text-button" onClick={() => void reset(twin.id)}>{t("IntelligenceSettings.resetConnection")}</button>
               </div>
             ) : subscriptionSession ? (
-              <form className="credential-form" onSubmit={completeSubscription}>
+              <form className="credential-form subscription-paste" onSubmit={completeSubscription}>
+                {/* The browser is showing an error page at this moment. Lead
+                    with that, before the input, or the user reads it as a
+                    failure and closes the tab that holds the code. */}
+                <div className="subscription-step">
+                  <span className="subscription-step-number">2</span>
+                  <div>
+                    <strong>{t("IntelligenceSettings.pasteStepTitle")}</strong>
+                    <p>{t("IntelligenceSettings.pasteRedirectHint")}</p>
+                  </div>
+                </div>
                 <label>
                   {t("IntelligenceSettings.pasteRedirectLabel")}
-                  <input type="text" value={pasteValue} onChange={(event) => setPasteValue(event.target.value)} autoComplete="off" required />
+                  <input
+                    type="text"
+                    value={pasteValue}
+                    onChange={(event) => setPasteValue(event.target.value)}
+                    placeholder={t("IntelligenceSettings.pasteRedirectPlaceholder")}
+                    autoComplete="off"
+                    required
+                  />
                 </label>
-                <p className="foldout-hint">{t("IntelligenceSettings.pasteRedirectHint")}</p>
-                <button className="soft-button" type="submit" disabled={subscriptionStatus === "working" || !pasteValue}>
-                  {subscriptionStatus === "working" ? t("IntelligenceSettings.connecting") : t("IntelligenceSettings.finishConnecting")}
-                </button>
+                <div className="subscription-paste-actions">
+                  <button className="soft-button" type="submit" disabled={subscriptionStatus === "working" || !pasteValue}>
+                    {subscriptionStatus === "working" ? t("IntelligenceSettings.connecting") : t("IntelligenceSettings.finishConnecting")}
+                  </button>
+                  <a className="text-button" href={subscriptionSession.authorizeUrl} target="_blank" rel="noopener noreferrer">
+                    {t("IntelligenceSettings.reopenApproval")}
+                  </a>
+                </div>
                 {subscriptionStatus === "error" && <p className="auth-gate-error">{subscriptionError}</p>}
               </form>
             ) : (
-              <button type="button" className="soft-button" onClick={() => void startSubscription()} disabled={subscriptionStatus === "working"}>
-                {t("IntelligenceSettings.connectSubscription", { provider: twin.title })}
-              </button>
+              <div className="subscription-start">
+                {/* Said before the tab opens, not after: the redirect lands on
+                    a loopback address only a desktop app can listen on, so an
+                    unexplained "site can't be reached" reads as a broken
+                    integration rather than the expected halfway point. */}
+                <p className="foldout-hint">{t("IntelligenceSettings.subscriptionPreamble")}</p>
+                <button type="button" className="soft-button" onClick={() => void startSubscription()} disabled={subscriptionStatus === "working"}>
+                  {t("IntelligenceSettings.connectSubscription", { provider: twin.title })}
+                </button>
+                {subscriptionStatus === "error" && <p className="auth-gate-error">{subscriptionError}</p>}
+              </div>
             )
           )}
 
