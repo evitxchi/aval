@@ -17,6 +17,7 @@ export async function ensureOrganization(identity: ApiIdentity) {
     name: "Aval workspace",
     ownerUserId: identity.userId,
     activeModelProvider: null,
+    defaultPersonaId: null,
     createdAt: now,
     updatedAt: now,
   };

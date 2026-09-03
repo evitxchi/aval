@@ -1236,3 +1236,44 @@ reads "Included" instead, since there's no separate model to name.
 
 **Verification.** `tsc --noEmit`, `npm run lint`, `npm run i18n:check`, `npm run build`, and
 `node --test` (56 passing) all clean.
+
+## 2026-09-02 — Two real overflow bugs root-caused, a date-picker polish, Aval Setup's foundation
+
+**Context.** Two more screenshots of real overflow bugs, a request to give the date-range picker
+the rounded-cap range-highlight look from a pasted shadcn calendar component, and the schema/API
+groundwork for the still-in-progress "Aval Setup" page (a swappable default agent for the org).
+
+**Bug 1 — the "Sample data" chip collapsing into a circle.** `.sample-chip`'s text sat as a bare
+text node directly in the flex row with no `white-space: nowrap`; at a narrow container width it
+wrapped onto multiple lines, and since the chip's `border-radius: 999px` always fully rounds
+based on the shorter dimension, a tall wrapped chip rendered as a circle/blob instead of a pill.
+Fixed: the text now lives in its own `<span>` with `min-width: 0` and `text-overflow: ellipsis`,
+so it truncates on one line under real space pressure instead of wrapping into a blob.
+
+**Bug 2 — sidebar profile text overflowing the collapsed rail.** The *manually*-toggled sidebar
+collapse (`.sidebar-is-collapsed`) already correctly hid `.workspace-card > span:not(.initials)`,
+but the separate, *automatic* collapse that kicks in below 1180px viewport width still used a
+stale selector, `.workspace-card > div` — the actual markup has never used a `<div>` there, only
+`<span>`. Below that breakpoint the name/email text was never actually hidden, so it rendered
+and got clipped by the narrow 80px rail. Fixed by matching the same, already-correct selector.
+
+**Date-range picker.** A pasted shadcn/react-day-picker calendar component asked for fully-round
+start/end range caps. Checked first whether Aval already had an equivalent — it does, a complete
+hand-rolled `DateRangePicker` (`dashboard-client.tsx`) with its own range/hover/today states,
+so no new dependency or component was needed. Ported just the specific visual idea:
+`.date-calendar-day.selected` changed from an 8px soft-square corner to `border-radius: 50%`
+(fully round caps), matching the reference's look while keeping Aval's own monochrome
+ink/inverse-ink coloring instead of the reference's blue.
+
+**Aval Setup's foundation.** `organizations` gained `default_persona_id` (migration `0012`) —
+which persona (built-in or custom) Ask Aval opens with by default for the org, replacing what
+was previously always a hardcoded "general" on every session. New `GET/POST /api/agents/default`
+validates a posted id against the fixed built-in roster or the org's own custom personas before
+saving. This is the backend half of "create a working Aval Setup where you can change the middle
+agent around" — the actual visual Setup page (the swappable center-agent view, connection
+summary nodes) is still in progress, not yet built; this piece ships now since it's complete,
+tested, and useful on its own (a real, durable default-persona setting) even before the page
+that will primarily surface it exists.
+
+**Verification.** `tsc --noEmit`, `npm run lint`, `npm run i18n:check`, `npm run build`
+(confirmed `/api/agents/default` registered), and `node --test` (56 passing) all clean.

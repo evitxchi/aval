@@ -493,7 +493,7 @@ function Overview({ openConnections, dataMode, providers, pendingTarget, targetT
         ? t("Overview.aCalmLiveReadOnLeasing")
         : t("Overview.aCalmReadOnLeasingCash")}
       actions={<>
-        {showChip && <span className="sample-chip">{t("Overview.sampleDataConnectASourceTo")}<button aria-label={t("Overview.dismiss")} onClick={() => setChipDismissed(true)}><Xmark width={12} height={12}/></button></span>}
+        {showChip && <span className="sample-chip"><span>{t("Overview.sampleDataConnectASourceTo")}</span><button aria-label={t("Overview.dismiss")} onClick={() => setChipDismissed(true)}><Xmark width={12} height={12}/></button></span>}
         <DateRangePicker period={period} onChange={setPeriod} t={t} locale={currentLocale}/>
         <button className="soft-button" onClick={generateWeeklyReport}><Page width={18} height={18}/>{t("Overview.generateWeeklyReport")}</button>
         <button className="primary-button" onClick={openConnections}><NetworkLeft width={18} height={18}/>{t("Overview.connectData")}</button>

@@ -1,0 +1,1 @@
+ALTER TABLE `organizations` ADD `default_persona_id` text;

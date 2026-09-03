@@ -165,8 +165,9 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--ink); outli
 .source-row strong { font-size: 11px; font-weight: 400; }
 .source-row div span { color: var(--quiet); font-size: 9px; }
 .status-pill { margin-left: auto; padding: 5px 8px; border-radius: 8px; background: var(--ink); color: white; font-size: 8px; }
-.sample-chip { display: inline-flex; align-items: center; gap: 8px; padding: 6px 6px 6px 12px; border: 1px solid var(--line); border-radius: 999px; background: rgba(255,255,255,.75); font-size: 10px; color: var(--muted); }
-.sample-chip button { display: grid; place-items: center; width: 20px; height: 20px; border: 0; border-radius: 50%; background: var(--line); color: var(--ink); cursor: pointer; }
+.sample-chip { display: inline-flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; padding: 6px 6px 6px 12px; border: 1px solid var(--line); border-radius: 999px; background: rgba(255,255,255,.75); font-size: 10px; color: var(--muted); }
+.sample-chip > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sample-chip button { flex-shrink: 0; display: grid; place-items: center; width: 20px; height: 20px; border: 0; border-radius: 50%; background: var(--line); color: var(--ink); cursor: pointer; }
 .empty-copy { color: var(--muted); font-size: 10px; line-height: 1.6; margin: 6px 0 10px; }
 .metric-card.is-empty .empty-spark { margin: 8px 0 6px; }
 .funnel-stage-labels .empty-spark { width: 26px; height: 14px; margin: 0 0 6px; }
@@ -486,7 +487,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--ink); outli
 @media (max-width: 1180px) {
   .app-shell { grid-template-columns: 80px minmax(0, 1fr); }
   .brand-lockup { justify-content: center; padding: 8px; }
-  .brand-lockup > div, .sidebar-collapse, .nav-group > p, .nav-group button span, .nav-group button b, .nav-chevron, .workspace-card > div, .workspace-card .icon-button { display: none; }
+  .brand-lockup > div, .sidebar-collapse, .nav-group > p, .nav-group button span, .nav-group button b, .nav-chevron, .workspace-card > span:not(.initials), .workspace-card .icon-button { display: none; }
   .nav-group button { justify-content: center; padding: 0; }
   .workspace-card { justify-content: center; }
   .connection-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -580,7 +581,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--ink); outli
 .date-calendar-day:hover:not(:disabled) { background: var(--surface-soft); }
 .date-calendar-day.today { font-weight: 600; }
 .date-calendar-day.in-range { background: var(--surface-sunken); border-radius: 0; }
-.date-calendar-day.selected { background: var(--ink); color: var(--inverse-ink); border-radius: 8px; }
+.date-calendar-day.selected { background: var(--ink); color: var(--inverse-ink); border-radius: 50%; }
 .date-calendar-day:disabled { color: var(--quiet); opacity: .35; cursor: default; }
 .date-calendar-hint { margin: 10px 0 0; text-align: center; color: var(--quiet); font-size: 9px; }
 @keyframes menu-in { from { opacity: 0; transform: translateY(-8px) scale(.95); } }

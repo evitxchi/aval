@@ -24,6 +24,11 @@ export const organizations = sqliteTable("organizations", {
   // category "Model") powers agents/Ask Aval for this org. Null means Aval's
   // own bundled Anthropic key (env.ANTHROPIC_API_KEY) — see lib/ask-aval/model-router.ts.
   activeModelProvider: text("active_model_provider"),
+  // Which persona (a built-in PersonaId or a custom_personas row's id) Ask
+  // Aval opens with by default for this org — set from Settings → Aval
+  // Setup. Null means the built-in "general" persona, matching this app's
+  // behavior before this column existed.
+  defaultPersonaId: text("default_persona_id"),
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
 });
