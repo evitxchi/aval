@@ -9,15 +9,18 @@ import { Foldout } from "@/app/components/foldout";
 import type { Provider } from "@/app/components/connection-dialog";
 
 type SubscriptionSession = { state: string; authorizeUrl: string };
+type AuthMode = "apiKey" | "subscription";
 
 /**
- * One "Configure Providers" accordion row. An API-key form is always
- * available; a row whose provider has a subscription `twin` (anthropic ↔
- * claude, openai ↔ chatgpt — lib/integrations/catalog.ts's `subscriptionOf`)
- * also offers "or connect your subscription" beneath a divider, folding the
- * twin's own connect state into this same row rather than listing it
- * separately — mentari2.0's pattern, this app's actual reference for this
- * page's layout.
+ * One "Configure Providers" row: a flat pill, icon+name+badge on one line,
+ * expanding to a plain description, a single "connect with" selector when
+ * a subscription alternative exists (`twin` — anthropic ↔ claude, openai ↔
+ * chatgpt, lib/integrations/catalog.ts's `subscriptionOf`), and exactly one
+ * input area below it at a time — never both an API-key form and a
+ * subscription button stacked together. Matches a real reference
+ * screenshot's pattern (a single provider pill: icon/name/badge, one line
+ * of description, one connect action, one footer link) rather than this
+ * page's earlier denser layout.
  */
 function ProviderAccordionRow({ provider, twin, isOpen, onToggle, isActive, switching, onSetActive, onRefresh }: {
   provider: Provider;
@@ -30,6 +33,10 @@ function ProviderAccordionRow({ provider, twin, isOpen, onToggle, isActive, swit
   onRefresh: () => void;
 }) {
   const t = useTranslations();
+  const connected = provider.connection?.status === "connected";
+  const twinConnected = twin?.connection?.status === "connected";
+
+  const [authMode, setAuthMode] = useState<AuthMode>(twinConnected ? "subscription" : "apiKey");
   const [apiKey, setApiKey] = useState("");
   const [model, setModel] = useState("");
   const [status, setStatus] = useState<"idle" | "working" | "error">("idle");
@@ -38,9 +45,6 @@ function ProviderAccordionRow({ provider, twin, isOpen, onToggle, isActive, swit
   const [pasteValue, setPasteValue] = useState("");
   const [subscriptionStatus, setSubscriptionStatus] = useState<"idle" | "working" | "error">("idle");
   const [subscriptionError, setSubscriptionError] = useState("");
-
-  const connected = provider.connection?.status === "connected";
-  const twinConnected = twin?.connection?.status === "connected";
 
   const connectApiKey = async (event: FormEvent) => {
     event.preventDefault();
@@ -116,57 +120,70 @@ function ProviderAccordionRow({ provider, twin, isOpen, onToggle, isActive, swit
     <div className={`provider-row ${isOpen ? "is-open" : ""} ${isActive ? "active" : ""}`}>
       <button type="button" className="provider-row-summary" aria-expanded={isOpen} onClick={onToggle}>
         <BrandMark provider={provider.id} small />
-        <span>{provider.title}</span>
+        <span className="provider-row-name">{provider.title}</span>
+        {twin && <span className="provider-row-badge">{t("IntelligenceSettings.subscriptionBadge")}</span>}
         {isActive && <span className="connection-status connected">{t("IntelligenceSettings.inUse")}</span>}
         <NavArrowDown width={14} height={14} className={isOpen ? "provider-row-chevron open" : "provider-row-chevron"} />
       </button>
       <div className="provider-row-body" style={{ gridTemplateRows: isOpen ? "1fr" : "0fr" }}>
         <div className="provider-row-body-inner">
-          <p className="provider-row-description">{twin ? t("IntelligenceSettings.pasteOrConnect", { provider: twin.title }) : provider.description}</p>
-
-          {!connected ? (
-            <form className="credential-form" onSubmit={connectApiKey}>
-              <label>
-                {t("IntelligenceSettings.apiKeyLabel")}
-                <input type="password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} autoComplete="off" required />
-              </label>
-              <button className="soft-button" type="submit" disabled={status === "working" || !apiKey}>
-                {status === "working" ? t("IntelligenceSettings.connecting") : t("IntelligenceSettings.connect")}
-              </button>
-            </form>
-          ) : (
-            <div className="provider-connected-row">
-              <span className="connection-status connected"><ShieldCheck width={13} height={13} />{t("IntelligenceSettings.connectedWithKey")}</span>
-              <button type="button" className="text-button" onClick={() => void reset(provider.id)}>{t("IntelligenceSettings.resetConnection")}</button>
-            </div>
-          )}
-          {status === "error" && <p className="auth-gate-error">{message}</p>}
+          <p className="provider-row-description">
+            {twin ? t("IntelligenceSettings.pasteOrConnect", { provider: twin.title }) : provider.description}
+          </p>
 
           {twin && (
-            <>
-              <div className="provider-row-divider"><span>{t("IntelligenceSettings.or")}</span></div>
-              {twinConnected ? (
-                <div className="provider-connected-row">
-                  <span className="connection-status connected"><ShieldCheck width={13} height={13} />{t("IntelligenceSettings.connectedWithSubscription", { provider: twin.title })}</span>
-                  <button type="button" className="text-button" onClick={() => void reset(twin.id)}>{t("IntelligenceSettings.resetConnection")}</button>
-                </div>
-              ) : subscriptionSession ? (
-                <form className="credential-form" onSubmit={completeSubscription}>
-                  <label>
-                    {t("IntelligenceSettings.pasteRedirectLabel")}
-                    <input type="text" value={pasteValue} onChange={(event) => setPasteValue(event.target.value)} autoComplete="off" required />
-                  </label>
-                  <button className="soft-button" type="submit" disabled={subscriptionStatus === "working" || !pasteValue}>
-                    {subscriptionStatus === "working" ? t("IntelligenceSettings.connecting") : t("IntelligenceSettings.finishConnecting")}
-                  </button>
-                </form>
-              ) : (
-                <button type="button" className="soft-button" onClick={() => void startSubscription()} disabled={subscriptionStatus === "working"}>
-                  {t("IntelligenceSettings.connectSubscription", { provider: twin.title })}
+            <label className="provider-row-auth-select">
+              {t("IntelligenceSettings.connectWith")}
+              <select value={authMode} onChange={(event) => setAuthMode(event.target.value as AuthMode)}>
+                <option value="subscription">{twin.title}</option>
+                <option value="apiKey">{t("IntelligenceSettings.apiKeyOption")}</option>
+              </select>
+            </label>
+          )}
+
+          {(!twin || authMode === "apiKey") && (
+            !connected ? (
+              <form className="credential-form" onSubmit={connectApiKey}>
+                <label>
+                  {t("IntelligenceSettings.apiKeyLabel")}
+                  <input type="password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} autoComplete="off" required />
+                </label>
+                <button className="soft-button" type="submit" disabled={status === "working" || !apiKey}>
+                  {status === "working" ? t("IntelligenceSettings.connecting") : t("IntelligenceSettings.connect")}
                 </button>
-              )}
-              {subscriptionStatus === "error" && <p className="auth-gate-error">{subscriptionError}</p>}
-            </>
+                {status === "error" && <p className="auth-gate-error">{message}</p>}
+              </form>
+            ) : (
+              <div className="provider-connected-row">
+                <span className="connection-status connected"><ShieldCheck width={13} height={13} />{t("IntelligenceSettings.connectedWithKey")}</span>
+                <button type="button" className="text-button" onClick={() => void reset(provider.id)}>{t("IntelligenceSettings.resetConnection")}</button>
+              </div>
+            )
+          )}
+
+          {twin && authMode === "subscription" && (
+            twinConnected ? (
+              <div className="provider-connected-row">
+                <span className="connection-status connected"><ShieldCheck width={13} height={13} />{t("IntelligenceSettings.connectedWithSubscription", { provider: twin.title })}</span>
+                <button type="button" className="text-button" onClick={() => void reset(twin.id)}>{t("IntelligenceSettings.resetConnection")}</button>
+              </div>
+            ) : subscriptionSession ? (
+              <form className="credential-form" onSubmit={completeSubscription}>
+                <label>
+                  {t("IntelligenceSettings.pasteRedirectLabel")}
+                  <input type="text" value={pasteValue} onChange={(event) => setPasteValue(event.target.value)} autoComplete="off" required />
+                </label>
+                <p className="foldout-hint">{t("IntelligenceSettings.pasteRedirectHint")}</p>
+                <button className="soft-button" type="submit" disabled={subscriptionStatus === "working" || !pasteValue}>
+                  {subscriptionStatus === "working" ? t("IntelligenceSettings.connecting") : t("IntelligenceSettings.finishConnecting")}
+                </button>
+                {subscriptionStatus === "error" && <p className="auth-gate-error">{subscriptionError}</p>}
+              </form>
+            ) : (
+              <button type="button" className="soft-button" onClick={() => void startSubscription()} disabled={subscriptionStatus === "working"}>
+                {t("IntelligenceSettings.connectSubscription", { provider: twin.title })}
+              </button>
+            )
           )}
 
           {provider.defaultModel && (
@@ -195,11 +212,11 @@ function ProviderAccordionRow({ provider, twin, isOpen, onToggle, isActive, swit
  * org. Reuses the exact same /api/integrations catalog, connect/verify
  * flow, and encrypted-credential storage as every other provider on the
  * Connections page — a model provider is just an IntegrationProvider with
- * category "Model" (lib/integrations/catalog.ts). Laid out to match a
- * separate local reference implementation the person directing this work
- * pointed to (mentari2.0): a "Model being used" summary row above a
- * searchable, accordion-style "Configure Providers" list, each row
- * expanding inline rather than opening a modal.
+ * category "Model" (lib/integrations/catalog.ts). Aval's own bundled
+ * default is deliberately not offered here right now — the user asked for
+ * it to come out while this page's layout settles; switching an org's
+ * active provider back to Aval's own key can be restored as a plain row
+ * once that's wanted again.
  */
 export function IntelligenceSettings() {
   const t = useTranslations();
@@ -246,25 +263,11 @@ export function IntelligenceSettings() {
   const modelProviders = providers.filter((provider) => provider.category === "Model" && !provider.subscriptionOf);
   const twinByProvider = new Map(providers.filter((provider) => provider.subscriptionOf).map((provider) => [provider.subscriptionOf as string, provider]));
   const filtered = modelProviders.filter((provider) => provider.title.toLowerCase().includes(search.trim().toLowerCase()));
-  const activeEntry = modelProviders.find((provider) => provider.id === activeProvider) ?? [...twinByProvider.values()].find((provider) => provider.id === activeProvider);
-  const modelLabel = !activeProvider
-    ? t("IntelligenceSettings.avalOwnModel")
-    : activeEntry?.defaultModel ?? t("IntelligenceSettings.subscriptionDefaultModel");
 
   return (
     <article className="settings-card intelligence-card" data-reveal>
       <p className="eyebrow">{t("IntelligenceSettings.eyebrow")}</p>
       <h2>{t("IntelligenceSettings.title")}</h2>
-
-      <section className="intelligence-model-row">
-        <p className="intelligence-model-row-label">{t("IntelligenceSettings.modelBeingUsed")}</p>
-        <div className="intelligence-model-row-value">
-          <BrandMark provider={activeProvider ?? "aval"} small />
-          <span>{activeProvider ? (activeEntry?.title ?? activeProvider) : t("IntelligenceSettings.avalDefault")}</span>
-          <span className="intelligence-model-row-divider">/</span>
-          <span className="intelligence-model-row-model">{modelLabel}</span>
-        </div>
-      </section>
 
       {error && <p className="auth-gate-error">{error}</p>}
 
@@ -277,24 +280,6 @@ export function IntelligenceSettings() {
           </label>
         </div>
         <div className="provider-row-list">
-          <div className={`provider-row ${expanded === "aval" ? "is-open" : ""} ${!activeProvider ? "active" : ""}`}>
-            <button type="button" className="provider-row-summary" aria-expanded={expanded === "aval"} onClick={() => setExpanded((current) => (current === "aval" ? null : "aval"))}>
-              <BrandMark provider="aval" small />
-              <span>{t("IntelligenceSettings.avalDefault")}</span>
-              {!activeProvider && <span className="connection-status connected">{t("IntelligenceSettings.inUse")}</span>}
-              <NavArrowDown width={14} height={14} className={expanded === "aval" ? "provider-row-chevron open" : "provider-row-chevron"} />
-            </button>
-            <div className="provider-row-body" style={{ gridTemplateRows: expanded === "aval" ? "1fr" : "0fr" }}>
-              <div className="provider-row-body-inner">
-                <p className="provider-row-description">{t("IntelligenceSettings.avalDefaultDescription")}</p>
-                {activeProvider && (
-                  <button type="button" className="wide-button" disabled={switching !== null} onClick={() => void setActive(null)}>
-                    {switching === "aval" ? t("IntelligenceSettings.switching") : t("IntelligenceSettings.useThis")}
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
           {filtered.map((provider) => {
             const twin = twinByProvider.get(provider.id) ?? null;
             const isActive = activeProvider === provider.id || (twin ? activeProvider === twin.id : false);

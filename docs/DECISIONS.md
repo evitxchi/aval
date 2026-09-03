@@ -1031,3 +1031,90 @@ connected browser to compare real renders side by side rather than reasoning fro
 session (attempted; extension unavailable) — this is a source-level, principled fix (grepped
 codebase conventions, matched an existing proven card recipe exactly) rather than a guess, but a
 real screenshot comparison after this deploy is still owed.
+
+## 2026-09-02 — Intelligence page pattern-matched to a real screenshot; app-wide off-white/Inter pass
+
+**Context.** User sent a real screenshot of a single clean provider pill (icon+name+badge, one
+description line, one connect button, one footer link) as the exact pattern to match, asked to
+drop Aval's own bundled-model option "for now," asked for one dropdown to choose subscription
+vs. API key instead of two stacked controls, reported Claude/ChatGPT "still doesn't work,"
+and separately asked for an app-wide pass: pure-white/Apple-grey palette, no text overflowing
+its pill/card, adapting cleanly to a narrower window, and Inter as the site-wide font.
+
+**Intelligence page, rebuilt to the reference pattern.**
+- Aval's own bundled-model row is removed from the list entirely, per the explicit ask (was the
+  first row in `provider-row-list`; that block and its state are gone). Restoring it later is a
+  small, contained change if wanted back — it was never a separate component.
+- Every provider row is now exactly: icon + name (`.provider-row-name`, `text-overflow:
+  ellipsis`, never breaks the pill) + a "Subscription" badge for any provider with a subscription
+  twin, one description line, and — the actual structural fix — **one** `<select>`
+  ("Connect with: [Provider] subscription / API key") instead of the previous "API key form, OR
+  divider, subscription button" stack. Only the input area matching the current selection
+  renders; never both at once. Providers with no subscription twin (OpenRouter, Moonshot, etc.)
+  keep a plain API-key form with no selector, since there's nothing to choose between.
+- `.provider-row`, `.provider-row-summary`, and `.provider-row-body-inner` all gained explicit
+  `min-width: 0` and `overflow: hidden; text-overflow: ellipsis` on their text children — the
+  provider name and connected-account labels now truncate inside the pill instead of pushing it
+  wider, addressing "not overflowing out" directly rather than just visually.
+
+**Claude/ChatGPT — narrowed further, one real fix shipped, one still open.** Generated the exact
+authorize URL this code produces and diffed it character-for-character against mentari2.0's real
+source twice; identical. Fetching that URL directly (curl, spoofed Chrome UA) hit Anthropic's
+own Cloudflare bot-challenge (403, `cf-mitigated: challenge`) before reaching any application
+logic — confirms the endpoint is behind real bot-detection, but doesn't reproduce the user's
+actual "Invalid request format" screen (a real browser passes that challenge and reached
+Anthropic's own application-level error instead). That specific failure remains unresolved and
+needs either a live browser test or the exact text of any error-code/detail Anthropic's page
+shows beyond the headline — flagged back to the user rather than guessed at further. **What is
+fixed:** ChatGPT's flow was never actually broken — `localhost:1455` failing to load is
+structurally unavoidable for any non-local caller using the Codex CLI's redirect URI (even
+mentari2.0, a real desktop app, falls back to the identical paste-the-URL flow for this same
+reason). The user read that failure as a bug; the real gap was that the page didn't explain it.
+Added `IntelligenceSettings.pasteRedirectHint`, shown directly under the paste field: "your
+browser may show a page that can't be reached — that's expected, copy the full URL and paste it
+here."
+
+**App-wide off-white/Apple-grey palette — every hardcoded color, not just tokens.** Grepped
+every literal hex/`rgba()` color in `app/globals.css` (not just the named `:root` tokens) and
+found dozens of near-neutral greys/blacks carrying a slight warm cast (e.g. `#efeeeb`,
+`rgba(222,221,216,.9)` on the sidebar) scattered directly in component rules — changing only the
+named tokens would have left the sidebar and a dozen other surfaces still warm-tinted. Wrote a
+small script to classify every color literal as "near-neutral" (channel spread ≤22, R/G ≥ B —
+the warm-grey signature) versus a genuine hue (chart colors, status reds/greens — spread >22,
+correctly left untouched), and neutralized every near-neutral one at the same lightness. Then
+retargeted the named tokens deliberately, not just neutrally: `--surface`/`--surface-raised` to
+true `#ffffff` ("pure white," as asked), `--canvas`/`--surface-soft` to `#f5f5f7` (macOS's own
+grouped-background grey, not an approximation), `--ink`/`--muted`/`--quiet` to Apple's actual
+`label`/`secondaryLabel`/`tertiaryLabel` system-grey values. Aval's sidebar-on-grey /
+content-shell-on-white structure already matched this layout; it just needed de-warming and
+retargeting, not restructuring.
+
+**Font changed to Inter site-wide**, using `InterVariable.woff2` (from the same folder the user
+pointed at, not just the single `Inter-Regular.woff2` file named) — the variable font covers the
+full 100–900 weight range this app already spans across headings/buttons/labels in one file,
+where the static Regular-only file would have needed four more files loaded to match. Wired
+through the same `next/font/local` mechanism the old Monument trial font used
+(`app/[locale]/layout.tsx`); the unused Monument `.otf` was removed.
+
+**Overflow/responsive safety net, applied two ways.** (1) A blanket
+`overflow-wrap: anywhere` on text-bearing elements site-wide — a no-op for any normal,
+space-containing text, and the only thing that can force a rounded pill wider than its
+container (a long unbroken token: a pasted key, a URL, a name with no spaces) becomes wrappable
+instead. (2) Three grid rows (`review-row`, `.property-row`, `.aval-chat-answer-heading`) used a
+bare `1fr` track next to fixed-width siblings — CSS Grid tracks have a content-based minimum
+width by default, unlike flex, so a bare `1fr` can still force a track wider than available
+space; changed to `minmax(0, 1fr)`, the same pattern already used correctly elsewhere in this
+file (`.required-source`, `.inbox-window`, `.notification-list button`).
+
+**Scope, stated plainly.** "Go through the entire ui/ux" was addressed at the *systemic* level —
+every hardcoded color normalized, one site-wide overflow safety net, the font swapped
+everywhere via a single shared variable — rather than by rewriting every individual component,
+since the leverage of fixing shared tokens/base rules covers far more surface than time allowed
+for a page-by-page pass. Not attempted: `corner-shape: squircle` (mentari2.0's actual corner
+treatment, still not ported — a deliberate, global, hard-to-preview-blind visual shift, flagged
+again as its own decision), and no live-browser visual verification of any of this was possible
+this session.
+
+**Verification.** `tsc --noEmit`, `npm run lint`, `npm run i18n:check`, `npm run build`
+(confirmed `InterVariable.woff2` lands in both `dist/server` and `dist/client`, Monument fully
+gone), and `node --test` (56 passing, including the updated font/palette assertion) all clean.

@@ -56,7 +56,7 @@ test("renders the es-mx locale with real translated content, not English fallbac
   assert.doesNotMatch(html, /Portfolio overview/);
 });
 
-test("ships Monument typography, monochrome tokens, integrations, and durable storage", async () => {
+test("ships Inter typography, an off-white Apple-grey palette, integrations, and durable storage", async () => {
   const [page, layout, css, packageJson, messagesEn] = await Promise.all([
     readFile(new URL("../app/[locale]/dashboard-client.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/[locale]/layout.tsx", import.meta.url), "utf8"),
@@ -70,12 +70,12 @@ test("ships Monument typography, monochrome tokens, integrations, and durable st
   assert.match(page, /QuickBooks Online/);
   assert.match(messagesEn, /Connect two upstream systems/);
   assert.match(layout, /localFont/);
-  assert.match(layout, /ABCMonumentGroteskTrial-Regular\.otf/);
+  assert.match(layout, /InterVariable\.woff2/);
   assert.match(layout, /Property operations, connected/);
-  assert.match(css, /--canvas:\s*#efeeeb/i);
-  assert.match(css, /--ink:\s*#0b0b0a/i);
+  assert.match(css, /--canvas:\s*#f5f5f7/i);
+  assert.match(css, /--surface:\s*#ffffff/i);
   assert.match(css, /prefers-reduced-motion:\s*reduce/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
-  await access(new URL("../app/fonts/ABCMonumentGroteskTrial-Regular.otf", import.meta.url));
+  await access(new URL("../app/fonts/InterVariable.woff2", import.meta.url));
   await access(new URL("../drizzle/0000_brainy_squirrel_girl.sql", import.meta.url));
 });

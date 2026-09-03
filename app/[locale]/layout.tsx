@@ -7,10 +7,13 @@ import { getMessages } from "next-intl/server";
 import "../globals.css";
 import { routing } from "./routing";
 
-const monument = localFont({
-  src: "../fonts/ABCMonumentGroteskTrial-Regular.otf",
-  variable: "--font-monument",
-  weight: "400",
+// Inter's variable font — one file covers the full 100-900 weight range
+// this app already relies on across headings/buttons/labels, rather than
+// loading several static weight files.
+const inter = localFont({
+  src: "../fonts/InterVariable.woff2",
+  variable: "--font-inter",
+  weight: "100 900",
   style: "normal",
   display: "swap",
 });
@@ -58,7 +61,7 @@ export const viewport: Viewport = {
   maximumScale: 1,
   viewportFit: "cover",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#efeeeb" },
+    { media: "(prefers-color-scheme: light)", color: "#f5f5f7" },
     { media: "(prefers-color-scheme: dark)", color: "#0b0b0a" },
   ],
 };
@@ -73,7 +76,7 @@ export default async function RootLayout({
 
   return (
     <html lang={locale}>
-      <body className={monument.variable}>
+      <body className={inter.variable}>
         <NextIntlClientProvider locale={locale} messages={messages}>
           {children}
         </NextIntlClientProvider>
