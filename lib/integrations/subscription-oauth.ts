@@ -270,6 +270,8 @@ const CHATGPT_DEVICE = {
   tokenUrl: "https://auth.openai.com/api/accounts/deviceauth/token",
   /** Where the user enters the code. Shown to them, and opened for them. */
   verificationUrl: "https://auth.openai.com/codex/device",
+  /** The redirect_uri the device flow's authorization code is bound to. */
+  callbackUrl: "https://auth.openai.com/deviceauth/callback",
 } as const;
 
 export interface DeviceCodeStart {
@@ -346,17 +348,42 @@ export async function pollChatgptDeviceLogin(deviceAuthId: string, userCode: str
   if (response.status === 403 || response.status === 404) return { status: "pending" };
   if (!response.ok) return { status: "failed", detail: `Device login failed (${response.status}).` };
 
-  const body = await response.json().catch(() => null) as { access_token?: string; refresh_token?: string; id_token?: string; expires_in?: number } | null;
-  if (!body?.access_token) return { status: "pending" };
+  // Approval does NOT return tokens. It returns an authorization code plus the
+  // PKCE verifier the service generated on our behalf, which must then be
+  // exchanged at the ordinary /oauth/token endpoint against the device
+  // callback's own redirect_uri. Checking for `access_token` here would leave
+  // an approved login reporting "pending" forever.
+  const body = await response.json().catch(() => null) as { authorization_code?: string; code_verifier?: string } | null;
+  if (!body?.authorization_code || !body.code_verifier) return { status: "pending" };
 
-  const expiresIn = Number(body.expires_in ?? 3600);
+  const exchange = await fetch(CHATGPT.tokenUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "authorization_code",
+      code: body.authorization_code,
+      // The device flow's own callback, not the loopback address the
+      // browser-based flow uses — the code was issued against this one.
+      redirect_uri: CHATGPT_DEVICE.callbackUrl,
+      client_id: CHATGPT.clientId,
+      code_verifier: body.code_verifier,
+    }).toString(),
+  });
+  if (!exchange.ok) {
+    return { status: "failed", detail: `Approved, but the token exchange failed (${exchange.status}).` };
+  }
+
+  const tokens = await exchange.json().catch(() => null) as { access_token?: string; refresh_token?: string; id_token?: string; expires_in?: number } | null;
+  if (!tokens?.access_token) return { status: "failed", detail: "Approved, but no access token was returned." };
+
+  const expiresIn = Number(tokens.expires_in ?? 3600);
   return {
     status: "complete",
     credential: {
-      access: body.access_token,
-      refresh: body.refresh_token ?? "",
+      access: tokens.access_token,
+      refresh: tokens.refresh_token ?? "",
       expiresAt: new Date(Date.now() + (Number.isFinite(expiresIn) ? expiresIn : 3600) * 1000),
-      accountId: chatgptAccountIdFromJwt(body.id_token) ?? chatgptAccountIdFromJwt(body.access_token),
+      accountId: chatgptAccountIdFromJwt(tokens.id_token) ?? chatgptAccountIdFromJwt(tokens.access_token),
     },
   };
 }
