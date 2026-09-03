@@ -1215,3 +1215,24 @@ redirect/code input at 4096 characters before it's parsed at all.
 **Verification.** `tsc --noEmit`, `npm run lint`, `npm run i18n:check`, `npm run build`
 (confirmed the two new `/api/integrations/{models,set-model}` routes registered), and
 `node --test` (56 passing) all clean.
+
+## 2026-09-02 — Fixed the too-wide "Model being used" pills
+
+**Context.** User sent a screenshot showing the provider-picker pill stretched most of the row's
+width, with a wide, mostly-empty stripe between the icon and the far-right chevron — "does not
+need to be this wide. looks weird."
+
+**Root cause.** `.intelligence-model-picker { flex: 1; }` on both the provider and model
+pickers made each one stretch to fill half the row, and `.intelligence-model-picker-trigger`'s
+`width: 100%` filled that stretched space — for a short label like "Aval Intelligence," that's a
+lot of empty pill between the label and the chevron. Fixed: both pickers are now
+`flex: 0 1 auto` (content-sized, still able to shrink), and the trigger no longer forces
+`width: 100%` — matching the actual reference's compact, content-hugging "ChatGPT ▾ / GPT 5.6
+Sol ✓" proportions instead of a stretched bar.
+
+**Also fixed while in there:** when Aval's own bundled option is active, both halves of the row
+showed the identical label ("Aval Intelligence" / "Aval Intelligence") — the model side now
+reads "Included" instead, since there's no separate model to name.
+
+**Verification.** `tsc --noEmit`, `npm run lint`, `npm run i18n:check`, `npm run build`, and
+`node --test` (56 passing) all clean.

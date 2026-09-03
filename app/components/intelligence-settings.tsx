@@ -233,7 +233,7 @@ function ModelBeingUsedRow({ providers, activeProvider, activeEntry, onSwitchPro
   const [savingModel, setSavingModel] = useState(false);
 
   const connectedProviders = providers.filter((provider) => provider.category === "Model" && provider.connection?.status === "connected");
-  const currentModel = activeEntry?.defaultModel ?? (activeProvider ? t("IntelligenceSettings.subscriptionDefaultModelShort") : t("IntelligenceSettings.avalDefault"));
+  const currentModel = activeEntry?.defaultModel ?? (activeProvider ? t("IntelligenceSettings.subscriptionDefaultModelShort") : t("IntelligenceSettings.includedWithAval"));
 
   const loadModels = async () => {
     if (!activeProvider) return;

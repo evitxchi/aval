@@ -784,6 +784,7 @@
     "eyebrow": "Intelligence",
     "finishConnecting": "Finish connecting",
     "inUse": "In use",
+    "includedWithAval": "Included",
     "loadingModels": "Loading models…",
     "modelBeingUsed": "Model being used",
     "modelListFailed": "Could not load the model list. Try again.",

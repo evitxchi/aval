@@ -966,13 +966,13 @@ html.aval-module-picking .content-shell { cursor: crosshair; }
    rather than pinned to one row's far edge). */
 .intelligence-model-row { margin: 4px 0 18px; padding: 13px 16px; display: flex; flex-direction: column; gap: 8px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-soft); }
 .intelligence-model-row-label { margin: 0; color: var(--quiet); font-size: 8.5px; text-transform: uppercase; letter-spacing: .04em; }
-.intelligence-model-row-controls { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.intelligence-model-row-controls { display: flex; align-items: center; gap: 10px; min-width: 0; flex-wrap: wrap; }
 .intelligence-model-row-divider { flex-shrink: 0; color: var(--quiet); }
-.intelligence-model-picker { position: relative; min-width: 0; flex: 1; }
-.intelligence-model-picker-trigger { width: 100%; min-height: 38px; padding: 0 12px; display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 11px; background: white; color: var(--ink); font-size: 11px; cursor: pointer; text-align: left; }
+.intelligence-model-picker { position: relative; flex: 0 1 auto; min-width: 0; max-width: 100%; }
+.intelligence-model-picker-trigger { width: auto; max-width: 100%; min-height: 38px; padding: 0 12px; display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 11px; background: white; color: var(--ink); font-size: 11px; cursor: pointer; text-align: left; }
 .intelligence-model-picker-trigger:disabled { cursor: default; opacity: .6; }
 .intelligence-model-picker-trigger .brand-mark { width: 22px; height: 22px; flex-shrink: 0; }
-.intelligence-model-picker-trigger > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.intelligence-model-picker-trigger > span { min-width: 0; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .intelligence-model-check { flex-shrink: 0; color: var(--viz-green); }
 .intelligence-model-menu { left: 0; right: auto; width: max-content; min-width: 100%; max-width: 320px; }
 .intelligence-model-menu button { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
