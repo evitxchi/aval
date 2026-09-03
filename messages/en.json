@@ -528,7 +528,8 @@
     "reviewCenter": "Review Center",
     "settings": "Settings",
     "sharedInbox": "Shared inbox",
-    "workspace": "Workspace"
+    "workspace": "Workspace",
+    "setup": "Setup"
   },
   "OperationsView": {
     "accountingChartTitle": "Revenue to net operating income",
@@ -897,5 +898,35 @@
     "switchFailed": "Could not switch model providers. Try again.",
     "title": "Model provider",
     "useThis": "Use this"
+  },
+  "SetupView": {
+    "allSources": "All sources",
+    "chooseTheCenterAgent": "Choose the center agent",
+    "connectSourcesNote": "No sources are connected yet, so this agent has nothing real to read. Connect a source to put it to work.",
+    "dataSources": "Data sources",
+    "notAvailable": "Not available to this agent",
+    "outputAskAval": "Ask Aval answers",
+    "outputDrafts": "Drafted documents",
+    "outputTaskBoard": "Task board",
+    "saveFailedDetail": "The workspace default is unchanged. Check your connection and try again.",
+    "saveFailedTitle": "Could not save that agent",
+    "savedDetail": "{agent} is now the agent at the center of this workspace.",
+    "savedTitle": "Workspace default updated",
+    "saving": "Saving…",
+    "setup": "Aval Setup",
+    "setupSubtitle": "Choose the agent at the center of your workspace and see exactly what it can reach.",
+    "sourceAccounting": "Accounting breakdown",
+    "sourceDelinquency": "Delinquent accounts",
+    "sourceLeasingFunnel": "Leasing funnel",
+    "sourceMetricSeries": "Metric history",
+    "sourcePortfolioMetrics": "Portfolio metrics",
+    "sourcePropertyBreakdown": "Property breakdown",
+    "sourcesOfTotal": "{count} of {total} sources",
+    "swapAgent": "Swap agent",
+    "swapExplainer": "Each agent is granted a real subset of your data. Swapping the center agent changes what Ask Aval can see and answer from — the dimmed sources above are genuinely out of reach, not just hidden.",
+    "whatThisAgentCanReach": "What this agent can reach",
+    "whereAnswersGo": "Where answers go",
+    "wiring": "Wiring",
+    "workspaceDefault": "Workspace default"
   }
 }

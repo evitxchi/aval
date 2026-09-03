@@ -41,3 +41,35 @@ export const PERSONA_PRESETS: Record<PersonaId, PersonaPreset> = {
 };
 
 export const PERSONA_IDS = Object.keys(PERSONA_PRESETS) as PersonaId[];
+
+/**
+ * Which data tools each persona may call — mirrored from the same registry's
+ * `toolNames` for the same reason `PersonaId` is (see above): the Setup view
+ * needs to show what a given agent can and cannot reach, and that shouldn't
+ * cost the client bundle a server-only import. Unlike the id strings, this
+ * one is guarded by a test (tests/persona-tool-access.test.ts) that fails if
+ * it drifts from the server registry, since a wrong answer here would
+ * misrepresent an agent's real reach rather than just mislabel it.
+ *
+ * `null` means every tool — the general persona.
+ */
+export const PERSONA_TOOL_ACCESS: Record<PersonaId, string[] | null> = {
+  general: null,
+  financial: ["get_portfolio_metrics", "get_metric_series", "get_accounting_breakdown"],
+  brokerage: ["get_leasing_funnel", "get_property_breakdown", "get_metric_series"],
+  realEstate: ["get_property_breakdown", "get_portfolio_metrics"],
+  marketResearch: ["get_metric_series", "get_portfolio_metrics", "get_leasing_funnel"],
+  maintenance: ["get_portfolio_metrics", "get_delinquent_accounts"],
+  riskAnalyst: ["get_delinquent_accounts", "get_portfolio_metrics", "get_accounting_breakdown"],
+  portfolioOutlook: ["get_metric_series", "get_portfolio_metrics"],
+};
+
+/** The data tools the Setup diagram draws as source nodes, with their label keys. */
+export const DATA_SOURCE_NODES: { tool: string; labelKey: string }[] = [
+  { tool: "get_portfolio_metrics", labelKey: "SetupView.sourcePortfolioMetrics" },
+  { tool: "get_property_breakdown", labelKey: "SetupView.sourcePropertyBreakdown" },
+  { tool: "get_leasing_funnel", labelKey: "SetupView.sourceLeasingFunnel" },
+  { tool: "get_metric_series", labelKey: "SetupView.sourceMetricSeries" },
+  { tool: "get_accounting_breakdown", labelKey: "SetupView.sourceAccounting" },
+  { tool: "get_delinquent_accounts", labelKey: "SetupView.sourceDelinquency" },
+];

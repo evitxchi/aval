@@ -528,7 +528,8 @@
     "reviewCenter": "Centro de revisión",
     "settings": "Ajustes",
     "sharedInbox": "Bandeja compartida",
-    "workspace": "Espacio"
+    "workspace": "Espacio",
+    "setup": "Configuración"
   },
   "OperationsView": {
     "accountingChartTitle": "De ingresos a ingreso operativo neto",
@@ -897,5 +898,35 @@
     "switchFailed": "No se pudo cambiar de proveedor de modelo. Intenta de nuevo.",
     "title": "Proveedor de modelo",
     "useThis": "Usar este"
+  },
+  "SetupView": {
+    "allSources": "Todas las fuentes",
+    "chooseTheCenterAgent": "Elige el agente central",
+    "connectSourcesNote": "Aún no hay fuentes conectadas, así que este agente no tiene nada real que leer. Conecta una fuente para ponerlo a trabajar.",
+    "dataSources": "Fuentes de datos",
+    "notAvailable": "No disponible para este agente",
+    "outputAskAval": "Respuestas de Ask Aval",
+    "outputDrafts": "Documentos redactados",
+    "outputTaskBoard": "Tablero de tareas",
+    "saveFailedDetail": "El predeterminado no cambió. Revisa tu conexión e inténtalo de nuevo.",
+    "saveFailedTitle": "No se pudo guardar ese agente",
+    "savedDetail": "{agent} ahora es el agente al centro de este espacio de trabajo.",
+    "savedTitle": "Predeterminado actualizado",
+    "saving": "Guardando…",
+    "setup": "Configuración de Aval",
+    "setupSubtitle": "Elige el agente al centro de tu espacio de trabajo y observa exactamente a qué puede acceder.",
+    "sourceAccounting": "Desglose contable",
+    "sourceDelinquency": "Cuentas morosas",
+    "sourceLeasingFunnel": "Embudo de arrendamiento",
+    "sourceMetricSeries": "Histórico de métricas",
+    "sourcePortfolioMetrics": "Métricas del portafolio",
+    "sourcePropertyBreakdown": "Desglose por propiedad",
+    "sourcesOfTotal": "{count} de {total} fuentes",
+    "swapAgent": "Cambiar agente",
+    "swapExplainer": "Cada agente recibe un subconjunto real de tus datos. Cambiar el agente central modifica lo que Ask Aval puede ver y responder: las fuentes atenuadas arriba están realmente fuera de su alcance, no solo ocultas.",
+    "whatThisAgentCanReach": "A qué puede acceder este agente",
+    "whereAnswersGo": "Dónde llegan las respuestas",
+    "wiring": "Conexiones",
+    "workspaceDefault": "Predeterminado del espacio"
   }
 }

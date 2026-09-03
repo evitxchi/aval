@@ -25,11 +25,13 @@ import { ConnectionDialog, type Provider } from "@/app/components/connection-dia
 import { AutomationTimeline } from "@/app/components/automation-timeline";
 import { activityIntensity, buildActivityYear, derivedSample, derivePropertyTotals, deriveMaintenanceReported, rankInsights, sampleData, type InsightCandidate, type InsightRecipient, type NotificationItem, type NotificationTarget, type ReviewStatus } from "@/app/data/sample";
 import { formatMoney } from "@/lib/finance/money";
+import { AvalAgentAvatar } from "@/app/components/agent-avatar/AgentAvatar";
+import { DATA_SOURCE_NODES, PERSONA_IDS, PERSONA_PRESETS, PERSONA_TOOL_ACCESS, type PersonaId } from "@/app/components/agent-avatar/personas";
 import { buildingAssets, capitalForecast, complianceItems, fixtureLoad, FIXTURE_UNIT_TABLE_CEILING, infrastructureSummary, preventiveTasks, totalAnnualReserveCents, type AssetCategory, type AssetCondition, type DueStatus } from "@/app/data/infrastructure-sample";
 import type { UtilityType } from "@/lib/infrastructure/types";
 import { AccountingSankey, LeasingTrendChart, MaintenanceRoseChart, PropertyOccupancyChart } from "@/app/components/charts";
 
-type View = "overview" | "tasks" | "reviewCenter" | "inbox" | "properties" | "leasing" | "maintenance" | "accounting" | "infrastructure" | "connections" | "documents" | "settings";
+type View = "overview" | "tasks" | "reviewCenter" | "inbox" | "properties" | "leasing" | "maintenance" | "accounting" | "infrastructure" | "connections" | "documents" | "setup" | "settings";
 type DataMode = "sample" | "empty" | "live";
 type IconComponent = ComponentType<{ width?: number; height?: number; className?: string }>;
 type T = ReturnType<typeof useTranslations>;
@@ -49,6 +51,7 @@ const navGroups: { labelKey: string; items: { id: View; labelKey: string; icon: 
     { id: "infrastructure", labelKey: "Nav.infrastructure", icon: Flash },
   ]},
   { labelKey: "Nav.workspace", items: [
+    { id: "setup", labelKey: "Nav.setup", icon: NetworkLeft },
     { id: "connections", labelKey: "Nav.connections", icon: NetworkLeft },
     { id: "documents", labelKey: "Nav.documents", icon: Page },
     { id: "settings", labelKey: "Nav.settings", icon: Settings },
@@ -1015,7 +1018,7 @@ function InfrastructureView({ dataMode, onAddMeter }: { dataMode: DataMode; onAd
   const atRiskAssets = buildingAssets.filter((asset) => asset.condition === "plan" || asset.condition === "urgent").length;
   const forecastPeak = Math.max(...capitalForecast.map((year) => year.totalCents), 1);
 
-  return <div className="view-wrap">
+  return <div className="view-wrap infra-view">
     <AppHeader title={t("InfrastructureView.infrastructure")} subtitle={t("InfrastructureView.infrastructureSubtitle")} actions={<button className="primary-button" onClick={onAddMeter}><Flash width={18} height={18}/>{t("InfrastructureView.addMeter")}</button>}/>
     {!isSample
       ? <section className="panel locked-panel" data-reveal><div className="locked-visual"><div className="locking-lines"><i/><i/><i/></div><span><Flash width={23} height={23}/></span></div><div><p className="eyebrow">{t("InfrastructureView.infrastructure")}</p><h2>{t("InfrastructureView.emptyDescription")}</h2><button className="primary-button" onClick={onAddMeter}>{t("InfrastructureView.addMeter")}<NavArrowRight width={17} height={17}/></button></div></section>
@@ -1131,6 +1134,150 @@ function InfrastructureView({ dataMode, onAddMeter }: { dataMode: DataMode; onAd
           </p>
         </section>
       </>}
+  </div>;
+}
+
+/** Where a chosen agent's answers land — fixed, since every persona routes the same way. */
+const SETUP_OUTPUT_NODES: { labelKey: string; icon: IconComponent }[] = [
+  { labelKey: "SetupView.outputAskAval", icon: ChatLines },
+  { labelKey: "SetupView.outputDrafts", icon: Page },
+  { labelKey: "SetupView.outputTaskBoard", icon: TaskList },
+];
+
+/**
+ * Aval Setup — the agent at the center of the workspace, and what it can
+ * reach. The middle node is swappable; the source nodes on the left dim to
+ * show what the chosen agent genuinely cannot see, since each persona is
+ * granted a real tool subset (PERSONA_TOOL_ACCESS, kept in sync with the
+ * server registry by tests/persona-tool-access.test.ts). So this reads as a
+ * live wiring diagram of the agent's actual reach, not an illustration.
+ */
+function SetupView({ dataMode }: { dataMode: DataMode }) {
+  const t = useTranslations();
+  const { notify } = useExperience();
+  const [selected, setSelected] = useState<PersonaId>("general");
+  const [saving, setSaving] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  // The org's saved default, so the page opens on what's actually in effect
+  // rather than always showing "general" until the user touches something.
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/agents/default")
+      .then((response) => (response.ok ? response.json() as Promise<{ defaultPersonaId?: string | null }> : null))
+      .then((body) => {
+        if (cancelled || !body) return;
+        const saved = body.defaultPersonaId;
+        if (saved && PERSONA_IDS.includes(saved as PersonaId)) setSelected(saved as PersonaId);
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoaded(true); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const preset = PERSONA_PRESETS[selected];
+  const access = PERSONA_TOOL_ACCESS[selected];
+  const reachesEverything = access === null;
+  const reachable = useMemo(() => new Set(access ?? DATA_SOURCE_NODES.map((node) => node.tool)), [access]);
+
+  async function choose(next: PersonaId) {
+    if (next === selected) return;
+    const previous = selected;
+    setSelected(next);
+    setSaving(true);
+    try {
+      const response = await fetch("/api/agents/default", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ personaId: next }),
+      });
+      if (!response.ok) throw new Error(String(response.status));
+      notify(t("SetupView.savedTitle"), t("SetupView.savedDetail", { agent: t(PERSONA_PRESETS[next].labelKey) }));
+    } catch {
+      // Roll the diagram back rather than leaving it showing an agent the
+      // workspace didn't actually accept.
+      setSelected(previous);
+      notify(t("SetupView.saveFailedTitle"), t("SetupView.saveFailedDetail"));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return <div className="view-wrap">
+    <AppHeader title={t("SetupView.setup")} subtitle={t("SetupView.setupSubtitle")}/>
+
+    <section className="panel setup-panel" data-reveal>
+      <div className="panel-heading">
+        <div><p className="eyebrow">{t("SetupView.wiring")}</p><h2>{t("SetupView.whatThisAgentCanReach")}</h2></div>
+        <span className="quiet-label">{reachesEverything ? t("SetupView.allSources") : t("SetupView.sourcesOfTotal", { count: reachable.size, total: DATA_SOURCE_NODES.length })}</span>
+      </div>
+
+      <div className="setup-diagram">
+        <div className="setup-column">
+          <p className="setup-column-label">{t("SetupView.dataSources")}</p>
+          {DATA_SOURCE_NODES.map((node) => {
+            const on = reachable.has(node.tool);
+            return <div className={`setup-node${on ? "" : " is-off"}`} key={node.tool}>
+              <Database width={15} height={15}/>
+              <span>{t(node.labelKey)}</span>
+              {!on && <small>{t("SetupView.notAvailable")}</small>}
+            </div>;
+          })}
+        </div>
+
+        <div className="setup-rails" aria-hidden="true"/>
+
+        <div className="setup-center">
+          <div className={`setup-agent-node${saving ? " is-saving" : ""}`}>
+            <AvalAgentAvatar shape={preset.shape} theme={preset.theme} icon={preset.icon} size={56} label={t(preset.labelKey)}/>
+            <strong>{t(preset.labelKey)}</strong>
+            <small>{t("SetupView.workspaceDefault")}</small>
+          </div>
+        </div>
+
+        <div className="setup-rails is-out" aria-hidden="true"/>
+
+        <div className="setup-column">
+          <p className="setup-column-label">{t("SetupView.whereAnswersGo")}</p>
+          {SETUP_OUTPUT_NODES.map((node) => { const Icon = node.icon; return <div className="setup-node" key={node.labelKey}>
+            <Icon width={15} height={15}/>
+            <span>{t(node.labelKey)}</span>
+          </div>; })}
+        </div>
+      </div>
+
+      {dataMode !== "sample" && <p className="empty-copy">{t("SetupView.connectSourcesNote")}</p>}
+    </section>
+
+    <section className="panel" data-reveal>
+      <div className="panel-heading">
+        <div><p className="eyebrow">{t("SetupView.swapAgent")}</p><h2>{t("SetupView.chooseTheCenterAgent")}</h2></div>
+        {saving && <span className="quiet-label">{t("SetupView.saving")}</span>}
+      </div>
+      <div className="setup-agent-grid">
+        {PERSONA_IDS.map((id) => {
+          const option = PERSONA_PRESETS[id];
+          const optionAccess = PERSONA_TOOL_ACCESS[id];
+          const isSelected = id === selected;
+          return <button
+            type="button"
+            className={`setup-agent-card${isSelected ? " is-selected" : ""}`}
+            key={id}
+            onClick={() => choose(id)}
+            disabled={saving || !loaded}
+            aria-pressed={isSelected}
+          >
+            <AvalAgentAvatar shape={option.shape} theme={option.theme} icon={option.icon} size={38} selected={isSelected} interactive/>
+            <span>
+              <strong>{t(option.labelKey)}</strong>
+              <small>{optionAccess === null ? t("SetupView.allSources") : t("SetupView.sourcesOfTotal", { count: optionAccess.length, total: DATA_SOURCE_NODES.length })}</small>
+            </span>
+            {isSelected && <Check width={16} height={16}/>}
+          </button>;
+        })}
+      </div>
+      <p className="empty-copy">{t("SetupView.swapExplainer")}</p>
+    </section>
   </div>;
 }
 
@@ -1371,7 +1518,7 @@ function DesktopApp({ authMode, displayName, email }: { authMode: AuthMode; disp
         ? <button type="button" onClick={signOutOfPasswordAccount}><LogOut width={17} height={17}/>{t("DesktopApp.signOut")}</button>
         // eslint-disable-next-line @next/next/no-html-link-for-pages -- external platform sign-out route, not part of this app router
         : <a href="/signout-with-chatgpt?return_to=/"><LogOut width={17} height={17}/>{t("DesktopApp.signOut")}</a>}
-      </div>}</aside><section className="content-shell" aria-label={t(titleKey)}>{view === "overview" && <Overview openConnections={openConnections} dataMode={dataMode} providers={providers} pendingTarget={pendingTarget} targetToken={targetToken} reviewStatuses={reviewStatuses} sentReceipts={sentReceipts} onApprove={approveInsight} onDeny={denyInsight} onSendReminders={sendReminderBatch} onCreateDraft={createDraftJob}/>} {view === "tasks" && <TasksView draftJobs={draftJobs} onCreateDraft={createDraftJob} onPauseDraft={pauseDraftJob} onResumeDraft={resumeDraftJob} onRetryDraft={retryDraftJob} onSendDraft={sendDraftJob}/>} {view === "reviewCenter" && <ReviewCenterView reviewStatuses={reviewStatuses} sentReceipts={sentReceipts} onApprove={approveInsight} onDeny={denyInsight} onSendReminders={sendReminderBatch}/>} {view === "inbox" && <InboxView pendingTarget={pendingTarget} targetToken={targetToken}/>} {view === "connections" && <ConnectionsView providers={providers} loading={loading} onOpen={openProvider}/>} {view === "settings" && <SettingsView openConnections={openConnections} displayName={displayName} email={email}/>} {view === "infrastructure" && <InfrastructureView dataMode={dataMode} onAddMeter={() => setAddMeterOpen(true)}/>} {(["properties", "leasing", "maintenance", "accounting", "documents"] as View[]).includes(view) && <OperationsView view={view} openConnections={openConnections} dataMode={dataMode} providers={providers}/>}</section>{selectedProvider && <ConnectionDialog provider={selectedProvider} onClose={() => setSelectedProvider(null)} onRefresh={loadProviders}/>}{addMeterOpen && <AddMeterDialog onClose={() => setAddMeterOpen(false)}/>}<Dialog.Root open={notifications} onOpenChange={setNotifications}><Dialog.Portal><Dialog.Overlay className="dialog-overlay subtle"/><Dialog.Content className="notification-drawer"><div className="drawer-heading"><div><p className="eyebrow">{t("DesktopApp.liveWorkspace")}</p><Dialog.Title>{t("DesktopApp.notifications")}</Dialog.Title></div><Dialog.Close className="icon-button" aria-label={t("Overview.close")}><Xmark width={20} height={20}/></Dialog.Close></div><div className="notification-list">{notificationItems.map((item) => <button key={item.id} className={item.read ? "" : "unread"} onClick={() => openNotification(item)}><BrandMark provider={resolveNotificationProvider(item)} small/><span><strong>{t(item.titleKey)}</strong><small>{t(item.detailKey, item.detailParams)}</small></span><span className="notif-trailing">{!item.read && <i className="unread-dot"/>}<time>{formatMinutesAgo(item.minutesAgo, currentLocale)}</time></span></button>)}</div><button className="wide-button" onClick={() => setNotificationItems((current) => current.map((item) => ({ ...item, read: true })))}><Check width={17} height={17}/>{unreadCount ? t("DesktopApp.markAllAsRead") : t("DesktopApp.allCaughtUp")}</button></Dialog.Content></Dialog.Portal></Dialog.Root><AvalAssistant view={view} onCreateDraft={createDraftJob}/></main>;
+      </div>}</aside><section className="content-shell" aria-label={t(titleKey)}>{view === "overview" && <Overview openConnections={openConnections} dataMode={dataMode} providers={providers} pendingTarget={pendingTarget} targetToken={targetToken} reviewStatuses={reviewStatuses} sentReceipts={sentReceipts} onApprove={approveInsight} onDeny={denyInsight} onSendReminders={sendReminderBatch} onCreateDraft={createDraftJob}/>} {view === "tasks" && <TasksView draftJobs={draftJobs} onCreateDraft={createDraftJob} onPauseDraft={pauseDraftJob} onResumeDraft={resumeDraftJob} onRetryDraft={retryDraftJob} onSendDraft={sendDraftJob}/>} {view === "reviewCenter" && <ReviewCenterView reviewStatuses={reviewStatuses} sentReceipts={sentReceipts} onApprove={approveInsight} onDeny={denyInsight} onSendReminders={sendReminderBatch}/>} {view === "inbox" && <InboxView pendingTarget={pendingTarget} targetToken={targetToken}/>} {view === "connections" && <ConnectionsView providers={providers} loading={loading} onOpen={openProvider}/>} {view === "settings" && <SettingsView openConnections={openConnections} displayName={displayName} email={email}/>} {view === "infrastructure" && <InfrastructureView dataMode={dataMode} onAddMeter={() => setAddMeterOpen(true)}/>} {view === "setup" && <SetupView dataMode={dataMode}/>} {(["properties", "leasing", "maintenance", "accounting", "documents"] as View[]).includes(view) && <OperationsView view={view} openConnections={openConnections} dataMode={dataMode} providers={providers}/>}</section>{selectedProvider && <ConnectionDialog provider={selectedProvider} onClose={() => setSelectedProvider(null)} onRefresh={loadProviders}/>}{addMeterOpen && <AddMeterDialog onClose={() => setAddMeterOpen(false)}/>}<Dialog.Root open={notifications} onOpenChange={setNotifications}><Dialog.Portal><Dialog.Overlay className="dialog-overlay subtle"/><Dialog.Content className="notification-drawer"><div className="drawer-heading"><div><p className="eyebrow">{t("DesktopApp.liveWorkspace")}</p><Dialog.Title>{t("DesktopApp.notifications")}</Dialog.Title></div><Dialog.Close className="icon-button" aria-label={t("Overview.close")}><Xmark width={20} height={20}/></Dialog.Close></div><div className="notification-list">{notificationItems.map((item) => <button key={item.id} className={item.read ? "" : "unread"} onClick={() => openNotification(item)}><BrandMark provider={resolveNotificationProvider(item)} small/><span><strong>{t(item.titleKey)}</strong><small>{t(item.detailKey, item.detailParams)}</small></span><span className="notif-trailing">{!item.read && <i className="unread-dot"/>}<time>{formatMinutesAgo(item.minutesAgo, currentLocale)}</time></span></button>)}</div><button className="wide-button" onClick={() => setNotificationItems((current) => current.map((item) => ({ ...item, read: true })))}><Check width={17} height={17}/>{unreadCount ? t("DesktopApp.markAllAsRead") : t("DesktopApp.allCaughtUp")}</button></Dialog.Content></Dialog.Portal></Dialog.Root><AvalAssistant view={view} onCreateDraft={createDraftJob}/></main>;
 }
 
 export function AvalDashboard({ authMode, displayName, email }: { authMode: AuthMode; displayName: string; email: string }) { return <ExperienceProvider><DesktopApp authMode={authMode} displayName={displayName} email={email}/></ExperienceProvider>; }

@@ -142,7 +142,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--ink); outli
 .overview-grid { margin-top: 10px; display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(300px, .75fr); gap: 10px; }
 .panel { border: 1px solid var(--line); border-radius: 20px; background: var(--surface-raised); box-shadow: var(--shadow-sm); }
 .funnel-panel, .coverage-panel { min-height: 331px; padding: 23px; }
-.panel-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; }
+.panel-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 12px 18px; }
 .panel-heading h2, .section-title h2, .locked-panel h2 { margin: 6px 0 0; font-size: 19px; font-weight: 400; letter-spacing: -.5px; }
 .quiet-label { color: var(--quiet); font-size: 10px; }
 .funnel-stage-labels { margin-top: 42px; display: grid; grid-template-columns: repeat(4, 1fr); }
@@ -179,11 +179,19 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--ink); outli
 .status-pill.overdue { background: color-mix(in srgb, var(--viz-red) 15%, var(--surface)); color: var(--viz-red); }
 
 /* Infrastructure ------------------------------------------------------- */
-.infra-filter { flex-wrap: wrap; }
-.infra-table-scroll { margin-top: 14px; overflow-x: auto; }
+/* .panel carries no padding or margin of its own — every panel in this app
+   gets both from a more specific rule (.activity-panel, .insights-panel, …).
+   These sections are plain .panel, so they need the house values (23px /
+   10px) explicitly or they render edge-to-edge and collide with each other. */
+.infra-view > section { margin-top: 10px; }
+.infra-view > section.panel, .infra-view .overview-grid > .panel { padding: 23px; }
+/* The category filter is seven buttons wide; let it wrap and stay right-aligned
+   rather than compete with the heading for the same line. */
+.infra-filter { flex-wrap: wrap; margin-left: auto; }
+.infra-table-scroll { margin-top: 18px; overflow-x: auto; }
 .infra-table { width: 100%; border-collapse: collapse; font-size: 11px; }
-.infra-table th { padding: 0 12px 8px 0; text-align: left; font-size: 9px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; color: var(--quiet); white-space: nowrap; }
-.infra-table td { padding: 11px 12px 11px 0; border-top: 1px solid var(--line); vertical-align: top; color: var(--ink); }
+.infra-table th { padding: 0 16px 10px 0; text-align: left; font-size: 9px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; color: var(--quiet); white-space: nowrap; }
+.infra-table td { padding: 14px 16px 14px 0; border-top: 1px solid var(--line); vertical-align: top; color: var(--ink); }
 .infra-table td strong { display: block; font-size: 11px; font-weight: 600; }
 .infra-table td small { display: block; margin-top: 2px; font-size: 9px; color: var(--quiet); }
 .infra-table td:first-child { min-width: 168px; }
@@ -198,7 +206,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--ink); outli
 .infra-due .status-pill { margin-left: 0; }
 .infra-due small { font-size: 9px; color: var(--quiet); white-space: nowrap; }
 
-.capital-forecast { margin-top: 18px; display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 8px; align-items: end; }
+.capital-forecast { margin-top: 22px; display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 8px; align-items: end; }
 .capital-year { display: grid; justify-items: center; gap: 6px; min-width: 0; }
 .capital-bar-track { width: 100%; height: 108px; display: flex; align-items: flex-end; }
 .capital-bar-track i { width: 100%; min-height: 2px; border-radius: 6px 6px 0 0; background: var(--ink); transition: height .5s var(--ease-snap); }
@@ -208,13 +216,70 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--ink); outli
 .capital-year strong { font-size: 9px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .capital-year span { font-size: 9px; color: var(--quiet); }
 
-.fixture-grid { margin-top: 14px; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
+.fixture-grid { margin-top: 18px; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
 .fixture-row { display: flex; align-items: baseline; gap: 8px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-soft); min-width: 0; }
 .fixture-row > span { flex: 1 1 auto; min-width: 0; font-size: 10px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fixture-row b { font-size: 12px; font-weight: 600; }
 .fixture-row small { font-size: 8px; color: var(--quiet); white-space: nowrap; }
 .fixture-row strong { font-size: 11px; font-weight: 600; }
 .infra-caveat { color: var(--viz-orange); }
+
+/* Aval Setup ----------------------------------------------------------- */
+.setup-panel { margin-top: 18px; }
+/* Columns are capped rather than 1fr: at full width, 1fr stretched each node
+   into a wide near-empty bar and pushed the connectors far from what they
+   connect. Capped + centered keeps the diagram reading as a diagram. */
+.setup-diagram { margin-top: 20px; display: grid; grid-template-columns: minmax(0, 250px) 52px auto 52px minmax(0, 250px); justify-content: center; align-items: center; gap: 0; }
+.setup-column { display: grid; gap: 7px; min-width: 0; }
+.setup-column-label { margin: 0 0 3px; font-size: 9px; letter-spacing: .06em; text-transform: uppercase; color: var(--quiet); }
+.setup-node { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-soft); transition: opacity .25s var(--ease-snap), border-color .25s var(--ease-snap); }
+.setup-node > span { flex: 1 1 auto; min-width: 0; font-size: 10px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.setup-node > small { flex-shrink: 0; font-size: 8px; color: var(--quiet); white-space: nowrap; }
+/* A source this agent genuinely cannot call. Dimmed rather than removed, so
+   the diagram shows the shape of what's withheld instead of silently
+   shrinking and looking like the data doesn't exist. */
+.setup-node.is-off { opacity: .42; border-style: dashed; background: transparent; }
+
+/* A fan-in bracket, not one line per row. Per-row rails have to match the
+   node pitch exactly, and node height is content-dependent — a 4px mismatch
+   compounds down six rows into visibly crooked connectors. The bracket spans
+   the column and meets the center node once, so it stays correct at any node
+   count and any node height. */
+.setup-rails { position: relative; align-self: stretch; min-height: 44px; }
+.setup-rails::before { content: ""; position: absolute; top: 22px; bottom: 22px; left: 50%; border-left: 1px solid var(--line-strong); }
+.setup-rails::after { content: ""; position: absolute; top: 50%; left: 50%; right: 0; border-top: 1px solid var(--line-strong); }
+/* Mirrored on the output side so both brackets point inward at the agent.
+   A class, not :last-of-type — every child of the diagram is a div, so a
+   type selector would match the wrong one. */
+.setup-rails.is-out::after { left: 0; right: 50%; }
+
+/* No padding: the track hugs the node so the bracket arms land on it. */
+.setup-center { display: grid; place-items: center; }
+.setup-agent-node { display: grid; justify-items: center; gap: 7px; padding: 20px 22px; border: 1px solid var(--line-strong); border-radius: 20px; background: var(--surface); box-shadow: var(--shadow-sm); text-align: center; transition: opacity .2s var(--ease-snap); }
+.setup-agent-node.is-saving { opacity: .6; }
+.setup-agent-node strong { font-size: 12px; font-weight: 600; }
+.setup-agent-node small { font-size: 9px; color: var(--quiet); }
+
+.setup-agent-grid { margin-top: 18px; display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 9px; }
+.setup-agent-card { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 11px 13px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-soft); cursor: pointer; text-align: left; transition: border-color .18s var(--ease-snap), background .18s var(--ease-snap), transform .18s var(--ease-snap); }
+.setup-agent-card:hover:not(:disabled) { border-color: var(--line-strong); background: var(--surface); }
+.setup-agent-card:active:not(:disabled) { transform: scale(.985); }
+.setup-agent-card:disabled { cursor: default; opacity: .55; }
+.setup-agent-card.is-selected { border-color: var(--ink); background: var(--surface); }
+.setup-agent-card > span { flex: 1 1 auto; min-width: 0; display: grid; gap: 2px; }
+.setup-agent-card strong { font-size: 11px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.setup-agent-card small { font-size: 9px; color: var(--quiet); }
+.setup-agent-card > svg { flex-shrink: 0; }
+
+@media (max-width: 900px) {
+  /* The rails only make sense reading left-to-right; stacked, they'd be three
+     stray horizontal lines. Drop them and let the columns stack. */
+  .setup-diagram { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  .setup-rails { display: none; }
+  .setup-column { max-width: none; }
+  .setup-center { padding: 0; }
+}
+
 
 .coverage-panel .wide-button { margin-top: 12px; }
 .activity-panel { margin-top: 10px; padding: 23px; }

@@ -1369,3 +1369,66 @@ forecast horizon, past-due capital carried forward, and the beyond-table flag. R
 the real compiled `globals.css` at 1280px and 720px and checked for escaping elements — no
 horizontal overflow, panels stack, forecast stays legible. `tsc --noEmit`, `npm run lint`,
 `npm run i18n:check` (859 keys), and `npm run build` all clean.
+
+## 2026-09-02 — Aval Setup: a swappable center agent, wired to real tool access
+
+**Context.** "Create a working Aval Setup where you can change the middle agent around," against a
+node-diagram reference. The backend half (`organizations.default_persona_id`,
+`GET/POST /api/agents/default`) shipped earlier; this is the page.
+
+**What makes the diagram real rather than decorative.** Each persona in the registry carries a
+`toolNames` subset — the tools it is actually permitted to call in the Ask Aval loop. So the
+source nodes on the left are drawn from that grant: swap the center agent and the sources it
+genuinely cannot reach dim out and say "not available to this agent". It's a live read of the
+agent's real reach, not an illustration of one. Unreachable sources are dimmed rather than
+removed, so the diagram shows the *shape* of what's withheld instead of quietly shrinking and
+implying the data doesn't exist.
+
+**Client/server mirror, guarded by tests.** `lib/ask-aval/personas.ts` documents an existing
+convention: the client mirrors persona ids by hand rather than importing the server registry,
+which would drag Ask Aval's server-only code (and its lazy `custom-personas` → db import) into
+the client bundle. The tool subsets are now mirrored the same way — but unlike the id strings,
+these are covered by `tests/persona-tool-access.test.ts`, which fails if the client copy drifts
+from the server's `toolNames`, if a granted tool has no node to draw, or if a drawn node isn't
+granted to anyone. A wrong id would mislabel a persona; a wrong tool subset would misrepresent
+what an agent can see, which is worth a test rather than a convention.
+
+**Connectors: a bracket, not one line per row.** The first pass drew one horizontal rail per
+source row. Rail pitch (40px) and node pitch (44px) don't match — node height is
+content-dependent — so the mismatch compounded down six rows into visibly crooked connectors
+that met nothing. Replaced with a fan-in bracket (a spine spanning the column, one arm to the
+agent) that is correct at any node count and any node height. Verified by measurement: both arms
+land on the agent node at gap 0, at its exact vertical center.
+
+**Layout.** Columns are capped at 250px and the diagram is centered; at `1fr` each node stretched
+into a wide near-empty bar and pushed the connectors far from what they connect. The center
+track hugs the agent node exactly (`auto`, no padding) — a `minmax(150px, …)` minimum left the
+node centered with ~18px slack on each side, so the bracket arms stopped short of it. Below
+900px the columns stack and the brackets hide, since they only read left-to-right.
+
+## 2026-09-02 — Infrastructure spacing: panels were rendering edge-to-edge
+
+**Context.** A screenshot of the new Infrastructure page: "spacing is really messed up."
+
+**Cause.** `.panel` in this codebase carries *no* padding or margin of its own — every panel gets
+both from a more specific rule (`.activity-panel`, `.insights-panel`, `.funnel-panel`, each
+`padding: 23px; margin-top: 10px`). The new sections were plain `.panel`, so they inherited
+neither: content sat flush against the panel border, and consecutive sections had a 0px gap, so
+the "Asset register" heading collided with the metric cards above it.
+
+**Fix.** An `.infra-view` wrapper applies the house values to its own sections rather than
+changing `.panel` globally (which would shift every existing panel in the app). `.panel-heading`
+also gained `flex-wrap`, since the seven-button category filter was competing with the title for
+one line instead of dropping below it. Table cell padding, and the gaps under each panel
+heading, opened up modestly for readability.
+
+**Verified by measurement** rather than by eye — the local screenshot tooling kept resetting
+between calls: all five sections now sit at a uniform 10px gap, panels report 23px padding on
+every side, the filter no longer intersects the title's box, and there is no page overflow at
+1400px or 700px.
+
+**On the UI/UX skill.** `nextlevelbuilder/ui-ux-pro-max-skill` was installed at the user's
+request and queried for this work. It independently confirmed two choices already made here —
+wrapping the wide table in an `overflow-x` container, and keeping text fluid rather than clipped
+in fixed boxes — and its own instructions correctly state that its results are recommendations,
+not overrides, and that private project data must stay out of queries.
