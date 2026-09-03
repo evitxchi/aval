@@ -1544,3 +1544,71 @@ and its fallback list is deliberately **empty**: an empty picker that admits it 
 the list beats a populated one whose entries 404 on send.
 
 **Verification.** 96 tests passing (up from 90). typecheck/lint/i18n (921 keys)/build clean.
+
+## 2026-09-02 — Ask Aval routes to the specialist that owns the question
+
+**Context.** "Ask Aval should work like this (kinda like how Claude Code does it with plugins):
+gets prompt, analyzes prompt, understands 'hey, this prompt would be best accomplished with XYZ
+agent.' That particular agent takes over the task."
+
+**Built.** `lib/ask-aval/agent-router.ts` reads the question and hands the turn to the specialist
+whose domain it belongs to; `handler.ts` calls it whenever the client hasn't explicitly chosen an
+agent. An auto-routed turn comes back with `X-Aval-Agent` / `X-Aval-Agent-Routed` headers so the
+choice is visible and correctable rather than a silent reframing.
+
+**Why a local scorer, not a model call.** Classifying with the model would put an extra
+round-trip in front of every question — paid for by the workspace — to choose between eight
+fixed options, and would itself be steerable by text inside the prompt. A scorer over curated
+domain vocabulary is instant, free, deterministic, testable, and has no instruction-following
+surface to hijack.
+
+**Why the fallback is always `general`.** This is the load-bearing decision. Personas are granted
+a *subset* of the data tools, so a wrong route doesn't merely reframe an answer — it removes the
+tools needed to produce one, and the faithfulness gate then correctly refuses to state figures
+the agent couldn't verify. Declining to specialize costs a little framing; specializing wrongly
+costs the answer. So `general` (every tool) is the default, and the confidence floor is set above
+what two corroborating weak terms can reach.
+
+**Three tiers of vocabulary, the third added because the tests caught a real misroute.** "Show me
+the trend in occupancy over the last six months" tied between Real Estate (`occupancy`) and
+Market Research (`trend`) and resolved to Real Estate — which would have reported a
+point-in-time occupancy figure instead of the trend actually asked for. Words describing *the
+shape of the answer wanted* ("trend", "forecast", "on track") now outrank subject-matter nouns,
+because the noun names a metric several agents can already read while the shape names an analysis
+only one specializes in. A second test caught `collect` missing next to `collected`/
+`collections`, which sent "how much rent did we actually collect" to `general`.
+
+Terms match on word boundaries: `rent` must not fire inside "current", `lead` not inside
+"leader". Both are pinned by tests.
+
+## 2026-09-02 — Verified: taught preferences reach every agent, and pinned it
+
+**Context.** "Working on agent memory to ensure the preferences that users specify truly get
+implemented into all agent memories + Ask Aval general agent," with four memory repos
+(`rohitg00/agentmemory`, `pingcap`, `supermemoryai`, `MemoriLabs`).
+
+**Audited, and it already holds.** There are exactly three places that start the Ask Aval loop —
+`handler.ts` (questions), `draft.ts` (document drafting), `auto-reply.ts` (inbox replies) — and
+all three append `preferenceContext` to the system prompt. So a taught preference already applies
+to the general assistant, all seven specialists, workspace-defined custom personas, drafts, and
+auto-replies. Auto-routing doesn't change that: the router picks the persona, and preference
+context is appended regardless of which one it picks.
+
+**Pinned, because it was a convention rather than a guarantee.** Three files each had to remember;
+a fourth entry point added later could have silently dropped it, leaving a workspace with an
+agent that quietly ignores what it was taught. `tests/preference-propagation.test.ts` now asserts
+at source level that every loop caller loads and passes preference context, *and* that no
+unlisted file calls the loop — so a new entry point fails the suite until it is wired up, rather
+than shipping deaf.
+
+**On the four memory repos.** Not adopted, and the reason is the same structural one that ruled
+out `claude-mem` earlier: all four are free-text/vector memory systems (embeddings, semantic
+recall over arbitrary stored text). Aval's memory is deliberately the opposite — a fixed
+taxonomy of generic behavioral tags, so a tenant name, address or dollar figure *cannot* be
+retained. Adopting an embedding store would mean storing the free text that design exists to
+avoid. The genuinely useful idea from that family — letting a user express a preference in their
+own words — is already implemented without the storage cost: the typed teaching box classifies a
+sentence into the fixed taxonomy and discards the sentence. That gets the ergonomics of free-text
+memory while keeping the privacy property, which is the better end of both trades.
+
+**Verification.** 115 tests passing (up from 96). typecheck/lint/i18n/build clean.

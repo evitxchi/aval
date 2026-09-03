@@ -20,6 +20,7 @@ import { getPreferenceContext } from "./preferences";
 import { getUsagePatternContext } from "./usage-patterns";
 import { TOOLS } from "./tools";
 import { resolvePersona, personaTools } from "./personas";
+import { routeToPersona } from "./agent-router.ts";
 
 export type { AskAvalSession } from "./usage";
 
@@ -61,11 +62,29 @@ export async function handleAskAval(
     ? `\n\n(The user focused this question on a dashboard module titled "${focusedModule.label}". Its visible on-screen text: ${JSON.stringify(focusedModule.snapshot)}. Still use the tools for any figures you cite — the snapshot text is context, not a verified source.)`
     : "";
   const messages: Message[] = [{ role: "user", content: `${question}\n\n(${localeInstruction})${moduleContext}` }];
+  // No explicit agent chosen? Read the question and hand it to the specialist
+  // that owns it, the way a plugin host dispatches to a handler. An unclear
+  // question routes to `general`, which holds every tool — see agent-router.ts
+  // on why a wrong route costs more than declining to specialize.
+  const route = personaId ? null : routeToPersona(question);
+  const effectivePersonaId = personaId ?? route?.personaId;
+
   const [persona, preferenceContext, usagePatternContext] = await Promise.all([
-    resolvePersona(personaId, session.orgId),
+    resolvePersona(effectivePersonaId, session.orgId),
     getPreferenceContext(session.orgId),
     getUsagePatternContext(session.orgId),
   ]);
 
-  return runAskAvalLoop(env, session, SYSTEM + persona.systemPromptAddition + preferenceContext + usagePatternContext, messages, personaTools(TOOLS, persona, "render_answer"));
+  // preferenceContext is appended for every persona, specialized or not — a
+  // standing instruction the workspace has taught applies to whichever agent
+  // takes the turn, not only to the general one.
+  const response = await runAskAvalLoop(env, session, SYSTEM + persona.systemPromptAddition + preferenceContext + usagePatternContext, messages, personaTools(TOOLS, persona, "render_answer"));
+
+  // Tell the client which agent actually answered, so an auto-routed turn is
+  // visible and correctable rather than silently reframed.
+  if (!route?.specialized) return response;
+  const headers = new Headers(response.headers);
+  headers.set("X-Aval-Agent", persona.id);
+  headers.set("X-Aval-Agent-Routed", "auto");
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
