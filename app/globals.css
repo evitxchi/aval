@@ -805,11 +805,10 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--ink); outli
 .aval-chat-action:disabled { background: var(--surface-sunken); color: var(--muted); cursor: default; }
 .aval-chat-action:disabled small { color: var(--quiet); }
 
-.aval-chat-thinking { min-height: 34px; display: flex; align-items: center; gap: 4px; color: var(--quiet); font-size: 8px; }
-.aval-chat-thinking i { width: 5px; height: 5px; border-radius: 50%; background: var(--ink); animation: aval-thinking 1.1s ease-in-out infinite; }
-.aval-chat-thinking i:nth-child(2) { animation-delay: .12s; }
-.aval-chat-thinking i:nth-child(3) { margin-right: 5px; animation-delay: .24s; }
-@keyframes aval-thinking { 0%, 65%, 100% { opacity: .25; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-3px); } }
+.aval-chat-thinking { min-height: 34px; display: flex; align-items: center; gap: 7px; color: var(--quiet); font-size: 9px; }
+.aval-chat-thinking .aval-agent-avatar { border: 0; background: none; }
+.aval-chat-thinking-ring { width: 12px; height: 12px; flex-shrink: 0; border: 2px solid var(--line-strong); border-top-color: var(--muted); border-radius: 50%; animation: aval-thinking-spin .8s linear infinite; }
+@keyframes aval-thinking-spin { to { transform: rotate(360deg); } }
 
 .aval-chat-suggestions { padding: 0 16px 10px; display: grid; gap: 6px; }
 .aval-chat-suggestions button { min-height: 38px; padding: 0 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface); color: var(--muted); font-size: 8px; text-align: left; cursor: pointer; }
@@ -960,6 +959,32 @@ html.aval-module-picking .content-shell { cursor: crosshair; }
    `.connection-status` badge, not the container's own border style. */
 
 .intelligence-card { grid-column: 1 / -1; min-height: 0; }
+
+/* "Model being used" — provider picker / model picker, each a small
+   dropdown anchored to its own trigger (menu-popover's default right
+   anchor is made left-anchored here, since these two sit side by side
+   rather than pinned to one row's far edge). */
+.intelligence-model-row { margin: 4px 0 18px; padding: 13px 16px; display: flex; flex-direction: column; gap: 8px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-soft); }
+.intelligence-model-row-label { margin: 0; color: var(--quiet); font-size: 8.5px; text-transform: uppercase; letter-spacing: .04em; }
+.intelligence-model-row-controls { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.intelligence-model-row-divider { flex-shrink: 0; color: var(--quiet); }
+.intelligence-model-picker { position: relative; min-width: 0; flex: 1; }
+.intelligence-model-picker-trigger { width: 100%; min-height: 38px; padding: 0 12px; display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 11px; background: white; color: var(--ink); font-size: 11px; cursor: pointer; text-align: left; }
+.intelligence-model-picker-trigger:disabled { cursor: default; opacity: .6; }
+.intelligence-model-picker-trigger .brand-mark { width: 22px; height: 22px; flex-shrink: 0; }
+.intelligence-model-picker-trigger > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.intelligence-model-check { flex-shrink: 0; color: var(--viz-green); }
+.intelligence-model-menu { left: 0; right: auto; width: max-content; min-width: 100%; max-width: 320px; }
+.intelligence-model-menu button { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.intelligence-model-search-menu { width: 260px; max-width: 80vw; padding: 6px 6px 0; }
+.intelligence-model-search { margin-bottom: 4px; padding: 0 9px; display: flex; align-items: center; gap: 7px; height: 32px; border-radius: 9px; background: var(--surface-soft); color: var(--quiet); }
+.intelligence-model-search input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font-size: 10px; color: var(--ink); }
+.intelligence-model-menu-status { margin: 4px 9px; padding: 6px 0; color: var(--quiet); font-size: 9px; }
+.intelligence-model-menu-status.error { color: var(--viz-red); }
+.intelligence-model-menu-footer { display: flex; justify-content: flex-end; padding: 4px; border-top: 1px solid var(--line); margin: 4px -6px 0; }
+.intelligence-model-menu-footer button { min-height: 26px; padding: 0 6px; border: 0; background: transparent; color: var(--quiet); cursor: pointer; }
+.intelligence-model-menu-footer button:hover { color: var(--ink); }
+.intelligence-model-menu-footer svg.spinning { animation: narrative-spin .7s linear infinite; }
 
 .intelligence-configure-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
 .intelligence-configure-header h3 { margin: 0; font-size: 12px; font-weight: 500; }

@@ -32,7 +32,7 @@ interface CallParams {
 
 type Override =
   | { kind: "api_key"; providerId: string; apiKey: string; model?: string }
-  | { kind: "subscription"; providerId: SubscriptionProviderId; accessToken: string; accountId?: string };
+  | { kind: "subscription"; providerId: SubscriptionProviderId; accessToken: string; accountId?: string; model?: string };
 
 /**
  * A stale subscription access token gets refreshed here, once, before the
@@ -59,6 +59,7 @@ async function resolveOverride(env: AskAvalEnv, orgId: string): Promise<Override
     refreshTokenCiphertext: integrationConnections.refreshTokenCiphertext,
     expiresAt: integrationConnections.expiresAt,
     externalAccountId: integrationConnections.externalAccountId,
+    metadataJson: integrationConnections.metadataJson,
   }).from(integrationConnections)
     .where(and(eq(integrationConnections.organizationId, orgId), eq(integrationConnections.provider, org.activeModelProvider)))
     .limit(1);
@@ -66,9 +67,10 @@ async function resolveOverride(env: AskAvalEnv, orgId: string): Promise<Override
 
   if (connection.authMode === "oauth_subscription_paste" && isSubscriptionProviderId(org.activeModelProvider)) {
     const providerId = org.activeModelProvider;
+    const model = (() => { try { return (JSON.parse(connection.metadataJson || "{}") as { model?: string }).model; } catch { return undefined; } })();
     try {
       if (connection.expiresAt && isCredentialFresh(connection.expiresAt)) {
-        return { kind: "subscription", providerId, accessToken: await decryptSecret(connection.accessTokenCiphertext, encryptionKey), accountId: connection.externalAccountId ?? undefined };
+        return { kind: "subscription", providerId, accessToken: await decryptSecret(connection.accessTokenCiphertext, encryptionKey), accountId: connection.externalAccountId ?? undefined, model };
       }
       if (!connection.refreshTokenCiphertext) return null;
       const refreshToken = await decryptSecret(connection.refreshTokenCiphertext, encryptionKey);
@@ -81,7 +83,7 @@ async function resolveOverride(env: AskAvalEnv, orgId: string): Promise<Override
         externalAccountId: refreshed.accountId ?? connection.externalAccountId,
         updatedAt: now,
       }).where(eq(integrationConnections.id, connection.id));
-      return { kind: "subscription", providerId, accessToken: refreshed.access, accountId: refreshed.accountId ?? connection.externalAccountId ?? undefined };
+      return { kind: "subscription", providerId, accessToken: refreshed.access, accountId: refreshed.accountId ?? connection.externalAccountId ?? undefined, model };
     } catch (err) {
       console.error("model_router_subscription_refresh_failed", providerId, err);
       return null;
@@ -103,8 +105,8 @@ export async function callModel(env: AskAvalEnv, orgId: string, params: CallPara
   if (!override) return callClaude(env, params);
 
   if (override.kind === "subscription") {
-    if (override.providerId === "claude") return callClaudeOAuth(override.accessToken, params);
-    return callChatgptOAuth(override.accessToken, override.accountId, params);
+    if (override.providerId === "claude") return callClaudeOAuth(override.accessToken, { ...params, model: override.model });
+    return callChatgptOAuth(override.accessToken, override.accountId, { ...params, model: override.model });
   }
 
   if (override.providerId === "anthropic") {

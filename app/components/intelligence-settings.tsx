@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslations } from "next-intl";
-import { NavArrowDown, Search, ShieldCheck } from "iconoir-react";
+import { Check, NavArrowDown, Refresh, Search, ShieldCheck } from "iconoir-react";
 import { BrandMark } from "@/app/components/brand-mark";
 import { Foldout } from "@/app/components/foldout";
 import type { Provider } from "@/app/components/connection-dialog";
@@ -208,6 +208,127 @@ function ProviderAccordionRow({ provider, twin, isOpen, onToggle, isActive, swit
 }
 
 /**
+ * "Model being used": provider on the left, the actual model on the right,
+ * separated by a plain "/" — a live, real picker, not a static echo. The
+ * model side fetches the connected provider's real, current model list
+ * (`GET /api/integrations/models`) rather than a hand-typed guess frozen
+ * at whenever this catalog was written. Aval's own bundled default has no
+ * live list to fetch (there's nothing to pick between), so it renders as
+ * plain text instead of a combobox.
+ */
+function ModelBeingUsedRow({ providers, activeProvider, activeEntry, onSwitchProvider, onModelChanged }: {
+  providers: Provider[];
+  activeProvider: string | null;
+  activeEntry: Provider | undefined;
+  onSwitchProvider: (providerId: string | null) => void;
+  onModelChanged: () => void;
+}) {
+  const t = useTranslations();
+  const [providerMenuOpen, setProviderMenuOpen] = useState(false);
+  const [modelMenuOpen, setModelMenuOpen] = useState(false);
+  const [modelSearch, setModelSearch] = useState("");
+  const [models, setModels] = useState<string[] | null>(null);
+  const [modelsError, setModelsError] = useState<string | null>(null);
+  const [loadingModels, setLoadingModels] = useState(false);
+  const [savingModel, setSavingModel] = useState(false);
+
+  const connectedProviders = providers.filter((provider) => provider.category === "Model" && provider.connection?.status === "connected");
+  const currentModel = activeEntry?.defaultModel ?? (activeProvider ? t("IntelligenceSettings.subscriptionDefaultModelShort") : t("IntelligenceSettings.avalDefault"));
+
+  const loadModels = async () => {
+    if (!activeProvider) return;
+    setLoadingModels(true);
+    setModelsError(null);
+    try {
+      const response = await fetch(`/api/integrations/models?provider=${encodeURIComponent(activeProvider)}`);
+      const data = await response.json() as { models?: string[]; error?: string };
+      if (!response.ok) throw new Error(data.error ?? t("IntelligenceSettings.modelListFailed"));
+      setModels(data.models ?? []);
+    } catch (error) {
+      setModelsError(error instanceof Error ? error.message : t("IntelligenceSettings.modelListFailed"));
+    } finally {
+      setLoadingModels(false);
+    }
+  };
+
+  const openModelMenu = () => {
+    if (!activeProvider) return;
+    setModelMenuOpen((current) => !current);
+    setModelSearch("");
+    if (!models) void loadModels();
+  };
+
+  const chooseModel = async (modelId: string) => {
+    if (!activeProvider) return;
+    setSavingModel(true);
+    try {
+      await fetch("/api/integrations/set-model", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ provider: activeProvider, model: modelId }) });
+      onModelChanged();
+    } finally {
+      setSavingModel(false);
+      setModelMenuOpen(false);
+    }
+  };
+
+  const filteredModels = (models ?? []).filter((id) => id.toLowerCase().includes(modelSearch.trim().toLowerCase()));
+
+  return (
+    <section className="intelligence-model-row">
+      <p className="intelligence-model-row-label">{t("IntelligenceSettings.modelBeingUsed")}</p>
+      <div className="intelligence-model-row-controls">
+        <div className="intelligence-model-picker">
+          <button type="button" className="intelligence-model-picker-trigger" onClick={() => setProviderMenuOpen((current) => !current)}>
+            <BrandMark provider={activeProvider ?? "aval"} small />
+            <span>{activeProvider ? (activeEntry?.title ?? activeProvider) : t("IntelligenceSettings.avalDefault")}</span>
+            <NavArrowDown width={13} height={13} className={providerMenuOpen ? "provider-row-chevron open" : "provider-row-chevron"} />
+          </button>
+          {providerMenuOpen && (
+            <div className="menu-popover intelligence-model-menu">
+              <button type="button" onClick={() => { onSwitchProvider(null); setProviderMenuOpen(false); }}>
+                <BrandMark provider="aval" small />{t("IntelligenceSettings.avalDefault")}
+              </button>
+              {connectedProviders.map((provider) => (
+                <button type="button" key={provider.id} onClick={() => { onSwitchProvider(provider.id); setProviderMenuOpen(false); }}>
+                  <BrandMark provider={provider.id} small />{provider.title}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <span className="intelligence-model-row-divider">/</span>
+        <div className="intelligence-model-picker">
+          <button type="button" className="intelligence-model-picker-trigger" onClick={openModelMenu} disabled={!activeProvider}>
+            <span>{currentModel}</span>
+            {activeProvider && <Check width={14} height={14} className="intelligence-model-check" />}
+          </button>
+          {modelMenuOpen && activeProvider && (
+            <div className="menu-popover intelligence-model-menu intelligence-model-search-menu">
+              <label className="intelligence-model-search">
+                <Search width={13} height={13} />
+                <input value={modelSearch} onChange={(event) => setModelSearch(event.target.value)} placeholder={t("IntelligenceSettings.searchModels")} />
+              </label>
+              {loadingModels && <p className="intelligence-model-menu-status">{t("IntelligenceSettings.loadingModels")}</p>}
+              {modelsError && <p className="intelligence-model-menu-status error">{modelsError}</p>}
+              {!loadingModels && !modelsError && filteredModels.map((id) => (
+                <button type="button" key={id} disabled={savingModel} onClick={() => void chooseModel(id)}>{id}</button>
+              ))}
+              {!loadingModels && !modelsError && filteredModels.length === 0 && (
+                <p className="intelligence-model-menu-status">{t("IntelligenceSettings.noModelsMatch")}</p>
+              )}
+              <div className="intelligence-model-menu-footer">
+                <button type="button" onClick={() => void loadModels()} disabled={loadingModels} aria-label={t("IntelligenceSettings.refreshModels")}>
+                  <Refresh width={13} height={13} className={loadingModels ? "spinning" : ""} />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/**
  * Settings → Intelligence: which model powers agents and Ask Aval for this
  * org. Reuses the exact same /api/integrations catalog, connect/verify
  * flow, and encrypted-credential storage as every other provider on the
@@ -263,11 +384,14 @@ export function IntelligenceSettings() {
   const modelProviders = providers.filter((provider) => provider.category === "Model" && !provider.subscriptionOf);
   const twinByProvider = new Map(providers.filter((provider) => provider.subscriptionOf).map((provider) => [provider.subscriptionOf as string, provider]));
   const filtered = modelProviders.filter((provider) => provider.title.toLowerCase().includes(search.trim().toLowerCase()));
+  const activeEntry = providers.find((provider) => provider.id === activeProvider);
 
   return (
     <article className="settings-card intelligence-card" data-reveal>
       <p className="eyebrow">{t("IntelligenceSettings.eyebrow")}</p>
       <h2>{t("IntelligenceSettings.title")}</h2>
+
+      <ModelBeingUsedRow providers={providers} activeProvider={activeProvider} activeEntry={activeEntry} onSwitchProvider={(id) => void setActive(id)} onModelChanged={load} />
 
       {error && <p className="auth-gate-error">{error}</p>}
 

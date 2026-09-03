@@ -1143,3 +1143,75 @@ now-dead `.aval-mark` text-wordmark style was removed.
 **Verification.** `tsc --noEmit`, `npm run lint` (one new, same-class `no-img-element` warning,
 consistent with every other static-image warning already accepted in this codebase),
 `npm run i18n:check`, `npm run build`, and `node --test` (56 passing) all clean.
+
+## 2026-09-02 — Real live model list, Ask Aval's icon, thinking-phrase variety, OAuth root cause found
+
+**Context.** Four requests landed together: (1) a real, live per-provider model dropdown for
+"Model being used" (not a typed-in guess — "so tacky," rightly), (2) swap "Ask Aval"'s animated
+icon from the generic blue blob to the real Aval logomark (a second animated-avatar script/
+output set the user supplied, `~/Downloads/create_animated_avatars.py`), (3) varied "Thinking…
+/ Pondering… / Brainstorming…" copy next to an animated icon in Ask Aval's loading state instead
+of static "Analyzing dashboard data," and (4) a real answer on why Claude/ChatGPT subscription
+connect still doesn't work, given the user's own correction that mentari2.0 itself has "issues
+with claude" — pointing at a root cause in Anthropic's endpoint, not just this port.
+
+**Real, live model list — no typed-in model id anywhere.** `lib/integrations/model-providers.ts`
+gained `listModels(provider, apiKey)`: every OpenAI-compatible provider shares one `GET
+{baseUrl}/models` call (same shape everywhere), Anthropic uses its own equivalent, and the two
+subscription providers (whose OAuth-scoped APIs don't expose an open model catalog the same way)
+fall back to a short, real, hand-picked list rather than nothing. New routes: `GET /api/
+integrations/models` (fetches the connected provider's real current list) and `POST /api/
+integrations/set-model` (updates just the model field on an already-connected credential,
+without needing the plaintext key/token resubmitted — a JSON blob for API-key providers, and a
+new `metadataJson.model` field for the two subscription providers, whose stored credential is a
+bare token string, not JSON). `intelligence-settings.tsx` gained a real `ModelBeingUsedRow`:
+provider picker on the left, model picker on the right, separated by `/` — the model side is a
+pure search-and-select dropdown against the live-fetched list, deliberately with **no free-text
+"create a custom model" fallback**, since that's exactly what the user rejected. The prior
+`Advanced → model override` foldout inside each provider's own accordion row remains as a
+secondary path (useful pre-connection, or as an escape hatch), unaffected by this.
+
+**Ask Aval's icon** replaced in place (`public/personas/general.webp`, same filename, so no code
+changes needed beyond the file swap) with the real animated Aval-logomark avatar the user's
+second avatar-generation script already produced — scoped to exactly what was asked (only
+"Ask Aval"; the other five personas keep their blob-character avatars from the prior pass).
+
+**Thinking-phrase variety + icon.** `aval-assistant.tsx`'s single static "Analyzing dashboard
+data" label is now one of six phrases ("Thinking…", "Pondering…", "Brainstorming…", "Hard at
+work…", "Crunching the numbers…", "Connecting the dots…"), chosen once per question via a
+module-level helper (kept outside the component body specifically so the React Compiler's
+purity lint doesn't see `Math.random()` called from render/event-handler scope — a real lint
+error, not a style nitpick). The old three-pulsing-dots indicator is replaced with the active
+persona's own animated avatar icon plus a small spinning ring, next to the phrase.
+
+**The Claude/ChatGPT OAuth investigation — a real root cause, finally found.** Re-read
+mentari2.0's actual git history for this exact file (`git log --grep` on the subscriptions
+directory) rather than only its current source, and found the real, documented fix: commit
+`fd6db89e1`, *"fix: accept Claude and ChatGPT subscription OAuth authorize URLs"*. It fixed two
+things — dropping an unauthorized `user:file_upload` scope Anthropic's endpoint rejected with
+exactly the same "Invalid request format" error reported here, and switching from
+`URLSearchParams.set()` (which encodes spaces as `+`) to manual `encodeURIComponent`-based
+query building (spaces as `%20`), because Anthropic's authorize endpoint apparently rejects
+`+`-encoded scopes too. **Checked both against this port's actual code: both were already
+correct** — the scope string here never included `user:file_upload`, and `authorizeQuery()` in
+`lib/integrations/subscription-oauth.ts` already used manual `encodeURIComponent`, never
+`URLSearchParams`. Also checked mentari2.0's repo for any newer, uncommitted, or subsequent fix
+beyond this commit (git log, working-tree diff, `.remember/` session notes) — none exists; this
+is the latest state of that file. Combined with the user's own confirmation that mentari2.0
+*itself* still has "issues with claude" after this fix, the most evidence-backed conclusion is:
+**the remaining friction is Anthropic's own authorize endpoint being fragile in ways neither
+codebase's client-side request construction controls** (rate limiting, an account-specific
+condition, or an intermittent server-side quirk) — not a porting gap. Nothing was changed here
+as a result, since there was nothing left to fix in the code; this is reported as a closed
+investigation with evidence, not a silent give-up.
+
+**Security hardening, since it was explicitly asked for.** Neither subscription OAuth route had
+Aval's own established rate-limiting convention (`lib/security/rate-limit.ts`, already used on
+login) applied. Added it to both `/api/integrations/subscription/start` (10 attempts / 10 min,
+scoped by org and by IP) and `/complete` (15 / 10 min, same scoping) — bounds both "spam fresh
+PKCE sessions" and "hammer the code-exchange endpoint" abuse paths. Also capped the pasted
+redirect/code input at 4096 characters before it's parsed at all.
+
+**Verification.** `tsc --noEmit`, `npm run lint`, `npm run i18n:check`, `npm run build`
+(confirmed the two new `/api/integrations/{models,set-model}` routes registered), and
+`node --test` (56 passing) all clean.

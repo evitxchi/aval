@@ -6,8 +6,15 @@ import { encryptSecret } from "@/lib/integrations/crypto";
 import { getProvider } from "@/lib/integrations/catalog";
 import { exchangeSubscriptionCode, isSubscriptionProviderId, parsePastedAuthorization } from "@/lib/integrations/subscription-oauth";
 import { getApiIdentity } from "@/lib/integrations/session";
+import { clientIp, isRateLimited, recordAttempt } from "@/lib/security/rate-limit";
 
 const bindings = () => env as unknown as Record<string, string | undefined>;
+
+// A pasted code/URL is only ever valid once and expires in minutes — this
+// exists to bound repeated guesses against the exchange endpoint, not to
+// block normal retries of a mistyped paste.
+const COMPLETE_RULE = { limit: 15, windowMs: 10 * 60 * 1000 };
+const MAX_PASTED_INPUT_LENGTH = 4096;
 
 /**
  * POST /api/integrations/subscription/complete
@@ -24,10 +31,19 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => ({})) as { provider?: string; state?: string; pastedInput?: string };
   if (!body.provider || !isSubscriptionProviderId(body.provider)) return Response.json({ error: "Unknown subscription provider" }, { status: 400 });
   if (!body.state || !body.pastedInput) return Response.json({ error: "Missing authorization state or pasted input" }, { status: 400 });
+  if (body.pastedInput.length > MAX_PASTED_INPUT_LENGTH) return Response.json({ error: "That doesn't look like a valid code or redirect URL." }, { status: 400 });
   const provider = getProvider(body.provider);
   if (!provider) return Response.json({ error: "Unknown provider" }, { status: 400 });
   const encryptionKey = bindings().INTEGRATION_TOKEN_ENCRYPTION_KEY;
   if (!encryptionKey) return Response.json({ error: "Credential encryption is not configured" }, { status: 500 });
+
+  const scope = `subscription-complete:org:${identity.organizationId}`;
+  const ipScope = `subscription-complete:ip:${clientIp(request)}`;
+  if ((await isRateLimited(scope, COMPLETE_RULE)) || (await isRateLimited(ipScope, COMPLETE_RULE))) {
+    return Response.json({ error: "Too many attempts. Wait a few minutes and try again." }, { status: 429 });
+  }
+  await recordAttempt(scope);
+  await recordAttempt(ipScope);
 
   const db = getDb();
   const [pending] = await db.select().from(oauthStates).where(and(eq(oauthStates.state, body.state), eq(oauthStates.userId, identity.userId), eq(oauthStates.provider, provider.id))).limit(1);

@@ -5,8 +5,13 @@ import { getProvider } from "@/lib/integrations/catalog";
 import { isSubscriptionProviderId, startSubscriptionAuthorize } from "@/lib/integrations/subscription-oauth";
 import { getApiIdentity } from "@/lib/integrations/session";
 import { ensureOrganization } from "@/lib/integrations/organizations";
+import { clientIp, isRateLimited, recordAttempt } from "@/lib/security/rate-limit";
 
 const bindings = () => env as unknown as Record<string, string | undefined>;
+
+// Each start mints a fresh PKCE challenge/state row; nothing about a normal
+// connect flow needs more than a handful of these per org in ten minutes.
+const START_RULE = { limit: 10, windowMs: 10 * 60 * 1000 };
 
 /**
  * POST /api/integrations/subscription/start
@@ -25,6 +30,15 @@ export async function POST(request: Request) {
   if (!bindings().INTEGRATION_TOKEN_ENCRYPTION_KEY) return Response.json({ error: "Credential encryption is not configured" }, { status: 409 });
   const provider = getProvider(body.provider);
   if (!provider) return Response.json({ error: "Unknown provider" }, { status: 400 });
+
+  const scope = `subscription-start:org:${identity.organizationId}`;
+  const ipScope = `subscription-start:ip:${clientIp(request)}`;
+  if ((await isRateLimited(scope, START_RULE)) || (await isRateLimited(ipScope, START_RULE))) {
+    return Response.json({ error: "Too many connection attempts. Wait a few minutes and try again." }, { status: 429 });
+  }
+  await recordAttempt(scope);
+  await recordAttempt(ipScope);
+
   await ensureOrganization(identity);
 
   const session = await startSubscriptionAuthorize(body.provider);

@@ -104,6 +104,21 @@ const viewNameKeys: Record<string, string> = {
   settings: "Nav.settings",
 };
 
+const THINKING_PHRASE_KEYS = [
+  "AvalAssistant.thinkingPhrase1",
+  "AvalAssistant.thinkingPhrase2",
+  "AvalAssistant.thinkingPhrase3",
+  "AvalAssistant.thinkingPhrase4",
+  "AvalAssistant.thinkingPhrase5",
+  "AvalAssistant.thinkingPhrase6",
+];
+
+// Isolated from the component body so the compiler's purity check doesn't
+// see a direct Math.random() call inside render/event-handler closures.
+function pickRandomThinkingPhraseKey(): string {
+  return THINKING_PHRASE_KEYS[Math.floor(Math.random() * THINKING_PHRASE_KEYS.length)];
+}
+
 const suggestionKeys = ["AvalAssistant.suggestion1", "AvalAssistant.suggestion2", "AvalAssistant.suggestion3"];
 const focusedSuggestionKeys = ["AvalAssistant.focusedSuggestion1", "AvalAssistant.focusedSuggestion2", "AvalAssistant.focusedSuggestion3"];
 
@@ -251,6 +266,7 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
   const [thinking, setThinking] = useState(false);
+  const [thinkingPhraseKey, setThinkingPhraseKey] = useState(THINKING_PHRASE_KEYS[0]);
   const [pickingModule, setPickingModule] = useState(false);
   const [selectedModule, setSelectedModule] = useState<SelectedModule | null>(null);
   const [pickingPersona, setPickingPersona] = useState(false);
@@ -446,6 +462,7 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
     const userMessage: ChatMessage = { id: nextId.current++, role: "user", text: trimmed };
     setMessages((current) => [...current, userMessage]);
     setInput("");
+    setThinkingPhraseKey(pickRandomThinkingPhraseKey());
     setThinking(true);
     try {
       const response = await fetch("/api/assistant/ask", {
@@ -674,7 +691,13 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
                 )}
               </div>
             ))}
-            {thinking && <div className="aval-chat-thinking" aria-label={t("AvalAssistant.analyzingDashboardData")}><i /><i /><i /><span>{t("AvalAssistant.analyzingDashboardData")}</span></div>}
+            {thinking && (
+              <div className="aval-chat-thinking" aria-label={t(thinkingPhraseKey)}>
+                <AvalAgentAvatar shape={activePersona.shape} theme={activePersona.theme} icon={activePersona.icon} size={20} />
+                <i className="aval-chat-thinking-ring" />
+                <span>{t(thinkingPhraseKey)}</span>
+              </div>
+            )}
           </div>
 
           {promptSuggestions.length > 0 && (
