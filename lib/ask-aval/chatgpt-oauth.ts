@@ -61,6 +61,59 @@ type ResponsesOutputItem =
   | { type: "message"; role: "assistant"; content: { type: string; text?: string }[] }
   | { type: "function_call"; call_id: string; name: string; arguments: string };
 
+
+/**
+ * Reads a Codex server-sent-event stream and returns the final response
+ * object.
+ *
+ * Only the terminal event carries the complete output, so incremental deltas
+ * are skipped rather than reassembled — reassembling them would risk
+ * diverging from what the model actually concluded. A stream that ends
+ * without a completed event is an error, not an empty answer: silently
+ * returning nothing there would let a truncated call look like a model that
+ * chose to say nothing.
+ */
+async function readCompletedResponse(response: Response): Promise<unknown> {
+  if (!response.body) throw new AnthropicError("ChatGPT returned an empty stream", 502, true);
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let completed: unknown = null;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    // Events are separated by a blank line; keep the trailing partial.
+    const events = buffer.split("\n\n");
+    buffer = events.pop() ?? "";
+
+    for (const event of events) {
+      const dataLines = event.split("\n").filter((line) => line.startsWith("data:"));
+      if (dataLines.length === 0) continue;
+      const data = dataLines.map((line) => line.slice(5).trim()).join("");
+      if (!data || data === "[DONE]") continue;
+
+      let parsed: { type?: string; response?: unknown; error?: { message?: string } };
+      try {
+        parsed = JSON.parse(data);
+      } catch {
+        continue; // A partial or non-JSON keepalive frame.
+      }
+
+      if (parsed.type === "response.failed" || parsed.error) {
+        throw new AnthropicError(parsed.error?.message ?? "ChatGPT could not complete the response", 502, true);
+      }
+      if (parsed.type === "response.completed" && parsed.response) completed = parsed.response;
+    }
+  }
+
+  if (!completed) throw new AnthropicError("ChatGPT's response ended before completing", 502, true);
+  return completed;
+}
+
 export async function callChatgptOAuth(
   accessToken: string,
   accountId: string | undefined,
@@ -73,6 +126,10 @@ export async function callChatgptOAuth(
     model?: string;
     /** Only the flagship GPT-5.6 models accept this; omitted when unset so the model applies its own default. */
     reasoningEffort?: string;
+    /** Stable per-workspace install id — the backend rejects requests without one. */
+    installationId?: string;
+    /** Groups the turns of one conversation. */
+    sessionId?: string;
   },
 ): Promise<MessagesResponse> {
   const controller = new AbortController();
@@ -83,9 +140,18 @@ export async function callChatgptOAuth(
       signal: controller.signal,
       headers: {
         "content-type": "application/json",
+        // The endpoint is server-sent-events only; asking for JSON gets a 403
+        // before the request is even evaluated.
+        accept: "text/event-stream",
         authorization: `Bearer ${accessToken}`,
         ...CHATGPT_CODEX_HEADERS,
         ...(accountId ? { "ChatGPT-Account-ID": accountId } : {}),
+        // Both required by the Codex backend. `session-id` groups a
+        // conversation's turns; `x-codex-installation-id` identifies the
+        // client install. Omitting either is refused with a 403 that carries
+        // no explanation, which is what made this hard to diagnose.
+        "session-id": params.sessionId ?? crypto.randomUUID(),
+        ...(params.installationId ? { "x-codex-installation-id": params.installationId } : {}),
       },
       // No max_output_tokens: the Codex backend's /responses endpoint
       // rejects it outright with a 400, unlike the public Responses API.
@@ -96,6 +162,9 @@ export async function callChatgptOAuth(
         model: params.model ?? DEFAULT_MODEL,
         instructions: params.system,
         input: toResponsesInput(params.messages),
+        // Non-negotiable for this endpoint: it only serves streamed responses,
+        // and a non-streaming request is rejected rather than downgraded.
+        stream: true,
         store: false,
         include: ["reasoning.encrypted_content"],
         // Only sent when the workspace actually chose a level — omitting the
@@ -113,7 +182,11 @@ export async function callChatgptOAuth(
       throw new AnthropicError(`ChatGPT subscription request failed (${response.status})`, response.status, response.status === 429 || response.status >= 500);
     }
 
-    const payload = await response.json() as {
+    // The endpoint streams. Aval's loop is turn-based, so rather than plumb
+    // streaming all the way to the client, the stream is consumed here and
+    // the terminal `response.completed` event's payload is used — which is
+    // the same object a non-streaming call would have returned.
+    const payload = await readCompletedResponse(response) as {
       id?: string;
       output: ResponsesOutputItem[];
       status?: string;

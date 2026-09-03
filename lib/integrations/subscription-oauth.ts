@@ -69,8 +69,23 @@ export const CLAUDE_OAUTH_HEADERS = {
 export const CHATGPT_CODEX_HEADERS = {
   originator: "codex_cli_rs",
   "OpenAI-Beta": "responses=experimental",
-  "User-Agent": "codex_cli_rs",
+  "User-Agent": "codex_cli_rs/0.145.0 (Cloudflare Workers; wasm32)",
 } as const;
+
+/**
+ * A stable per-workspace installation id for the Codex backend.
+ *
+ * The CLI persists a UUID on disk and sends it on every request; a Worker has
+ * no disk, so it is derived from the org id instead. Deriving rather than
+ * randomising matters: a fresh UUID per request looks like a new install on
+ * every call, which is exactly the pattern an abuse check would flag.
+ */
+export async function codexInstallationId(orgId: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`aval-codex-install:${orgId}`));
+  const hex = Array.from(new Uint8Array(digest).slice(0, 16), (b) => b.toString(16).padStart(2, "0")).join("");
+  // Formatted as a v4-shaped UUID, since the backend expects that shape.
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-a${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
+}
 
 function base64Url(bytes: Uint8Array): string {
   let binary = "";

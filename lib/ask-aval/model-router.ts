@@ -15,7 +15,7 @@ import { getDb } from "@/db";
 import { integrationConnections, organizations } from "@/db/schema";
 import { decryptSecret, encryptSecret } from "@/lib/integrations/crypto";
 import { getProvider } from "@/lib/integrations/catalog";
-import { isCredentialFresh, isSubscriptionProviderId, refreshSubscriptionCredential, type SubscriptionProviderId } from "@/lib/integrations/subscription-oauth";
+import { codexInstallationId, isCredentialFresh, isSubscriptionProviderId, refreshSubscriptionCredential, type SubscriptionProviderId } from "@/lib/integrations/subscription-oauth";
 import { callClaude, type AskAvalEnv, type Message, type MessagesResponse, type ToolSchema } from "./anthropic";
 import { callOpenAiCompatible } from "./openai-compatible";
 import { callClaudeOAuth } from "./claude-oauth";
@@ -110,7 +110,14 @@ export async function callModel(env: AskAvalEnv, orgId: string, params: CallPara
 
   if (override.kind === "subscription") {
     if (override.providerId === "claude") return callClaudeOAuth(override.accessToken, { ...params, model: override.model });
-    return callChatgptOAuth(override.accessToken, override.accountId, { ...params, model: override.model, reasoningEffort: override.reasoningEffort ?? params.reasoningEffort });
+    return callChatgptOAuth(override.accessToken, override.accountId, {
+      ...params,
+      model: override.model,
+      reasoningEffort: override.reasoningEffort ?? params.reasoningEffort,
+      // Derived from the org id so it is stable per workspace — a fresh id
+      // on every call would look like a new install each time.
+      installationId: await codexInstallationId(orgId),
+    });
   }
 
   if (override.providerId === "anthropic") {
