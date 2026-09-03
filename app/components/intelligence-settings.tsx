@@ -458,6 +458,8 @@ function ModelBeingUsedRow({ providers, activeProvider, activeEntry, onSwitchPro
   const [modelsUnverified, setModelsUnverified] = useState(false);
   // The token was sent and refused, which needs a reconnect rather than a retry.
   const [modelsRejected, setModelsRejected] = useState(false);
+  // The provider's own error text, shown so a failure can be acted on.
+  const [modelsDetail, setModelsDetail] = useState("");
   const [loadingModels, setLoadingModels] = useState(false);
   const [savingModel, setSavingModel] = useState(false);
 
@@ -470,11 +472,12 @@ function ModelBeingUsedRow({ providers, activeProvider, activeEntry, onSwitchPro
     setModelsError(null);
     try {
       const response = await fetch(`/api/integrations/models?provider=${encodeURIComponent(activeProvider)}`);
-      const data = await response.json() as { models?: string[]; error?: string; verified?: boolean; unverifiedReason?: string | null };
+      const data = await response.json() as { models?: string[]; error?: string; verified?: boolean; unverifiedReason?: string | null; unverifiedDetail?: string | null };
       if (!response.ok) throw new Error(data.error ?? t("IntelligenceSettings.modelListFailed"));
       setModels(data.models ?? []);
       setModelsUnverified(data.verified === false);
       setModelsRejected(data.unverifiedReason === "credential_rejected");
+      setModelsDetail(data.unverifiedDetail ?? "");
     } catch (error) {
       setModelsError(error instanceof Error ? error.message : t("IntelligenceSettings.modelListFailed"));
     } finally {
@@ -543,6 +546,7 @@ function ModelBeingUsedRow({ providers, activeProvider, activeEntry, onSwitchPro
               {!modelsError && modelsUnverified && (
                 <p className="intelligence-model-menu-status warn">
                   {modelsRejected ? t("IntelligenceSettings.modelsCredentialRejected") : t("IntelligenceSettings.modelsUnverified")}
+                  {modelsDetail && <span className="intelligence-model-menu-detail">{modelsDetail}</span>}
                 </p>
               )}
               {!loadingModels && !modelsError && filteredModels.map((id) => (

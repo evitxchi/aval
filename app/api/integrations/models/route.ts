@@ -58,6 +58,9 @@ export async function GET(request: Request) {
       // than presenting a fallback as the account's real catalog.
       verified: result.verified,
       unverifiedReason: result.reason ?? null,
+      // The provider's own words, so a failure is diagnosable from the UI
+      // rather than only from Worker logs the user cannot see.
+      unverifiedDetail: result.detail ?? null,
       defaultModel: catalogEntry.defaultModel ?? null,
     });
   } catch (error) {

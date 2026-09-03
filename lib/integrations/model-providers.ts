@@ -27,10 +27,29 @@ export async function verifyModelProviderKey(provider: string, apiKey: string): 
   return { accountId: provider, accountName: `${catalogEntry.title} account`, metadata: { modelCount: Array.isArray(payload.data) ? payload.data.length : undefined } };
 }
 
+/**
+ * Extracts a usable reason from a failed provider response.
+ *
+ * Reads the body as text first, then tries JSON — the previous version only
+ * parsed JSON, so any provider answering a 4xx with HTML or plain text (which
+ * the Codex backend and the edge in front of it both do) had its actual
+ * reason discarded and replaced with a generic message. That is how a
+ * specific, diagnosable refusal became an unhelpful "connection refused".
+ */
 async function describeError(response: Response): Promise<string> {
-  const body = await response.json().catch(() => null) as { error?: { message?: string } | string; message?: string } | null;
-  const detail = typeof body?.error === "string" ? body.error : body?.error?.message ?? body?.message;
-  return detail ?? `Provider returned ${response.status}. Double-check the key and try again.`;
+  const raw = await response.text().catch(() => "");
+  let detail: string | undefined;
+  try {
+    const body = JSON.parse(raw) as { error?: { message?: string } | string; message?: string; detail?: string };
+    detail = typeof body.error === "string" ? body.error : body.error?.message ?? body.message ?? body.detail;
+  } catch {
+    // Not JSON. Use the text, trimmed — an HTML error page is mostly markup,
+    // so only a short prefix is worth showing.
+    const text = raw.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+    detail = text ? text.slice(0, 200) : undefined;
+  }
+  console.error("model_provider_error", response.status, raw.slice(0, 800));
+  return detail ? `${response.status}: ${detail}` : `Provider returned ${response.status}.`;
 }
 
 export function isModelProviderId(id: string): id is ProviderId {
@@ -114,7 +133,7 @@ async function listChatgptCodexModels(accessToken: string, accountId?: string, i
  * them as confirmed, because a model this account cannot call will fail at
  * send time and the user deserves to know that is possible before choosing.
  */
-export async function listModelsDetailed(provider: string, apiKey: string, accountId?: string, installationId?: string): Promise<{ models: string[]; verified: boolean; reason?: string }> {
+export async function listModelsDetailed(provider: string, apiKey: string, accountId?: string, installationId?: string): Promise<{ models: string[]; verified: boolean; reason?: string; detail?: string }> {
   if (provider === "chatgpt") {
     try {
       const models = await listChatgptCodexModels(apiKey, accountId, installationId);
@@ -126,11 +145,16 @@ export async function listModelsDetailed(provider: string, apiKey: string, accou
       // rejected — the connection is stale, not the network. That is
       // actionable ("reconnect") in a way a generic failure isn't, so it is
       // reported distinctly rather than folded into one vague warning.
+      // The message is passed through even for a rejection: collapsing every
+      // 401/403 into one label hid which of several distinct causes it was
+      // (stale token, missing header, account setting), and each needs a
+      // different fix.
       const rejected = /\b401\b|\b403\b|unauthor|forbidden/i.test(message);
       return {
         models: SUBSCRIPTION_MODELS.chatgpt,
         verified: false,
         reason: rejected ? "credential_rejected" : message,
+        detail: message,
       };
     }
   }

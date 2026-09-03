@@ -1283,6 +1283,7 @@ html.aval-module-picking .content-shell { cursor: crosshair; }
 .intelligence-model-menu-status { margin: 4px 9px; padding: 6px 0; color: var(--quiet); font-size: 9px; }
 .intelligence-model-menu-status.error { color: var(--viz-red); }
 .intelligence-model-menu-status.warn { color: var(--viz-orange); }
+.intelligence-model-menu-detail { display: block; margin-top: 5px; color: var(--quiet); font: 8px ui-monospace, SFMono-Regular, Menlo, monospace; line-height: 1.5; overflow-wrap: anywhere; }
 .intelligence-model-menu-footer { display: flex; justify-content: flex-end; padding: 4px; border-top: 1px solid var(--line); margin: 4px -6px 0; }
 .intelligence-model-menu-footer button { min-height: 26px; padding: 0 6px; border: 0; background: transparent; color: var(--quiet); cursor: pointer; }
 .intelligence-model-menu-footer button:hover { color: var(--ink); }
