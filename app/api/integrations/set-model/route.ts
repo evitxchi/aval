@@ -3,7 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { integrationConnections } from "@/db/schema";
 import { decryptSecret, encryptSecret } from "@/lib/integrations/crypto";
-import { isModelProviderId } from "@/lib/integrations/model-providers";
+import { REASONING_EFFORT_LEVELS, isModelProviderId } from "@/lib/integrations/model-providers";
 import { isSubscriptionProviderId } from "@/lib/integrations/subscription-oauth";
 import { getApiIdentity } from "@/lib/integrations/session";
 
@@ -22,9 +22,13 @@ const bindings = () => env as unknown as Record<string, string | undefined>;
 export async function POST(request: Request) {
   const identity = await getApiIdentity(request);
   if (!identity) return Response.json({ error: "Authentication required" }, { status: 401 });
-  const body = await request.json().catch(() => ({})) as { provider?: string; model?: string };
+  const body = await request.json().catch(() => ({})) as { provider?: string; model?: string; reasoningEffort?: string };
   if (!body.provider || !isModelProviderId(body.provider)) return Response.json({ error: "Unknown provider" }, { status: 400 });
   const model = (body.model ?? "").trim();
+  // Validated against the fixed set rather than stored as free text, so a
+  // malformed value can't reach the provider and 400 the whole request.
+  const effortInput = (body.reasoningEffort ?? "").trim();
+  const reasoningEffort = (REASONING_EFFORT_LEVELS as readonly string[]).includes(effortInput) ? effortInput : "";
 
   const db = getDb();
   const [connection] = await db.select().from(integrationConnections)
@@ -36,8 +40,9 @@ export async function POST(request: Request) {
   if (isSubscriptionProviderId(body.provider)) {
     const metadata = JSON.parse(connection.metadataJson || "{}") as Record<string, unknown>;
     metadata.model = model || undefined;
+    metadata.reasoningEffort = reasoningEffort || undefined;
     await db.update(integrationConnections).set({ metadataJson: JSON.stringify(metadata), updatedAt: now }).where(eq(integrationConnections.id, connection.id));
-    return Response.json({ provider: body.provider, model: model || null });
+    return Response.json({ provider: body.provider, model: model || null, reasoningEffort: reasoningEffort || null });
   }
 
   const encryptionKey = bindings().INTEGRATION_TOKEN_ENCRYPTION_KEY;
@@ -48,7 +53,7 @@ export async function POST(request: Request) {
     credentials.model = model || undefined;
     const accessTokenCiphertext = await encryptSecret(JSON.stringify(credentials), encryptionKey);
     await db.update(integrationConnections).set({ accessTokenCiphertext, updatedAt: now }).where(eq(integrationConnections.id, connection.id));
-    return Response.json({ provider: body.provider, model: model || null });
+    return Response.json({ provider: body.provider, model: model || null, reasoningEffort: reasoningEffort || null });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "Could not update the model." }, { status: 500 });
   }

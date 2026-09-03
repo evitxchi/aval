@@ -5,6 +5,7 @@ import type { FormEvent } from "react";
 import { useTranslations } from "next-intl";
 import { Check, NavArrowDown, Refresh, Search, ShieldCheck } from "iconoir-react";
 import { BrandMark } from "@/app/components/brand-mark";
+import { REASONING_EFFORT_LEVELS, modelOptionsFor, supportsReasoningEffort } from "@/lib/integrations/model-providers";
 import { Foldout } from "@/app/components/foldout";
 import type { Provider } from "@/app/components/connection-dialog";
 
@@ -39,6 +40,9 @@ function ProviderAccordionRow({ provider, twin, isOpen, onToggle, isActive, swit
   const [authMode, setAuthMode] = useState<AuthMode>(twinConnected ? "subscription" : "apiKey");
   const [apiKey, setApiKey] = useState("");
   const [model, setModel] = useState("");
+  // Reasoning effort is a per-request parameter the flagship models accept,
+  // stored alongside the model override rather than folded into the id.
+  const [effort, setEffort] = useState("");
   const [status, setStatus] = useState<"idle" | "working" | "error">("idle");
   const [message, setMessage] = useState("");
   const [subscriptionSession, setSubscriptionSession] = useState<SubscriptionSession | null>(null);
@@ -281,16 +285,35 @@ function ProviderAccordionRow({ provider, twin, isOpen, onToggle, isActive, swit
 
           {provider.defaultModel && (
             <Foldout summary={t("ConnectionDialog.advanced")}>
+              {/* A picker, not a text field: a typo in a model id fails at
+                  send time with a provider error that reads like a broken
+                  integration, and "enter an exact model id from this
+                  provider's docs" makes the user do research for no gain. */}
               <label>
                 {t("ConnectionDialog.modelOverrideLabel")}
-                <input type="text" value={model} placeholder={provider.defaultModel} onChange={(event) => setModel(event.target.value)} autoComplete="off" />
+                <select className="model-select" value={model} onChange={(event) => setModel(event.target.value)}>
+                  <option value="">{t("ConnectionDialog.modelRecommended", { model: provider.defaultModel })}</option>
+                  {modelOptionsFor(provider.id).map((id) => <option key={id} value={id}>{id}</option>)}
+                </select>
               </label>
+              {supportsReasoningEffort(model || provider.defaultModel) && (
+                <label>
+                  {t("ConnectionDialog.reasoningEffortLabel")}
+                  <select className="model-select" value={effort} onChange={(event) => setEffort(event.target.value)}>
+                    <option value="">{t("ConnectionDialog.reasoningEffortDefault")}</option>
+                    {REASONING_EFFORT_LEVELS.map((level) => <option key={level} value={level}>{level}</option>)}
+                  </select>
+                </label>
+              )}
               <p className="foldout-hint">{t("ConnectionDialog.modelOverrideHint")}</p>
             </Foldout>
           )}
 
+          {/* A soft-button, not .wide-button: "Use this" is two words, and a
+              full-width bar for it both overflows this row's padding and reads
+              as far more consequential than switching providers is. */}
           {(connected || twinConnected) && !isActive && (
-            <button type="button" className="wide-button" disabled={switching} onClick={() => onSetActive(connected ? provider.id : (twin as Provider).id)}>
+            <button type="button" className="soft-button" disabled={switching} onClick={() => onSetActive(connected ? provider.id : (twin as Provider).id)}>
               {t("IntelligenceSettings.useThis")}
             </button>
           )}

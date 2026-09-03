@@ -71,6 +71,8 @@ export async function callChatgptOAuth(
     tool_choice?: { type: "auto" | "any" | "tool"; name?: string };
     timeout_ms?: number;
     model?: string;
+    /** Only the flagship GPT-5.6 models accept this; omitted when unset so the model applies its own default. */
+    reasoningEffort?: string;
   },
 ): Promise<MessagesResponse> {
   const controller = new AbortController();
@@ -96,6 +98,10 @@ export async function callChatgptOAuth(
         input: toResponsesInput(params.messages),
         store: false,
         include: ["reasoning.encrypted_content"],
+        // Only sent when the workspace actually chose a level — omitting the
+        // field entirely lets the model apply its own default, which is not
+        // the same as pinning it to "medium".
+        ...(params.reasoningEffort ? { reasoning: { effort: params.reasoningEffort } } : {}),
         ...(params.tools ? { tools: toResponsesTools(params.tools) } : {}),
         ...(params.tool_choice ? { tool_choice: toResponsesToolChoice(params.tool_choice) } : {}),
       }),

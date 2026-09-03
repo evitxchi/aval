@@ -235,6 +235,15 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--ink); outli
 .subscription-paste-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .subscription-paste-actions .text-button { font-size: 10px; }
 
+.model-select { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink); font: inherit; font-size: 11px; cursor: pointer; }
+.model-select:focus { outline: none; border-color: var(--line-strong); }
+
+.aval-chat-error { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--viz-orange) 40%, var(--line)); border-radius: 14px; background: color-mix(in srgb, var(--viz-orange) 7%, var(--surface)); }
+.aval-chat-error > svg { flex-shrink: 0; margin-top: 1px; color: var(--viz-orange); }
+.aval-chat-error > div { display: grid; gap: 3px; min-width: 0; }
+.aval-chat-error strong { font-size: 11px; font-weight: 600; }
+.aval-chat-error p { margin: 0; font-size: 10px; line-height: 1.5; color: var(--muted); overflow-wrap: anywhere; }
+
 /* Documents ------------------------------------------------------------ */
 .guest-warning { display: flex; gap: 12px; align-items: flex-start; padding: 16px 18px !important; border-color: var(--viz-orange) !important; background: color-mix(in srgb, var(--viz-orange) 7%, var(--surface)) !important; }
 .guest-warning > svg { flex-shrink: 0; margin-top: 1px; color: var(--viz-orange); }
@@ -1033,7 +1042,6 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--ink); outli
 .aval-chat-confidence.low { color: var(--viz-amber); }
 .aval-chat-answer > p { margin: 0; color: var(--muted); font-size: 9px; line-height: 1.55; }
 .aval-chat-document { padding: 11px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-soft); color: var(--muted); font-size: 9.5px; line-height: 1.6; max-height: 260px; overflow-y: auto; }
-.aval-chat-answer > p.aval-chat-sample-note { margin: 2px 0 0; color: var(--quiet); font-size: 7.5px; font-style: italic; }
 .aval-chat-chart { display: grid; gap: 5px; }
 .aval-chat-chart > p { margin: 0; color: var(--quiet); font-size: 8px; text-transform: uppercase; letter-spacing: .04em; }
 .aval-chat-chart-line { fill: none; stroke: var(--ink); stroke-width: 1.5; }

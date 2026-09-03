@@ -49,10 +49,14 @@ export function isModelProviderId(id: string): id is ProviderId {
 const SUBSCRIPTION_MODELS: Record<string, string[]> = {
   claude: ["claude-sonnet-5", "claude-opus-5", "claude-fable-5-1", "claude-haiku-4-5-20251001"],
   // Used only when live discovery fails, and surfaced to the user as
-  // unverified when it is (see listModels). An empty picker leaves someone
-  // unable to pick anything at all; a labelled fallback lets them proceed
-  // while still saying the list could not be confirmed against the account.
-  chatgpt: ["gpt-5.1-codex", "gpt-5.1-codex-mini", "gpt-5-codex"],
+  // unverified when it is (see listModelsDetailed). An empty picker leaves
+  // someone unable to pick anything at all; a labelled fallback lets them
+  // proceed while still saying the list could not be confirmed.
+  //
+  // The current flagship family per OpenAI's model docs. `gpt-5.6` is an
+  // alias for `gpt-5.6-sol` and is listed separately because a user who
+  // knows the alias should be able to find it by name.
+  chatgpt: ["gpt-5.6-sol", "gpt-5.6", "gpt-5.6-terra", "gpt-5.6-luna"],
 };
 
 /** Pinned in the query string the way the Codex CLI pins it; the backend gates its response on it. */
@@ -143,4 +147,50 @@ export async function listModels(provider: string, apiKey: string, accountId?: s
   if (!response.ok) throw new Error(await describeError(response));
   const payload = await response.json().catch(() => ({})) as { data?: { id?: string }[] };
   return (payload.data ?? []).map((model) => model.id).filter((id): id is string => typeof id === "string");
+}
+
+
+/**
+ * Reasoning effort levels the flagship GPT-5.6 models accept.
+ *
+ * Deliberately separate from the model list: effort is a per-request
+ * parameter, not a model, and folding the two together would produce a picker
+ * with two dozen fake "models" that don't exist as ids.
+ */
+export const REASONING_EFFORT_LEVELS = ["none", "low", "medium", "high", "xhigh", "max"] as const;
+export type ReasoningEffort = (typeof REASONING_EFFORT_LEVELS)[number];
+
+/** Whether a model id accepts a reasoning-effort setting. */
+export function supportsReasoningEffort(model: string): boolean {
+  return /^gpt-5\.6(-(sol|terra|luna))?$/.test(model.trim());
+}
+
+/**
+ * Known model ids per provider, for the picker to offer before (or instead of)
+ * a live catalog call.
+ *
+ * A curated list rather than free text: a typo in a model id fails at send
+ * time with a provider error that reads like a broken integration, and asking
+ * a property manager to "enter an exact model id from this provider's docs"
+ * pushes a research task onto them for no benefit. Where a provider publishes
+ * a live catalog, discovery still wins — this is the floor, not the ceiling.
+ */
+export const KNOWN_MODELS: Record<string, string[]> = {
+  openai: ["gpt-5.6-sol", "gpt-5.6", "gpt-5.6-terra", "gpt-5.6-luna"],
+  chatgpt: ["gpt-5.6-sol", "gpt-5.6", "gpt-5.6-terra", "gpt-5.6-luna"],
+  anthropic: ["claude-opus-5", "claude-sonnet-5", "claude-fable-5-1", "claude-haiku-4-5-20251001"],
+  claude: ["claude-opus-5", "claude-sonnet-5", "claude-fable-5-1", "claude-haiku-4-5-20251001"],
+  google_gemini: ["gemini-2.5-pro", "gemini-2.5-flash"],
+  openrouter: ["anthropic/claude-sonnet-4.5", "openai/gpt-5.6", "google/gemini-2.5-pro"],
+  moonshot: ["kimi-k2-turbo-preview", "moonshot-v1-128k"],
+  zai: ["glm-4.6", "glm-4.5-air"],
+  deepseek: ["deepseek-chat", "deepseek-reasoner"],
+  alibaba_model_studio: ["qwen-max", "qwen-plus", "qwen-turbo"],
+  siliconflow: ["deepseek-ai/DeepSeek-V3", "Qwen/Qwen2.5-72B-Instruct"],
+};
+
+/** The ids to offer for a provider, preferring a live list when one was fetched. */
+export function modelOptionsFor(provider: string, discovered?: string[] | null): string[] {
+  if (discovered && discovered.length > 0) return discovered;
+  return KNOWN_MODELS[provider] ?? [];
 }
