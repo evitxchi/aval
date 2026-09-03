@@ -23,13 +23,14 @@ type AuthMode = "apiKey" | "subscription";
  * of description, one connect action, one footer link) rather than this
  * page's earlier denser layout.
  */
-function ProviderAccordionRow({ provider, twin, isOpen, onToggle, isActive, switching, onSetActive, onRefresh }: {
+function ProviderAccordionRow({ provider, twin, isOpen, onToggle, isActive, switching, apiKeySetupRequest, onSetActive, onRefresh }: {
   provider: Provider;
   twin: Provider | null;
   isOpen: boolean;
   onToggle: () => void;
   isActive: boolean;
   switching: boolean;
+  apiKeySetupRequest: number;
   onSetActive: (providerId: string) => void;
   onRefresh: () => void;
 }) {
@@ -37,7 +38,7 @@ function ProviderAccordionRow({ provider, twin, isOpen, onToggle, isActive, swit
   const connected = provider.connection?.status === "connected";
   const twinConnected = twin?.connection?.status === "connected";
 
-  const [authMode, setAuthMode] = useState<AuthMode>(twinConnected ? "subscription" : "apiKey");
+  const [authMode, setAuthMode] = useState<AuthMode>(apiKeySetupRequest > 0 ? "apiKey" : twinConnected ? "subscription" : "apiKey");
   const [apiKey, setApiKey] = useState("");
   const [model, setModel] = useState("");
   // Reasoning effort is a per-request parameter the flagship models accept,
@@ -58,6 +59,16 @@ function ProviderAccordionRow({ provider, twin, isOpen, onToggle, isActive, swit
   const [needsDeviceAuth, setNeedsDeviceAuth] = useState(false);
   const [subscriptionStatus, setSubscriptionStatus] = useState<"idle" | "working" | "error">("idle");
   const [subscriptionError, setSubscriptionError] = useState("");
+  const apiKeyInput = useRef<HTMLInputElement>(null);
+
+  // The blocked ChatGPT picker links straight to the usable alternative.
+  // Open this row in API-key mode and put the cursor where the user needs it,
+  // even when their connected subscription would normally make that row open
+  // on the subscription tab.
+  useEffect(() => {
+    if (apiKeySetupRequest === 0) return;
+    window.requestAnimationFrame(() => apiKeyInput.current?.focus());
+  }, [apiKeySetupRequest]);
 
   const connectApiKey = async (event: FormEvent) => {
     event.preventDefault();
@@ -248,7 +259,7 @@ function ProviderAccordionRow({ provider, twin, isOpen, onToggle, isActive, swit
   }, [subscriptionSession, tryClipboardHandoff]);
 
   return (
-    <div className={`provider-row ${isOpen ? "is-open" : ""} ${isActive ? "active" : ""}`}>
+    <div className={`provider-row ${isOpen ? "is-open" : ""} ${isActive ? "active" : ""}`} data-provider-id={provider.id}>
       <button type="button" className="provider-row-summary" aria-expanded={isOpen} onClick={onToggle}>
         <BrandMark provider={provider.id} small />
         <span className="provider-row-name">{provider.title}</span>
@@ -277,7 +288,7 @@ function ProviderAccordionRow({ provider, twin, isOpen, onToggle, isActive, swit
               <form className="credential-form" onSubmit={connectApiKey}>
                 <label>
                   {t("IntelligenceSettings.apiKeyLabel")}
-                  <input type="password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} autoComplete="off" required />
+                  <input ref={apiKeyInput} type="password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} autoComplete="off" required />
                 </label>
                 <button className="soft-button" type="submit" disabled={status === "working" || !apiKey}>
                   {status === "working" ? t("IntelligenceSettings.connecting") : t("IntelligenceSettings.connect")}
@@ -440,11 +451,12 @@ function ProviderAccordionRow({ provider, twin, isOpen, onToggle, isActive, swit
  * live list to fetch (there's nothing to pick between), so it renders as
  * plain text instead of a combobox.
  */
-function ModelBeingUsedRow({ providers, activeProvider, activeEntry, onSwitchProvider, onModelChanged }: {
+function ModelBeingUsedRow({ providers, activeProvider, activeEntry, onSwitchProvider, onConfigureProvider, onModelChanged }: {
   providers: Provider[];
   activeProvider: string | null;
   activeEntry: Provider | undefined;
   onSwitchProvider: (providerId: string | null) => void;
+  onConfigureProvider: (providerId: string) => void;
   onModelChanged: () => void;
 }) {
   const t = useTranslations();
@@ -535,39 +547,80 @@ function ModelBeingUsedRow({ providers, activeProvider, activeEntry, onSwitchPro
         </div>
         <span className="intelligence-model-row-divider">/</span>
         <div className="intelligence-model-picker">
-          <button type="button" className="intelligence-model-picker-trigger" onClick={openModelMenu} disabled={!activeProvider}>
-            <span>{currentModel}</span>
-            {activeProvider && <Check width={14} height={14} className="intelligence-model-check" />}
+          <button
+            type="button"
+            className={`intelligence-model-picker-trigger ${modelsEdgeBlocked ? "unavailable" : ""}`}
+            onClick={openModelMenu}
+            disabled={!activeProvider}
+            aria-label={modelsEdgeBlocked ? t("IntelligenceSettings.modelsEdgeBlockedTitle") : undefined}
+          >
+            {modelsEdgeBlocked ? (
+              <>
+                <WarningTriangle width={14} height={14} className="intelligence-model-trigger-warning" />
+                <span>{t("IntelligenceSettings.modelUnavailableShort")}</span>
+              </>
+            ) : (
+              <>
+                <span>{currentModel}</span>
+                {activeProvider && <Check width={14} height={14} className="intelligence-model-check" />}
+              </>
+            )}
           </button>
           {modelMenuOpen && activeProvider && (
-            <div className="menu-popover intelligence-model-menu intelligence-model-search-menu">
-              <label className="intelligence-model-search">
-                <Search width={13} height={13} />
-                <input value={modelSearch} onChange={(event) => setModelSearch(event.target.value)} placeholder={t("IntelligenceSettings.searchModels")} />
-              </label>
-              {loadingModels && <p className="intelligence-model-menu-status">{t("IntelligenceSettings.loadingModels")}</p>}
-              {modelsError && <p className="intelligence-model-menu-status error">{modelsError}</p>}
-              {!modelsError && modelsUnverified && (
-                <p className="intelligence-model-menu-status warn">
-                  {modelsEdgeBlocked
-                    ? t("IntelligenceSettings.modelsEdgeBlocked")
-                    : modelsRejected
-                    ? t("IntelligenceSettings.modelsCredentialRejected")
-                    : t("IntelligenceSettings.modelsUnverified")}
-                  {modelsDetail && <span className="intelligence-model-menu-detail">{modelsDetail}</span>}
-                </p>
+            <div className={`menu-popover intelligence-model-menu intelligence-model-search-menu ${modelsEdgeBlocked ? "edge-blocked" : ""}`}>
+              {modelsEdgeBlocked ? (
+                <div className="intelligence-model-unavailable" role="status">
+                  <div className="intelligence-model-unavailable-head">
+                    <span className="intelligence-model-warning-tile" aria-hidden="true">
+                      <WarningTriangle width={18} height={18} />
+                    </span>
+                    <strong>{t("IntelligenceSettings.modelsEdgeBlockedTitle")}</strong>
+                  </div>
+                  <p>{t("IntelligenceSettings.modelsEdgeBlockedBody")}</p>
+                  <button
+                    type="button"
+                    className="intelligence-model-unavailable-primary"
+                    onClick={() => { onSwitchProvider(null); setModelMenuOpen(false); }}
+                  >
+                    {t("IntelligenceSettings.useAvalIntelligence")}
+                  </button>
+                  <button
+                    type="button"
+                    className="intelligence-model-unavailable-secondary"
+                    onClick={() => { setModelMenuOpen(false); onConfigureProvider("openai"); }}
+                  >
+                    {t("IntelligenceSettings.setUpOpenAiApiKey")}
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <label className="intelligence-model-search">
+                    <Search width={13} height={13} />
+                    <input value={modelSearch} onChange={(event) => setModelSearch(event.target.value)} placeholder={t("IntelligenceSettings.searchModels")} />
+                  </label>
+                  {loadingModels && <p className="intelligence-model-menu-status">{t("IntelligenceSettings.loadingModels")}</p>}
+                  {modelsError && <p className="intelligence-model-menu-status error">{modelsError}</p>}
+                  {!modelsError && modelsUnverified && (
+                    <p className="intelligence-model-menu-status warn">
+                      {modelsRejected
+                        ? t("IntelligenceSettings.modelsCredentialRejected")
+                        : t("IntelligenceSettings.modelsUnverified")}
+                      {modelsDetail && <span className="intelligence-model-menu-detail">{modelsDetail}</span>}
+                    </p>
+                  )}
+                  {!loadingModels && !modelsError && filteredModels.map((id) => (
+                    <button type="button" key={id} disabled={savingModel} onClick={() => void chooseModel(id)}>{id}</button>
+                  ))}
+                  {!loadingModels && !modelsError && filteredModels.length === 0 && (
+                    <p className="intelligence-model-menu-status">{t("IntelligenceSettings.noModelsMatch")}</p>
+                  )}
+                  <div className="intelligence-model-menu-footer">
+                    <button type="button" onClick={() => void loadModels()} disabled={loadingModels} aria-label={t("IntelligenceSettings.refreshModels")}>
+                      <Refresh width={13} height={13} className={loadingModels ? "spinning" : ""} />
+                    </button>
+                  </div>
+                </>
               )}
-              {!loadingModels && !modelsError && filteredModels.map((id) => (
-                <button type="button" key={id} disabled={savingModel} onClick={() => void chooseModel(id)}>{id}</button>
-              ))}
-              {!loadingModels && !modelsError && filteredModels.length === 0 && (
-                <p className="intelligence-model-menu-status">{t("IntelligenceSettings.noModelsMatch")}</p>
-              )}
-              <div className="intelligence-model-menu-footer">
-                <button type="button" onClick={() => void loadModels()} disabled={loadingModels} aria-label={t("IntelligenceSettings.refreshModels")}>
-                  <Refresh width={13} height={13} className={loadingModels ? "spinning" : ""} />
-                </button>
-              </div>
             </div>
           )}
         </div>
@@ -595,6 +648,7 @@ export function IntelligenceSettings() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [apiKeySetupRequest, setApiKeySetupRequest] = useState(0);
 
   const load = async () => {
     try {
@@ -639,7 +693,20 @@ export function IntelligenceSettings() {
       <p className="eyebrow">{t("IntelligenceSettings.eyebrow")}</p>
       <h2>{t("IntelligenceSettings.title")}</h2>
 
-      <ModelBeingUsedRow providers={providers} activeProvider={activeProvider} activeEntry={activeEntry} onSwitchProvider={(id) => void setActive(id)} onModelChanged={load} />
+      <ModelBeingUsedRow
+        key={activeProvider ?? "aval"}
+        providers={providers}
+        activeProvider={activeProvider}
+        activeEntry={activeEntry}
+        onSwitchProvider={(id) => void setActive(id)}
+        onConfigureProvider={(providerId) => {
+          setSearch("");
+          setExpanded(providerId);
+          setApiKeySetupRequest((current) => current + 1);
+          window.requestAnimationFrame(() => document.querySelector(`[data-provider-id="${providerId}"]`)?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
+        }}
+        onModelChanged={load}
+      />
 
       {error && <p className="auth-gate-error">{error}</p>}
 
@@ -675,13 +742,14 @@ export function IntelligenceSettings() {
             const isActive = activeProvider === provider.id || (twin ? activeProvider === twin.id : false);
             return (
               <ProviderAccordionRow
-                key={provider.id}
+                key={`${provider.id}:${provider.id === "openai" ? apiKeySetupRequest : 0}`}
                 provider={provider}
                 twin={twin}
                 isOpen={expanded === provider.id}
                 onToggle={() => setExpanded((current) => (current === provider.id ? null : provider.id))}
                 isActive={isActive}
                 switching={switching !== null}
+                apiKeySetupRequest={provider.id === "openai" ? apiKeySetupRequest : 0}
                 onSetActive={(id) => void setActive(id)}
                 onRefresh={load}
               />

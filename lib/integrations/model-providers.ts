@@ -1,6 +1,6 @@
 import { MODEL_PROVIDER_IDS, getProvider, type ProviderId } from "./catalog";
 import { CHATGPT_CODEX_BASE_URL, CHATGPT_CODEX_HEADERS } from "./subscription-oauth";
-import { isHostedEdgeChallenge } from "./provider-errors";
+import { hostedEdgeBlockedModelCatalog, isHostedEdgeChallenge } from "./provider-errors";
 
 /**
  * Validates a pasted model-provider API key by making the cheapest possible
@@ -159,7 +159,10 @@ export async function listModelsDetailed(provider: string, apiKey: string, accou
       const responseStatus = Number(message.match(/^(\d{3}):/)?.[1] ?? 0);
       const edgeBlocked = isHostedEdgeChallenge(responseStatus, message);
       if (edgeBlocked) {
-        return { models: SUBSCRIPTION_MODELS.chatgpt, verified: false, reason: "edge_blocked" };
+        // Nothing in the static list is usable from this hosted origin. An
+        // empty result lets the UI present valid exits instead of inviting a
+        // model choice that is guaranteed to fail at send time.
+        return hostedEdgeBlockedModelCatalog();
       }
       const rejected = /\b401\b|\b403\b|unauthor|forbidden/i.test(message);
       return {

@@ -7,3 +7,12 @@ export function isHostedEdgeChallenge(status: number, body: string): boolean {
   if (status !== 403) return false;
   return /<!doctype\s+html|<html(?:\s|>)|@keyframes\s+enlarge-appear|body\s*\{[^}]*font-family/i.test(body);
 }
+
+/**
+ * A hosted edge block makes every ChatGPT model unusable from this runtime.
+ * Keep that catalog empty so callers cannot accidentally turn a known model
+ * name into a choice that is guaranteed to fail.
+ */
+export function hostedEdgeBlockedModelCatalog() {
+  return { models: [] as string[], verified: false as const, reason: "edge_blocked" as const };
+}

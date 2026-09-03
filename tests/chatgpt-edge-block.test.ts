@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isHostedEdgeChallenge } from "../lib/integrations/provider-errors.ts";
+import { hostedEdgeBlockedModelCatalog, isHostedEdgeChallenge } from "../lib/integrations/provider-errors.ts";
 
 const challengeBody = `<!doctype html><html><style>
 body{font-family:Arial,Helvetica,sans-serif}
@@ -18,4 +18,8 @@ test("does not confuse normal provider failures with the hosted edge challenge",
   assert.equal(isHostedEdgeChallenge(403, JSON.stringify({ error: { message: "Access token expired" } })), false);
   assert.equal(isHostedEdgeChallenge(500, challengeBody), false);
   assert.equal(isHostedEdgeChallenge(503, "<html><body>Maintenance</body></html>"), false);
+});
+
+test("does not offer guaranteed-to-fail fallback models when the hosted edge blocks ChatGPT", () => {
+  assert.deepEqual(hostedEdgeBlockedModelCatalog(), { models: [], verified: false, reason: "edge_blocked" });
 });
