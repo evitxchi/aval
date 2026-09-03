@@ -572,11 +572,9 @@ function Overview({ displayName, openConnections, dataMode, providers, pendingTa
   const currencyPrefix = market === "latam" ? "MX$" : "$";
   const accountingProvider = market === "latam" ? "contpaqi" : "quickbooks";
   const [period, setPeriod] = useState("Aug 12–18");
-  const [chipDismissed, setChipDismissed] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [draftExpanded, setDraftExpanded] = useState(false);
   const isSample = dataMode === "sample";
-  const showChip = isSample && !chipDismissed;
   const connectedCategories = useMemo(() => new Set(providers.filter((provider) => provider.connection?.status === "connected").map((provider) => provider.category)), [providers]);
   const isTileConnected = (key: keyof typeof TILE_SOURCES) => TILE_SOURCES[key].every((category) => connectedCategories.has(category));
   const resolveCoverageProvider = (row: (typeof sampleData.coverage.rows)[number]) => row.provider === "quickbooks" ? accountingProvider : row.provider;
@@ -650,7 +648,6 @@ function Overview({ displayName, openConnections, dataMode, providers, pendingTa
         ? t("Overview.aCalmLiveReadOnLeasing")
         : t("Overview.aCalmReadOnLeasingCash")}
       actions={<>
-        {showChip && <span className="sample-chip"><span>{t("Overview.sampleDataConnectASourceTo")}</span><button aria-label={t("Overview.dismiss")} onClick={() => setChipDismissed(true)}><Xmark width={12} height={12}/></button></span>}
         <DateRangePicker period={period} onChange={setPeriod} t={t} locale={currentLocale}/>
         <button className="soft-button" onClick={generateWeeklyReport}><Page width={18} height={18}/>{t("Overview.generateWeeklyReport")}</button>
         <button className="primary-button" onClick={openConnections}><NetworkLeft width={18} height={18}/>{t("Overview.connectData")}</button>

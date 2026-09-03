@@ -1799,3 +1799,49 @@ what to paste.
 the view emits cross-checked against a matching rule in `globals.css`. Visual confirmation was
 again unavailable — the local browser tooling has been unloading pages mid-call for several
 hours — so this needs an eyeball on the live deploy.
+
+## 2026-09-03 — Removed the sample-data chip; end-to-end production audit of every route
+
+**Removed.** The "Sample data · connect a source to see yours" chip, its dismiss state, its CSS,
+and both now-orphaned i18n keys (`sampleDataConnectASourceTo`, `dismiss`). The `overview-intro`
+strip ("updated N minutes ago", portfolio size) still renders in sample mode, so the dashboard is
+not entirely without context about what it is showing.
+
+**Worth stating once:** `dataMode` still defaults to `sample`, so a newly signed-up workspace
+sees the demo portfolio's figures with no on-screen marker distinguishing them from its own. The
+chip was the only such marker. That is a product decision and the user made it deliberately; it
+is recorded here because the next person to read this file will otherwise wonder why a dashboard
+shows confident figures for an empty account. If it should instead be an empty state, the switch
+is `dataMode`'s default in `dashboard-client.tsx`, not the chip.
+
+**Audited every route against production, as a real account.** Static checks can't prove a route
+works, so a throwaway account was created on the live deployment and each surface exercised
+through it:
+
+- *All 14 GET routes* — 401 unauthenticated, real payloads authenticated. `auth/session` is
+  correctly public.
+- *The data-compiling pipeline* — created a meter, recorded a bill against it, and confirmed
+  `infrastructure/summary` aggregated those rows correctly: `$684.00` formatted from 68,400
+  cents, and 16.29¢/kWh derived from 4,200 kWh. The numbers on that page come from the rows, not
+  from a fixture.
+- *The typed teaching box* — posted "always get me three quotes before booking anyone" as free
+  text; the server classified it to `vendor_selection / always_compare_multiple_quotes` and
+  stored only the tag, exactly as designed.
+- *Document extraction against a live model call* — every field returned with a verbatim source
+  quote. **The important one:** the probe lease deliberately contained no renewal clause, and the
+  model left `Renewal terms` blank and said "The document does not state any renewal terms"
+  rather than inventing plausible ones. That instruction is the whole value of the langflow
+  pattern, and it holds in production.
+- *Ask Aval* — answered with verified figures and returned `X-Aval-Agent: marketResearch`,
+  `X-Aval-Agent-Routed: auto`, so the router is live and its choice is visible.
+- *The audit chain* — that same answer produced a 4-entry chain (two tool calls, gate pass,
+  answer digest) that verifies, with `ok: true`. The trail is real, not theoretical.
+
+Probe data was cleaned up afterwards; the probe org's remaining rows are isolated under their own
+org id like every other workspace.
+
+**Four buttons are intentionally notify-only** and have no backend behind them: "Call" and "Open
+resident record" in the Inbox, "Security model" in Connections, and "Edit profile" in Settings.
+Three of those are explanatory; "Edit profile" says workspace identity changes require an
+administrator. They are listed here so their status is recorded rather than mistaken for
+unfinished wiring.
