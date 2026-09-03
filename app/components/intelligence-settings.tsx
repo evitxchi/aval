@@ -170,7 +170,16 @@ function ProviderAccordionRow({ provider, twin, isOpen, onToggle, isActive, swit
   useEffect(() => {
     if (!device) return;
     let cancelled = false;
+    // setInterval does not wait for an async callback, so a poll slower than
+    // the interval overlaps the next one. That matters here because the
+    // approval response hands back a single-use authorization code: two
+    // overlapping polls each receive it and each try to exchange it, one wins
+    // and the other gets a 400 for a spent code — which is exactly the
+    // "Approved, but the token exchange failed (400)" seen in practice.
+    let inFlight = false;
     const timer = window.setInterval(async () => {
+      if (inFlight) return;
+      inFlight = true;
       try {
         const response = await fetch("/api/integrations/subscription/device", {
           method: "POST",
@@ -195,6 +204,8 @@ function ProviderAccordionRow({ provider, twin, isOpen, onToggle, isActive, swit
         }
       } catch {
         // A dropped poll is expected on a flaky link; the next tick retries.
+      } finally {
+        inFlight = false;
       }
     }, Math.max(device.intervalSeconds, 3) * 1000);
     return () => { cancelled = true; window.clearInterval(timer); };

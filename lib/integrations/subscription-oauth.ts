@@ -385,7 +385,23 @@ export async function pollChatgptDeviceLogin(deviceAuthId: string, userCode: str
     }).toString(),
   });
   if (!exchange.ok) {
-    return { status: "failed", detail: `Approved, but the token exchange failed (${exchange.status}).` };
+    // Read the body: OpenAI names the cause here (bad redirect_uri, wrong
+    // client_id, reused code), and without it a 400 is unactionable.
+    const detail = await exchange.text().catch(() => "");
+    console.error("chatgpt_device_exchange_failed", exchange.status, detail.slice(0, 600));
+    let reason = "";
+    try {
+      const parsed = JSON.parse(detail) as { error?: string; error_description?: string };
+      reason = parsed.error_description ?? parsed.error ?? "";
+    } catch {
+      reason = detail.slice(0, 160);
+    }
+    // A code that was already redeemed means a concurrent attempt won the
+    // race and the connection may in fact be stored. Reported as pending so
+    // the next poll can pick up a fresh code, rather than tearing down a
+    // login that might have succeeded a moment ago.
+    if (/already|used|expired|invalid_grant/i.test(reason || detail)) return { status: "pending" };
+    return { status: "failed", detail: reason ? `Approved, but the token exchange failed: ${reason}` : `Approved, but the token exchange failed (${exchange.status}).` };
   }
 
   const tokens = await exchange.json().catch(() => null) as { access_token?: string; refresh_token?: string; id_token?: string; expires_in?: number } | null;
