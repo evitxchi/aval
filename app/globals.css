@@ -244,6 +244,15 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--ink); outli
 .aval-chat-error strong { font-size: 11px; font-weight: 600; }
 .aval-chat-error p { margin: 0; font-size: 10px; line-height: 1.5; color: var(--muted); overflow-wrap: anywhere; }
 
+/* Device-code login — the code is the whole interface, so it gets the weight. */
+.device-login { display: grid; gap: 11px; }
+.device-login-lead { margin: 0; font-size: 10.5px; color: var(--muted); }
+.device-code-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.device-code { padding: 11px 18px; border: 1px solid var(--line-strong); border-radius: 12px; background: var(--surface); font: 600 19px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .14em; user-select: all; }
+.device-login-status { margin: 0; display: flex; align-items: center; gap: 7px; font-size: 10px; color: var(--muted); }
+.device-login-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.device-login-actions .text-button { font-size: 10px; }
+
 /* Documents ------------------------------------------------------------ */
 .guest-warning { display: flex; gap: 12px; align-items: flex-start; padding: 16px 18px !important; border-color: var(--viz-orange) !important; background: color-mix(in srgb, var(--viz-orange) 7%, var(--surface)) !important; }
 .guest-warning > svg { flex-shrink: 0; margin-top: 1px; color: var(--viz-orange); }

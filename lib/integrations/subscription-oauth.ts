@@ -250,3 +250,99 @@ export function claudeOAuthMessagesUrl(url: string): string {
   }
   return url;
 }
+
+/* ── ChatGPT device-code login ──────────────────────────────────────────────
+ *
+ * The authorization-code flow above pins `redirect_uri` to
+ * http://localhost:1455, which only a desktop process can listen on. A hosted
+ * app therefore always dead-ends on a browser error with the code stranded in
+ * the address bar, leaving the user to copy it back by hand.
+ *
+ * OpenAI's auth service also exposes a device-code flow (the same one the
+ * Codex CLI uses on headless machines, found via RayBytes/ChatMock — see
+ * docs/DECISIONS.md). There is no redirect at all: the app asks for a short
+ * user code, the person types it on OpenAI's own page, and the app polls until
+ * it is approved. Nothing to paste, nothing to listen on, no error page.
+ */
+
+const CHATGPT_DEVICE = {
+  userCodeUrl: "https://auth.openai.com/api/accounts/deviceauth/usercode",
+  tokenUrl: "https://auth.openai.com/api/accounts/deviceauth/token",
+  /** Where the user enters the code. Shown to them, and opened for them. */
+  verificationUrl: "https://auth.openai.com/codex/device",
+} as const;
+
+export interface DeviceCodeStart {
+  deviceAuthId: string;
+  userCode: string;
+  verificationUrl: string;
+  /** Seconds the server asks us to wait between polls. */
+  intervalSeconds: number;
+  expiresAt: Date;
+}
+
+/** Begins a device login and returns the code for the user to enter. */
+export async function startChatgptDeviceLogin(): Promise<DeviceCodeStart> {
+  const response = await fetch(CHATGPT_DEVICE.userCodeUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "User-Agent": "codex_cli_rs/device-login" },
+    body: JSON.stringify({ client_id: CHATGPT.clientId }),
+  });
+  if (!response.ok) throw new Error(`Device login could not be started (${response.status}).`);
+
+  const body = await response.json() as { device_auth_id?: string; user_code?: string; usercode?: string; interval?: string | number; expires_at?: string };
+  const deviceAuthId = body.device_auth_id;
+  // The field has shipped under both spellings; accept either rather than
+  // break on whichever the service is answering with today.
+  const userCode = body.user_code ?? body.usercode;
+  if (!deviceAuthId || !userCode) throw new Error("Device login response was missing its code.");
+
+  const interval = Number(body.interval ?? 5);
+  const expires = body.expires_at ? new Date(body.expires_at) : new Date(Date.now() + 15 * 60 * 1000);
+  return {
+    deviceAuthId,
+    userCode,
+    verificationUrl: CHATGPT_DEVICE.verificationUrl,
+    intervalSeconds: Number.isFinite(interval) && interval > 0 ? Math.min(interval, 30) : 5,
+    expiresAt: Number.isNaN(expires.getTime()) ? new Date(Date.now() + 15 * 60 * 1000) : expires,
+  };
+}
+
+export type DevicePollResult =
+  | { status: "pending" }
+  | { status: "complete"; credential: SubscriptionCredential }
+  | { status: "failed"; detail: string };
+
+/**
+ * Checks once whether the user has approved the code yet.
+ *
+ * A single check rather than a blocking loop: a Worker request cannot sit
+ * open for the fifteen minutes this flow allows, so the client polls this and
+ * the server stays stateless. 403/404 mean "not approved yet" in this API —
+ * distinguishing that from a real failure is what keeps a waiting user from
+ * seeing a spurious error.
+ */
+export async function pollChatgptDeviceLogin(deviceAuthId: string, userCode: string): Promise<DevicePollResult> {
+  const response = await fetch(CHATGPT_DEVICE.tokenUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "User-Agent": "codex_cli_rs/device-login" },
+    body: JSON.stringify({ device_auth_id: deviceAuthId, user_code: userCode }),
+  });
+
+  if (response.status === 403 || response.status === 404) return { status: "pending" };
+  if (!response.ok) return { status: "failed", detail: `Device login failed (${response.status}).` };
+
+  const body = await response.json().catch(() => null) as { access_token?: string; refresh_token?: string; id_token?: string; expires_in?: number } | null;
+  if (!body?.access_token) return { status: "pending" };
+
+  const expiresIn = Number(body.expires_in ?? 3600);
+  return {
+    status: "complete",
+    credential: {
+      access: body.access_token,
+      refresh: body.refresh_token ?? "",
+      expiresAt: new Date(Date.now() + (Number.isFinite(expiresIn) ? expiresIn : 3600) * 1000),
+      accountId: chatgptAccountIdFromJwt(body.id_token) ?? chatgptAccountIdFromJwt(body.access_token),
+    },
+  };
+}

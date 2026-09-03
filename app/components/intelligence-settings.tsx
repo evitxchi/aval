@@ -47,6 +47,13 @@ function ProviderAccordionRow({ provider, twin, isOpen, onToggle, isActive, swit
   const [message, setMessage] = useState("");
   const [subscriptionSession, setSubscriptionSession] = useState<SubscriptionSession | null>(null);
   const [pasteValue, setPasteValue] = useState("");
+  // Device-code login (found via RayBytes/ChatMock — see docs/DECISIONS.md).
+  // No redirect URI, so nothing must listen on localhost and there is nothing
+  // to paste. The paste flow below is kept as a fallback for Claude, whose
+  // OAuth surface has no device endpoint.
+  const [device, setDevice] = useState<{ deviceAuthId: string; userCode: string; verificationUrl: string; intervalSeconds: number } | null>(null);
+  const [deviceError, setDeviceError] = useState("");
+  const [copied, setCopied] = useState(false);
   const [subscriptionStatus, setSubscriptionStatus] = useState<"idle" | "working" | "error">("idle");
   const [subscriptionError, setSubscriptionError] = useState("");
 
@@ -78,6 +85,28 @@ function ProviderAccordionRow({ provider, twin, isOpen, onToggle, isActive, swit
   const reset = async (targetProviderId: string) => {
     await fetch("/api/integrations/reset", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ provider: targetProviderId }) });
     onRefresh();
+  };
+
+  const startDeviceLogin = async () => {
+    setSubscriptionStatus("working");
+    setDeviceError("");
+    try {
+      const response = await fetch("/api/integrations/subscription/device", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "start" }),
+      });
+      const data = await response.json() as { deviceAuthId?: string; userCode?: string; verificationUrl?: string; intervalSeconds?: number; error?: string };
+      if (!response.ok || !data.deviceAuthId || !data.userCode || !data.verificationUrl) {
+        throw new Error(data.error ?? t("IntelligenceSettings.connectFailed"));
+      }
+      setDevice({ deviceAuthId: data.deviceAuthId, userCode: data.userCode, verificationUrl: data.verificationUrl, intervalSeconds: data.intervalSeconds ?? 5 });
+      // Opened for them, so the only manual step is typing the code.
+      window.open(data.verificationUrl, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      setDeviceError(error instanceof Error ? error.message : t("IntelligenceSettings.connectFailed"));
+    }
+    setSubscriptionStatus("idle");
   };
 
   const startSubscription = async () => {
@@ -133,6 +162,33 @@ function ProviderAccordionRow({ provider, twin, isOpen, onToggle, isActive, swit
     }
     setSubscriptionStatus("idle");
   }, [twin, subscriptionSession, t, onRefresh]);
+
+  // Polls until the user approves the code on OpenAI's page.
+  useEffect(() => {
+    if (!device) return;
+    let cancelled = false;
+    const timer = window.setInterval(async () => {
+      try {
+        const response = await fetch("/api/integrations/subscription/device", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ action: "poll", deviceAuthId: device.deviceAuthId, userCode: device.userCode }),
+        });
+        const data = await response.json() as { status?: string; error?: string };
+        if (cancelled) return;
+        if (data.status === "connected") { setDevice(null); onRefresh(); return; }
+        // Pending is the normal state while waiting; only a real 4xx (expired,
+        // revoked) should surface as an error.
+        if (!response.ok && data.status !== "pending") {
+          setDevice(null);
+          setDeviceError(data.error ?? t("IntelligenceSettings.connectFailed"));
+        }
+      } catch {
+        // A dropped poll is expected on a flaky link; the next tick retries.
+      }
+    }, Math.max(device.intervalSeconds, 3) * 1000);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [device, onRefresh, t]);
 
   const pasteInput = useRef<HTMLInputElement>(null);
 
@@ -221,6 +277,21 @@ function ProviderAccordionRow({ provider, twin, isOpen, onToggle, isActive, swit
                 <span className="connection-status connected"><ShieldCheck width={13} height={13} />{t("IntelligenceSettings.connectedWithSubscription", { provider: twin.title })}</span>
                 <button type="button" className="text-button" onClick={() => void reset(twin.id)}>{t("IntelligenceSettings.resetConnection")}</button>
               </div>
+            ) : device ? (
+              <div className="device-login">
+                <p className="device-login-lead">{t("IntelligenceSettings.deviceEnterCode")}</p>
+                <div className="device-code-row">
+                  <code className="device-code">{device.userCode}</code>
+                  <button type="button" className="soft-button" onClick={() => { void navigator.clipboard.writeText(device.userCode).then(() => setCopied(true)).catch(() => {}); }}>
+                    {copied ? t("IntelligenceSettings.deviceCopied") : t("IntelligenceSettings.deviceCopy")}
+                  </button>
+                </div>
+                <p className="device-login-status"><span className="presence-dot"/>{t("IntelligenceSettings.deviceWaiting")}</p>
+                <div className="device-login-actions">
+                  <a className="text-button" href={device.verificationUrl} target="_blank" rel="noopener noreferrer">{t("IntelligenceSettings.deviceReopen")}</a>
+                  <button type="button" className="text-button quiet" onClick={() => setDevice(null)}>{t("IntelligenceSettings.deviceCancel")}</button>
+                </div>
+              </div>
             ) : subscriptionSession ? (
               <form className="credential-form subscription-paste" onSubmit={completeSubscription}>
                 {/* The browser is showing an error page at this moment. Lead
@@ -270,14 +341,20 @@ function ProviderAccordionRow({ provider, twin, isOpen, onToggle, isActive, swit
               </form>
             ) : (
               <div className="subscription-start">
-                {/* Said before the tab opens, not after: the redirect lands on
-                    a loopback address only a desktop app can listen on, so an
-                    unexplained "site can't be reached" reads as a broken
-                    integration rather than the expected halfway point. */}
-                <p className="foldout-hint">{t("IntelligenceSettings.subscriptionPreamble")}</p>
-                <button type="button" className="soft-button" onClick={() => void startSubscription()} disabled={subscriptionStatus === "working"}>
-                  {t("IntelligenceSettings.connectSubscription", { provider: twin.title })}
+                {/* ChatGPT has a device-code endpoint, so it needs no redirect
+                    and nothing pasted. Claude's OAuth surface has no such
+                    endpoint, so it keeps the paste flow and the warning that
+                    its redirect dead-ends on a loopback address. */}
+                <p className="foldout-hint">{twin.id === "chatgpt" ? t("IntelligenceSettings.devicePreamble") : t("IntelligenceSettings.subscriptionPreamble")}</p>
+                <button
+                  type="button"
+                  className="soft-button"
+                  onClick={() => void (twin.id === "chatgpt" ? startDeviceLogin() : startSubscription())}
+                  disabled={subscriptionStatus === "working"}
+                >
+                  {subscriptionStatus === "working" ? t("IntelligenceSettings.connecting") : t("IntelligenceSettings.connectSubscription", { provider: twin.title })}
                 </button>
+                {deviceError && <p className="auth-gate-error">{deviceError}</p>}
                 {subscriptionStatus === "error" && <p className="auth-gate-error">{subscriptionError}</p>}
               </div>
             )
