@@ -71,12 +71,17 @@ const CODEX_CLIENT_VERSION = "0.145.0";
  * Models marked `visibility: "hide"` are filtered out: they're returned but
  * not offerable, and showing them produces a picker whose entries fail.
  */
-async function listChatgptCodexModels(accessToken: string, accountId?: string): Promise<string[]> {
+async function listChatgptCodexModels(accessToken: string, accountId?: string, installationId?: string): Promise<string[]> {
   const response = await fetch(`${CHATGPT_CODEX_BASE_URL}/models?client_version=${encodeURIComponent(CODEX_CLIENT_VERSION)}`, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
       ...CHATGPT_CODEX_HEADERS,
       ...(accountId ? { "ChatGPT-Account-ID": accountId } : {}),
+      // Every route on this backend requires these, not just /responses.
+      // Omitting them returns a 403 with no explanation, which reads as a
+      // rejected credential — the reason this looked like an auth failure.
+      "session-id": crypto.randomUUID(),
+      ...(installationId ? { "x-codex-installation-id": installationId } : {}),
     },
   });
   if (!response.ok) throw new Error(await describeError(response));
@@ -109,10 +114,10 @@ async function listChatgptCodexModels(accessToken: string, accountId?: string): 
  * them as confirmed, because a model this account cannot call will fail at
  * send time and the user deserves to know that is possible before choosing.
  */
-export async function listModelsDetailed(provider: string, apiKey: string, accountId?: string): Promise<{ models: string[]; verified: boolean; reason?: string }> {
+export async function listModelsDetailed(provider: string, apiKey: string, accountId?: string, installationId?: string): Promise<{ models: string[]; verified: boolean; reason?: string }> {
   if (provider === "chatgpt") {
     try {
-      const models = await listChatgptCodexModels(apiKey, accountId);
+      const models = await listChatgptCodexModels(apiKey, accountId, installationId);
       if (models.length > 0) return { models, verified: true };
       return { models: SUBSCRIPTION_MODELS.chatgpt, verified: false, reason: "empty_response" };
     } catch (error) {
@@ -129,13 +134,13 @@ export async function listModelsDetailed(provider: string, apiKey: string, accou
       };
     }
   }
-  return { models: await listModels(provider, apiKey, accountId), verified: true };
+  return { models: await listModels(provider, apiKey, accountId, installationId), verified: true };
 }
 
-export async function listModels(provider: string, apiKey: string, accountId?: string): Promise<string[]> {
+export async function listModels(provider: string, apiKey: string, accountId?: string, installationId?: string): Promise<string[]> {
   // ChatGPT asks the Codex backend for its real list; Claude's OAuth surface
   // publishes no equivalent endpoint, so it keeps the short static list.
-  if (provider === "chatgpt") return listChatgptCodexModels(apiKey, accountId);
+  if (provider === "chatgpt") return listChatgptCodexModels(apiKey, accountId, installationId);
   if (provider === "claude") return SUBSCRIPTION_MODELS[provider] ?? [];
 
   if (provider === "anthropic") {

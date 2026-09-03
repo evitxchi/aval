@@ -5,7 +5,7 @@ import { integrationConnections } from "@/db/schema";
 import { decryptSecret } from "@/lib/integrations/crypto";
 import { getProvider } from "@/lib/integrations/catalog";
 import { isModelProviderId, listModelsDetailed } from "@/lib/integrations/model-providers";
-import { isSubscriptionProviderId } from "@/lib/integrations/subscription-oauth";
+import { codexInstallationId, isSubscriptionProviderId } from "@/lib/integrations/subscription-oauth";
 import { getApiIdentity } from "@/lib/integrations/session";
 
 const bindings = () => env as unknown as Record<string, string | undefined>;
@@ -43,7 +43,14 @@ export async function GET(request: Request) {
     if (!accessToken) return Response.json({ error: "No credential is stored for this provider." }, { status: 409 });
     // The Codex model endpoint is account-scoped, so it needs the same
     // ChatGPT-Account-ID the inference requests send.
-    const result = await listModelsDetailed(providerId, accessToken, connection.externalAccountId ?? undefined);
+    // Same derived, workspace-stable install id the inference path sends —
+    // this backend requires it on every route.
+    const result = await listModelsDetailed(
+      providerId,
+      accessToken,
+      connection.externalAccountId ?? undefined,
+      await codexInstallationId(identity.organizationId),
+    );
     return Response.json({
       provider: providerId,
       models: result.models,
