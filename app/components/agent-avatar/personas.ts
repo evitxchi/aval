@@ -38,9 +38,7 @@ export const PERSONA_PRESETS: Record<PersonaId, PersonaPreset> = {
   maintenance: { id: "maintenance", shape: "planes", theme: "ember", labelKey: "AgentPersonas.maintenanceLabel", icon: "/personas/maintenance.webp" },
   riskAnalyst: { id: "riskAnalyst", shape: "shard", theme: "ember", labelKey: "AgentPersonas.riskAnalystLabel", icon: "/personas/risk-analyst.webp" },
   portfolioOutlook: { id: "portfolioOutlook", shape: "monolith", theme: "aurora", labelKey: "AgentPersonas.portfolioOutlookLabel", icon: "/personas/portfolio-outlook.webp" },
-  // No commissioned blob artwork yet, so this one renders from its procedural
-  // shape+theme silhouette, same as a workspace-created custom persona.
-  leaseReview: { id: "leaseReview", shape: "portal", theme: "aqua", labelKey: "AgentPersonas.leaseReviewLabel" },
+  leaseReview: { id: "leaseReview", shape: "portal", theme: "aqua", labelKey: "AgentPersonas.leaseReviewLabel", icon: "/personas/lease-review.webp" },
 };
 
 export const PERSONA_IDS = Object.keys(PERSONA_PRESETS) as PersonaId[];

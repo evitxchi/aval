@@ -14,7 +14,7 @@
  */
 
 import type { ToolSchema } from "./anthropic";
-import { derivedSample, sampleData, sumAmounts, type InsightRecipient } from "@/app/data/sample";
+import { METRIC_KEYS, deltaPct, noDataAvailable, readFunnel, readMetricSeries, readMetrics, type MetricKey } from "./portfolio-data";
 import { PREFERENCE_TOPICS, recordPreference, describePreference, type PreferenceTopic } from "./preferences";
 
 /** Every numeric value a tool exposed, collected for the faithfulness gate. */
@@ -22,20 +22,6 @@ export interface ToolOutput {
   json: unknown;
   numbers: number[];
 }
-
-// sampleData's property/revenue rows carry i18n message keys (e.g.
-// "OperationsView.propertyFranklinHouse"), not display text — the message
-// catalog lives client-side. These give the model plain English names to
-// reason and write about; the model is separately instructed to answer in
-// the user's own locale regardless of what language these labels are in.
-const PROPERTY_NAMES: Record<string, string> = {
-  "OperationsView.propertyFranklinHouse": "Franklin House",
-  "OperationsView.propertyMonroeCourt": "Monroe Court",
-  "OperationsView.propertyUnionCourt": "Union Court",
-  "OperationsView.propertyRomaSur": "Roma Sur",
-  "OperationsView.propertyPaseoNorte": "Paseo Norte",
-  "OperationsView.propertyJardines22": "Jardines 22",
-};
 
 /* ── schemas the model sees ─────────────────────────────────────────────── */
 
@@ -219,110 +205,120 @@ function collectNumbers(v: unknown, out: number[] = []): number[] {
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
-const clamp = (n: number, lo: number, hi: number) => (Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : lo);
 
 export async function runTool(name: string, input: Record<string, unknown>, organizationId?: string): Promise<ToolOutput> {
   switch (name) {
     case "get_portfolio_metrics": {
-      const propertyId = typeof input.property_id === "string" ? input.property_id : null;
-      const json = {
-        noi: sampleData.noi.value,
-        noi_prior: sampleData.noi.priorValue,
-        noi_delta_pct: round2(derivedSample.noiDeltaPct),
-        rent_billed: sampleData.rentCollected.billed,
-        rent_collected: sampleData.rentCollected.value,
-        collection_rate_pct: round2(derivedSample.rentCollectedPct),
-        economic_occupancy_pct: sampleData.economicOccupancy.value,
-        economic_occupancy_prior_pct: sampleData.economicOccupancy.priorValue,
-        open_work_orders: sampleData.openWorkOrders.value,
-        urgent_work_orders: sampleData.openWorkOrders.urgent,
-        avg_work_order_close_days: sampleData.openWorkOrders.avgCloseDays,
-        total_units: sampleData.portfolio.units,
-        total_properties: sampleData.portfolio.properties,
-        note: propertyId
-          ? "Sample mode has one fixed portfolio-wide snapshot, not a per-property breakdown of these figures — use get_property_breakdown for property-level occupancy instead."
-          : "Sample mode: one fixed snapshot, not a live per-period feed. These are that snapshot's real figures.",
-      };
+      if (!organizationId) return { json: noDataAvailable("portfolio metrics"), numbers: [] };
+      const metrics = await readMetrics(organizationId);
+      if (metrics.size === 0) return { json: noDataAvailable("portfolio metrics"), numbers: [] };
+
+      const read = (key: MetricKey) => metrics.get(key) ?? null;
+      const noi = read("noi");
+      const billed = read("rent_billed");
+      const collected = read("rent_collected");
+      const occupancy = read("economic_occupancy_pct");
+
+      // Only keys with a real reading appear. A missing metric is omitted
+      // rather than sent as null or zero, so the model cannot mistake an
+      // absent figure for a measured one.
+      const json: Record<string, unknown> = { available: true };
+      if (noi) {
+        json.noi = noi.current.value;
+        if (noi.prior) { json.noi_prior = noi.prior.value; json.noi_delta_pct = deltaPct(noi.current.value, noi.prior.value); }
+      }
+      if (billed) json.rent_billed = billed.current.value;
+      if (collected) {
+        json.rent_collected = collected.current.value;
+        if (billed && billed.current.value > 0) json.collection_rate_pct = round2((collected.current.value / billed.current.value) * 100);
+      }
+      if (occupancy) {
+        json.economic_occupancy_pct = occupancy.current.value;
+        if (occupancy.prior) json.economic_occupancy_prior_pct = occupancy.prior.value;
+      }
+      for (const key of ["open_work_orders", "urgent_work_orders", "avg_work_order_close_days", "total_units", "total_properties"] as const) {
+        const point = read(key);
+        if (point) json[key] = point.current.value;
+      }
+
+      const missing = METRIC_KEYS.filter((key) => !metrics.has(key));
+      if (missing.length > 0) json.not_available = `No connected source has provided: ${missing.join(", ")}. Do not estimate these.`;
+      json.as_of = [...metrics.values()][0]?.current.capturedAt.toISOString() ?? null;
+      json.sources = [...new Set([...metrics.values()].map((entry) => entry.current.source))];
       return { json, numbers: collectNumbers(json) };
     }
 
     case "get_property_breakdown": {
-      const totalUnits = sumAmounts(sampleData.properties.list.map((row) => ({ amount: row.units })));
-      const totalOccupied = sumAmounts(sampleData.properties.list.map((row) => ({ amount: row.occupied })));
-      const portfolioOccupiedPct = round2((totalOccupied / totalUnits) * 100);
-      const rows = sampleData.properties.list.map((row) => {
-        const occupiedPct = round2((row.occupied / row.units) * 100);
-        return {
-          property: PROPERTY_NAMES[row.nameKey] ?? row.nameKey,
-          units: row.units,
-          occupied: row.occupied,
-          occupied_pct: occupiedPct,
-          // Signed, not a label: negative means below the portfolio average.
-          // Removes the model having to subtract two percentages itself.
-          vs_portfolio_avg_pts: round2(occupiedPct - portfolioOccupiedPct),
-          ready_for_leasing: row.readyForLeasing,
-        };
-      });
-      const json = { properties: rows, portfolio_occupied_pct: portfolioOccupiedPct };
+      if (!organizationId) return { json: noDataAvailable("a property-level breakdown"), numbers: [] };
+      // Per-property rows require a properties/units model this schema does
+      // not have; portfolio_snapshots is portfolio-wide only. Saying so is
+      // correct — inventing rows to fill the shape would be the exact failure
+      // this rewrite exists to remove.
+      const metrics = await readMetrics(organizationId, ["total_units", "total_properties", "economic_occupancy_pct"]);
+      if (metrics.size === 0) return { json: noDataAvailable("a property-level breakdown"), numbers: [] };
+      const json: Record<string, unknown> = {
+        available: true,
+        note: "This workspace's connected sources report portfolio-wide totals, not per-property rows. Report only these totals; do not break them down by property.",
+      };
+      for (const [key, entry] of metrics) json[key] = entry.current.value;
       return { json, numbers: collectNumbers(json) };
     }
 
     case "get_delinquent_accounts": {
-      const limit = clamp(Number(input.limit ?? 20), 1, 50);
-      const collectionsInsight = sampleData.insights.candidates.find((candidate) => candidate.id === "collections-gap");
-      const recipients: InsightRecipient[] = collectionsInsight?.action?.type === "sendReminders" ? collectionsInsight.action.recipients : [];
-      const rows = recipients.slice(0, limit).map((recipient) => ({
-        id: `resident:${recipient.name}`,
-        resident: recipient.name,
-        balance: recipient.amount,
-        channel: recipient.channel,
-      }));
-      const json = {
-        count: rows.length,
-        total_balance: sumAmounts(recipients.map((recipient) => ({ amount: recipient.amount }))),
-        rows,
-        note: "Sample mode tracks these reachable delinquent accounts with real balances, but does not track a numeric days-past-due field for them — do not state a specific day count for any of these.",
-      };
-      return { json, numbers: collectNumbers(json) };
+      // Delinquency requires a resident-ledger feed no connected integration
+      // writes yet. There is no partial answer worth giving here.
+      return { json: noDataAvailable("delinquent account balances"), numbers: [] };
     }
 
     case "get_leasing_funnel": {
-      const period = input.period === "prior_week" ? "prior_week" : "current_week";
-      const trend = sampleData.leasing.trend;
-      const snapshot = period === "prior_week" && trend.length > 1 ? trend[trend.length - 2] : trend[trend.length - 1];
-      const json = {
-        period,
-        contacted: snapshot.contacted,
-        viewed: snapshot.viewed,
-        applied: snapshot.applied,
-        signed: snapshot.signed,
-        contacted_to_viewed_pct: round2((snapshot.viewed / snapshot.contacted) * 100),
-        viewed_to_applied_pct: round2((snapshot.applied / snapshot.viewed) * 100),
-        applied_to_signed_pct: round2((snapshot.signed / snapshot.applied) * 100),
-        contacted_to_signed_pct: round2((snapshot.signed / snapshot.contacted) * 100),
-        six_week_trend: trend.map((week) => ({ contacted: week.contacted, viewed: week.viewed, applied: week.applied, signed: week.signed })),
+      if (!organizationId) return { json: noDataAvailable("leasing funnel counts"), numbers: [] };
+      const stages = await readFunnel(organizationId);
+      if (stages.length === 0) return { json: noDataAvailable("leasing funnel counts"), numbers: [] };
+      const byStage = new Map(stages.map((row) => [row.stage, row.count]));
+      const json: Record<string, unknown> = { available: true };
+      for (const [stage, count] of byStage) json[stage] = count;
+      // Conversion rates only where both ends were actually measured.
+      const rate = (from: string, to: string) => {
+        const a = byStage.get(from);
+        const b = byStage.get(to);
+        return a && b && a > 0 ? round2((b / a) * 100) : null;
       };
+      const contactedToSigned = rate("contacted", "signed");
+      if (contactedToSigned !== null) json.contacted_to_signed_pct = contactedToSigned;
+      json.as_of = stages[0].capturedAt.toISOString();
+      json.sources = [...new Set(stages.map((row) => row.source))];
       return { json, numbers: collectNumbers(json) };
     }
 
     case "get_metric_series": {
+      if (!organizationId) return { json: noDataAvailable("a metric history"), numbers: [] };
       const metric = String(input.metric ?? "");
-      const leasingKeys = ["contacted", "viewed", "applied", "signed"] as const;
-      if ((leasingKeys as readonly string[]).includes(metric)) {
-        const key = metric as (typeof leasingKeys)[number];
-        const points = sampleData.leasing.trend.map((week) => ({ x: week.labelKey, y: week[key] }));
-        const json = { metric, grain: "week", points };
-        return { json, numbers: collectNumbers(json) };
+      if (!metric) return { json: noDataAvailable("a metric history"), numbers: [] };
+      const points = await readMetricSeries(organizationId, metric);
+      if (points.length === 0) return { json: noDataAvailable(`a history for "${metric}"`), numbers: [] };
+      const json = {
+        available: true,
+        metric,
+        points: points.map((point) => ({ x: point.capturedAt.toISOString(), y: point.value })).reverse(),
+        sources: [...new Set(points.map((point) => point.source))],
+      };
+      return { json, numbers: collectNumbers(json) };
+    }
+
+    case "get_accounting_breakdown": {
+      if (!organizationId) return { json: noDataAvailable("an accounting breakdown"), numbers: [] };
+      const metrics = await readMetrics(organizationId, ["noi", "rent_billed", "rent_collected"]);
+      if (metrics.size === 0) return { json: noDataAvailable("an accounting breakdown"), numbers: [] };
+      const json: Record<string, unknown> = {
+        available: true,
+        note: "Connected sources report these totals only, not a category-level expense breakdown. Do not itemize categories.",
+      };
+      for (const [key, entry] of metrics) {
+        json[key] = entry.current.value;
+        if (entry.prior) json[`${key}_prior`] = entry.prior.value;
       }
-      if (metric === "maintenance_requests") {
-        const points = sampleData.maintenance.months.map((month, index) => ({
-          x: `${month.year}-${String(month.month).padStart(2, "0")}`,
-          y: sampleData.maintenance.categories.reduce((sum, category) => sum + category.countsByMonth[index], 0),
-        }));
-        const json = { metric, grain: "month", points };
-        return { json, numbers: collectNumbers(json) };
-      }
-      return { json: { error: `No real time series is tracked for "${metric}" in sample mode. Available series: contacted, viewed, applied, signed, maintenance_requests.` }, numbers: [] };
+      json.as_of = [...metrics.values()][0]?.current.capturedAt.toISOString() ?? null;
+      return { json, numbers: collectNumbers(json) };
     }
 
     case "list_documents": {
@@ -353,35 +349,6 @@ export async function runTool(name: string, input: Record<string, unknown>, orga
         numbers: [],
       };
     }
-    case "get_accounting_breakdown": {
-      const totalRevenue = sumAmounts(sampleData.accounting.revenueSources);
-      const totalExpenses = sumAmounts(sampleData.accounting.expenses);
-      // Every share is computed here, in code, once — not left for the model
-      // to divide out itself from raw amounts.
-      const revenueSources = sampleData.accounting.revenueSources.map((source) => ({
-        category: source.key,
-        amount: source.amount,
-        pct_of_revenue: round2((source.amount / totalRevenue) * 100),
-      }));
-      const expenses = sampleData.accounting.expenses.map((expense) => ({
-        category: expense.key,
-        amount: expense.amount,
-        pct_of_expenses: round2((expense.amount / totalExpenses) * 100),
-        pct_of_revenue: round2((expense.amount / totalRevenue) * 100),
-      }));
-      const json = {
-        revenue_sources: revenueSources,
-        expenses,
-        total_revenue: totalRevenue,
-        total_expenses: totalExpenses,
-        noi: sampleData.noi.value,
-        noi_margin_pct: round2((sampleData.noi.value / totalRevenue) * 100),
-        expense_ratio_pct: round2((totalExpenses / totalRevenue) * 100),
-        note: "Sample mode has no property valuation or debt data, so cap rate, DSCR, cash-on-cash return, and IRR cannot be computed here. Do not estimate them.",
-      };
-      return { json, numbers: collectNumbers(json) };
-    }
-
     case "record_preference": {
       const topic = String(input.topic ?? "") as PreferenceTopic;
       const statement = String(input.statement ?? "");

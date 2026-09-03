@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslations } from "next-intl";
 import { Check, NavArrowDown, Refresh, Search, ShieldCheck } from "iconoir-react";
@@ -94,14 +94,28 @@ function ProviderAccordionRow({ provider, twin, isOpen, onToggle, isActive, swit
 
   const completeSubscription = async (event: FormEvent) => {
     event.preventDefault();
-    if (!twin || !subscriptionSession) return;
+    await exchange(pasteValue);
+  };
+
+  /**
+   * Trades a pasted redirect URL (or bare code) for tokens.
+   *
+   * Split out from the submit handler so the same path serves an automatic
+   * hand-off: the redirect always dead-ends on a loopback address no web page
+   * can listen on, so the value arrives via the clipboard rather than a
+   * callback, and the user should not also have to press a button once it is
+   * in hand.
+   */
+  const exchange = useCallback(async (input: string) => {
+    const value = input.trim();
+    if (!twin || !subscriptionSession || !value) return;
     setSubscriptionStatus("working");
     setSubscriptionError("");
     try {
       const response = await fetch("/api/integrations/subscription/complete", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ provider: twin.id, state: subscriptionSession.state, pastedInput: pasteValue }),
+        body: JSON.stringify({ provider: twin.id, state: subscriptionSession.state, pastedInput: value }),
       });
       const data = await response.json() as { error?: string };
       if (!response.ok) throw new Error(data.error ?? t("IntelligenceSettings.connectFailed"));
@@ -114,7 +128,43 @@ function ProviderAccordionRow({ provider, twin, isOpen, onToggle, isActive, swit
       return;
     }
     setSubscriptionStatus("idle");
-  };
+  }, [twin, subscriptionSession, t, onRefresh]);
+
+  const pasteInput = useRef<HTMLInputElement>(null);
+
+  /**
+   * Looks for the authorization value on the clipboard and, if it's there,
+   * finishes the connection without further input.
+   *
+   * Reading the clipboard needs permission the browser only grants to a
+   * focused document, and it can be denied outright — so every failure here
+   * is silent and simply leaves the manual paste field in place. This is an
+   * accelerator, never the only route.
+   */
+  const tryClipboardHandoff = useCallback(async () => {
+    if (!subscriptionSession || subscriptionStatus === "working") return;
+    try {
+      const text = (await navigator.clipboard.readText()).trim();
+      // Only act on something that actually looks like this flow's redirect —
+      // never on whatever the user happened to copy earlier.
+      if (!text || !/[?&]code=/.test(text)) return;
+      if (!text.includes(subscriptionSession.state)) return;
+      setPasteValue(text);
+      await exchange(text);
+    } catch {
+      // No permission, no clipboard API, or nothing readable. Manual paste stands.
+    }
+  }, [subscriptionSession, subscriptionStatus, exchange]);
+
+  // The user leaves for the approval tab and comes back with the URL copied.
+  // Returning focus is the moment to check, and to put the cursor in the field
+  // so a manual paste needs no aiming either.
+  useEffect(() => {
+    if (!subscriptionSession) return;
+    const onFocus = () => { pasteInput.current?.focus(); void tryClipboardHandoff(); };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [subscriptionSession, tryClipboardHandoff]);
 
   return (
     <div className={`provider-row ${isOpen ? "is-open" : ""} ${isActive ? "active" : ""}`}>
@@ -182,9 +232,20 @@ function ProviderAccordionRow({ provider, twin, isOpen, onToggle, isActive, swit
                 <label>
                   {t("IntelligenceSettings.pasteRedirectLabel")}
                   <input
+                    ref={pasteInput}
                     type="text"
                     value={pasteValue}
                     onChange={(event) => setPasteValue(event.target.value)}
+                    onPaste={(event) => {
+                      // Submit the moment a valid redirect lands, so pasting
+                      // is the last action required.
+                      const pasted = event.clipboardData.getData("text").trim();
+                      if (/[?&]code=/.test(pasted)) {
+                        event.preventDefault();
+                        setPasteValue(pasted);
+                        void exchange(pasted);
+                      }
+                    }}
                     placeholder={t("IntelligenceSettings.pasteRedirectPlaceholder")}
                     autoComplete="off"
                     required
@@ -193,6 +254,9 @@ function ProviderAccordionRow({ provider, twin, isOpen, onToggle, isActive, swit
                 <div className="subscription-paste-actions">
                   <button className="soft-button" type="submit" disabled={subscriptionStatus === "working" || !pasteValue}>
                     {subscriptionStatus === "working" ? t("IntelligenceSettings.connecting") : t("IntelligenceSettings.finishConnecting")}
+                  </button>
+                  <button type="button" className="text-button" onClick={() => void tryClipboardHandoff()}>
+                    {t("IntelligenceSettings.pasteFromClipboard")}
                   </button>
                   <a className="text-button" href={subscriptionSession.authorizeUrl} target="_blank" rel="noopener noreferrer">
                     {t("IntelligenceSettings.reopenApproval")}
