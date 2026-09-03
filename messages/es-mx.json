@@ -322,6 +322,7 @@
     "openMobileApp": "Abrir app móvil",
     "profileSettings": "Perfil y ajustes",
     "propertyOperations": "Operaciones inmobiliarias",
+    "signIn": "Inicia sesión en tu espacio",
     "signOut": "Cerrar sesión",
     "soundsOff": "Sonidos apagados",
     "soundsOn": "Sonidos activos"
@@ -983,6 +984,8 @@
     "documents": "Documentos",
     "emptyLibrary": "Aún no hay nada guardado. Agrega un contrato o estado de cuenta y Aval podrá responder sobre él.",
     "extractionDisclaimer": "Esta es la lectura de Aval, citada del propio documento; no es asesoría legal ni financiera. Verifica contra la fuente lo que vayas a aplicar.",
+    "guestWarningBody": "Cualquiera que visite Aval sin iniciar sesión ve este mismo espacio, incluidos los documentos guardados aquí. No pegues un contrato o estado de cuenta real: inicia sesión y tus documentos quedarán solo en tu espacio.",
+    "guestWarningTitle": "Este es el espacio compartido de invitados",
     "kind": "Tipo de documento",
     "kindLease": "Contrato de arrendamiento",
     "kindLenderStatement": "Estado de cuenta del prestamista",

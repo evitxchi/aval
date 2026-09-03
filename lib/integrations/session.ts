@@ -4,6 +4,22 @@ import type { AuthMode } from "@/app/components/auth-gate";
 
 export type ApiIdentity = { userId: string; email: string; displayName: string; organizationId: string; source: AuthMode };
 
+/**
+ * The workspace every signed-out visitor shares.
+ *
+ * Deliberately a fixed literal rather than anything derived from the request:
+ * a real account's org id is `org_${hash(userId)}`, so this constant cannot
+ * collide with one. That is the whole isolation guarantee — open access can
+ * never reach a customer's data because it never resolves to a customer's org.
+ */
+export const PUBLIC_DEMO_ORGANIZATION_ID = "org_public_demo";
+export const PUBLIC_DEMO_USER_ID = "public-demo-guest";
+
+/** True when this identity is the shared, signed-out workspace. */
+export function isGuestIdentity(identity: Pick<ApiIdentity, "organizationId">): boolean {
+  return identity.organizationId === PUBLIC_DEMO_ORGANIZATION_ID;
+}
+
 async function digest(value: string) {
   const bytes = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value)));
   return Array.from(bytes.slice(0, 12), (byte) => byte.toString(16).padStart(2, "0")).join("");
@@ -28,7 +44,31 @@ export async function getApiIdentity(request: Request): Promise<ApiIdentity | nu
   const chatgptUserId = request.headers.get("oai-authenticated-user-id");
   const userId = chatgptUserId ?? (local ? "local-preview" : null);
   const email = request.headers.get("oai-authenticated-user-email") ?? (local ? "preview@aval.local" : null);
-  if (!userId || !email) return null;
+
+  if (!userId || !email) {
+    // Open access: a visitor with no account still reaches the app, in a
+    // single shared demo workspace.
+    //
+    // The org id is a fixed constant, NOT derived from anything about the
+    // visitor, which is what keeps this safe: every real account's org id is
+    // a hash of its own user id (organizationIdForUser), so no anonymous
+    // visitor can ever land in one. They see the demo org and only the demo
+    // org, no matter what they do.
+    //
+    // The tradeoff is inherent to open access rather than a flaw in it: every
+    // anonymous visitor shares this one workspace, so anything one of them
+    // saves is visible to the next. Surfaces that store third-party content
+    // (Documents especially) warn about that — see PUBLIC_DEMO_ORGANIZATION_ID
+    // usages.
+    return {
+      userId: PUBLIC_DEMO_USER_ID,
+      email: "guest@aval.app",
+      displayName: "Guest",
+      organizationId: PUBLIC_DEMO_ORGANIZATION_ID,
+      source: "guest",
+    };
+  }
+
   const encodedName = request.headers.get("oai-authenticated-user-full-name");
   let displayName = email;
   if (encodedName) {

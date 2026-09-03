@@ -3,14 +3,19 @@ import { SignInScreen } from "@/app/components/auth-gate";
 import { AvalDashboard } from "./dashboard-client";
 
 /**
- * Server-side auth gate: resolves identity before rendering, so an
- * authenticated visit (ChatGPT Sites headers, a real session cookie, or
- * localhost dev) gets the dashboard directly in the server-rendered HTML —
- * no client round trip or loading flash — and an unauthenticated visit
- * (only possible on a non-Sites deployment, where there's no platform
- * identity at all) gets the sign-in screen instead.
+ * Open access: every visitor gets the dashboard. A signed-in account resolves
+ * to its own workspace; everyone else shares the guest workspace
+ * (PUBLIC_DEMO_ORGANIZATION_ID), which by construction can never be a real
+ * account's org — see lib/integrations/session.ts.
+ *
+ * The sign-in screen is still reachable at `?signin=1`, because removing the
+ * gate must not lock existing account holders out of their own data. Guests
+ * are shown a link to it in the profile menu.
  */
-export default async function Home() {
+export default async function Home({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const params = await searchParams;
+  if (params.signin !== undefined) return <SignInScreen />;
+
   const identity = await getPageIdentity();
   if (!identity) return <SignInScreen />;
   // The workspace's creation date (for "day N with Aval") is deliberately NOT

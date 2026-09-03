@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslations } from "next-intl";
 
-export type AuthMode = "password" | "chatgpt" | "local";
+export type AuthMode = "password" | "chatgpt" | "local" | "guest";
 
 /**
  * Real customer sign-in/sign-up for deployments outside ChatGPT Sites,

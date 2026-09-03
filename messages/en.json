@@ -322,6 +322,7 @@
     "openMobileApp": "Open mobile app",
     "profileSettings": "Profile & settings",
     "propertyOperations": "Property operations",
+    "signIn": "Sign in to your workspace",
     "signOut": "Sign out",
     "soundsOff": "Sounds off",
     "soundsOn": "Sounds on"
@@ -983,6 +984,8 @@
     "documents": "Documents",
     "emptyLibrary": "Nothing stored yet. Add a lease or statement and Aval can answer questions about it.",
     "extractionDisclaimer": "This is Aval's reading of the document, quoted from its own wording — not legal or financial advice. Check anything you plan to act on against the source.",
+    "guestWarningBody": "Anyone visiting Aval without signing in sees this same workspace, including any document saved here. Don't paste a real lease or statement — sign in first, and your documents stay private to your own workspace.",
+    "guestWarningTitle": "This is the shared guest workspace",
     "kind": "Document type",
     "kindLease": "Lease",
     "kindLenderStatement": "Lender statement",

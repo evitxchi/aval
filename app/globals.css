@@ -236,6 +236,12 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--ink); outli
 .subscription-paste-actions .text-button { font-size: 10px; }
 
 /* Documents ------------------------------------------------------------ */
+.guest-warning { display: flex; gap: 12px; align-items: flex-start; padding: 16px 18px !important; border-color: var(--viz-orange) !important; background: color-mix(in srgb, var(--viz-orange) 7%, var(--surface)) !important; }
+.guest-warning > svg { flex-shrink: 0; margin-top: 1px; color: var(--viz-orange); }
+.guest-warning > div { display: grid; gap: 4px; min-width: 0; }
+.guest-warning strong { font-size: 11.5px; font-weight: 600; }
+.guest-warning p { margin: 0; font-size: 10px; line-height: 1.55; color: var(--muted); }
+.profile-menu-signin { font-weight: 600; }
 .documents-view > section { margin-top: 10px; }
 .documents-view > section.panel { padding: 23px; }
 
