@@ -2062,3 +2062,81 @@ adversarial gate. typecheck, lint (0 errors), i18n parity (951 keys) and build a
 siblings, and nothing else — no model provider, no HTTP client, no `fetch`. Every figure in this
 module is computed. The LLM sits above it, chooses which of these functions to call, and has its
 output checked against what they returned.
+
+## 2026-09-04 — The ingestion path, so the operations tables can actually be filled
+
+**Context.** The operations record layer shipped with no way to get data into it. `POST /api/sync`
+inserts a `sync_runs` row and returns "Queued for the provider worker; no data is marked fresh until
+normalization completes" — which is accurate, and there is no provider worker. Twelve tables and
+sixteen routes were reachable only by hand-entering one row at a time.
+
+**Why not just write the connectors.** Most of the PMS APIs in `catalog.ts` cannot be written blind:
+RealPage is gated behind its Exchange partner program, Entrata behind a signed API agreement and IP
+allowlisting, Rent Manager behind its Integrations Program. Without credentials none of that is
+testable, and an untested connector is a liability rather than a feature. The piece that is worth
+building first is the one every connector eventually funnels into: take records already normalized
+to Aval's vocabulary and apply them correctly.
+
+**It earns its keep before any connector exists.** The market research is blunt that operators run
+on spreadsheet exports and manual re-entry. A workspace can load its portfolio through this today.
+
+**References are by external id, never internal id.** A source system knows its own identifiers and
+nothing about Aval's, so a unit names its property by that property's id *in the source*. Resolution
+happens in one place.
+
+**Split pure from impure, as everywhere else here.** `import-plan.ts` decides what a batch would do
+— ordering, reference resolution, validation — and is pure, so all the sharp edges are testable
+under `node --test` with no D1 binding. `import-apply.ts` walks the resulting plan and writes.
+`IMPORT_ORDER` is a declared constant rather than the order of `if` blocks in the applier, because a
+dependency order living in control flow is one refactor from being silently wrong, and the failure
+— leases applied before their units — looks like a partial success rather than a bug.
+
+**Four refusal rules, each chosen against a specific quiet failure:**
+
+- *A row whose reference does not exist is skipped with the missing id named* — not dropped, and not
+  applied with a null reference. A work order silently detached from its property still counts
+  toward maintenance spend while vanishing from that property's figures, which is worse than not
+  importing it at all.
+- *A reference may resolve inside the batch or against rows already stored.* A nightly delta sends
+  only what changed; demanding the whole portfolio every time would make incremental sync impossible.
+- *A duplicate external id within one batch is refused rather than last-one-wins.* Two rows claiming
+  one id means the export is wrong, and silently picking one hides that.
+- *Unrecognized enums, fractional cents and unparseable dates are refused at the edge.* A bad status
+  stored is a row that quietly matches no metric's filter later; a date parsed loosely lands a lease
+  in 1970, where it sorts and filters without complaint.
+
+**Two places the applier deliberately bypasses this app's own state transitions.** Work-order
+lifecycle timestamps and lead stage timestamps are written directly rather than through
+`assignWorkOrder`/`completeWorkOrder`/`advanceLead`. Those functions stamp *now*, which is right for
+a person acting in Aval and destroys the exact durations the maintenance and funnel metrics measure
+when the source already knows when things happened. A callback link asserted by the source system
+*is* honored, because it is a human assertion made there — the thing `firstTimeFixPct` requires and
+Aval's own proximity suggestions deliberately are not.
+
+**Idempotency is structural.** Every row keys on `(organizationId, sourceProvider, externalId)`, so
+re-sending a batch updates or skips rather than duplicating. A connector re-sending the last 30 days
+nightly is the normal case; an importer that doubled a rent roll on its second run would be worse
+than one that never ran.
+
+**No atomicity is claimed, because none is available.** D1 offers no transaction spanning these
+writes, so instead of pretending, each row failure is caught, counted and returned alongside a
+per-entity count of what landed. `applyImport` also updates the `sync_runs` row's `countsJson` and
+status, so a run stops being a promise about future work and becomes a record of what happened.
+
+**The accounting identity is fuzzed.** Over 500 randomized batches seeded with broken references,
+duplicates and bad enums, every input row comes back either planned or skipped — exactly once,
+never both, never neither. That identity is what makes a partial import trustworthy.
+
+**Also removed: a `deleteImportedRows` helper** written and then cut. It returned a counts object
+that was zero regardless of what it deleted. A destructive operation reporting fabricated counts is
+worse than not offering it.
+
+**Verification.** 18 planner tests; 130 tests passing across the operations and gate suites.
+typecheck and lint clean for these files, build clean, `/api/operations/import` registered.
+
+**Not verified: `applyImport` has not been exercised end-to-end.** It needs a Worker with the D1
+binding, and the only way to get one is to deploy — which would also ship another session's
+in-flight `lib/agents/` work that is not mine to release. The planner is covered thoroughly and the
+applier is mechanical mapping over it, but that is an argument, not a test. The probe pattern from
+the 2026-09-03 entry (write a batch, read it back, check the figures) is the right next step the
+moment a deploy is appropriate.
