@@ -44,10 +44,12 @@ import {
   claimTask,
   getTask,
   heartbeat,
+  scheduleTaskRetry,
   updateTask,
   type TaskRecord,
   type TaskState,
 } from "./tasks.ts";
+import { shouldRetryTask } from "./retry-policy.ts";
 
 /**
  * Framing that turns the question-answering prompt into a goal-pursuing one.
@@ -169,6 +171,7 @@ export async function advanceTask(
       tokensUsed: task!.tokensUsed + inputTokens + outputTokens,
       resultJson: extra.resultJson,
       error: extra.error,
+      nextAttemptAt: null,
       releaseLease: true,
     }).catch((err) => console.error("agent_task_finalize_failed", { taskId, err }));
     return { taskId, status, stepsRun, approvalId: extra.approvalId, error: extra.error };
@@ -180,6 +183,8 @@ export async function advanceTask(
       transcriptJson: JSON.stringify(messages),
       stepCount: task.stepCount + stepsRun,
       tokensUsed: task.tokensUsed + inputTokens + outputTokens,
+      error: null,
+      nextAttemptAt: null,
     });
     if (saved) return null;
     const current = await getTask(organizationId, taskId);
@@ -242,6 +247,8 @@ export async function advanceTask(
           transcriptJson: JSON.stringify(messages),
           stepCount: task.stepCount + stepsRun,
           tokensUsed: task.tokensUsed + inputTokens + outputTokens,
+          error: null,
+          nextAttemptAt: null,
           releaseLease: true,
         });
         await Promise.all([
@@ -272,6 +279,8 @@ export async function advanceTask(
 
       await persistStep({
         taskId, organizationId, stepIndex, kind: "model_call",
+        modelProvider: res.routing?.providerId,
+        modelName: res.routing?.model,
         resultDigest: await digestPayload(res.content),
       });
       audit.push({ kind: "model_call", label: task.agentId, payloadDigest: await digestPayload(res.content), count: stepIndex });
@@ -336,6 +345,9 @@ export async function advanceTask(
             evidence: { toolUseId: use.id, goal: task.goal, agent: task.agentId, arguments: redactArguments(use.input), reason: result.reason },
             amountCents: typeof use.input.amount_cents === "number" ? use.input.amount_cents : undefined,
             currency: typeof use.input.currency === "string" ? use.input.currency : undefined,
+            tier: result.tier,
+            requiredApprovals: result.requiredApprovals,
+            policyVersion: result.policyVersion,
           });
           await persistStep({
             taskId, organizationId, stepIndex, kind: "approval_requested", toolName: use.name,
@@ -378,6 +390,14 @@ export async function advanceTask(
     const message = err instanceof AnthropicError ? err.message : "The agent runtime failed.";
     console.error("agent_runtime_error", { taskId, err });
     audit.push({ kind: "task_failed", label: task.agentId, payloadDigest: await digestPayload(message), count: stepsRun });
+    if (err instanceof AnthropicError && shouldRetryTask(err.retryable, task.executionAttempts)) {
+      await Promise.all([
+        recordUsage({ orgId: organizationId, userId: task.userId }, inputTokens, outputTokens),
+        appendAuditEvents(organizationId, audit),
+      ]);
+      const scheduled = await scheduleTaskRetry(task, workerId, message);
+      return { taskId, status: scheduled ? "QUEUED" : "RUNNING", stepsRun, error: scheduled ? undefined : "Lease lost while scheduling retry." };
+    }
     return finish("FAILED", { error: message });
   }
 }
@@ -460,7 +480,7 @@ async function settleDecidedApproval(input: {
       ? await executeApprovedTool({
           toolName: use.name, args: use.input, subject,
           context: { personaId: task.agentId, delegationDepth: task.delegationDepth },
-          task: { id: taskId, stepIndex: approval.stepIndex },
+          task: { id: taskId, stepIndex: approval.stepIndex, approvalId: approval.id, policyVersion: approval.policyVersion },
         })
       : await executeTool({
           toolName: use.name, args: use.input, subject,

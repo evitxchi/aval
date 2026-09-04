@@ -15,10 +15,10 @@
  * of a decision made against stale evidence.
  */
 
-import { and, desc, eq, lt } from "drizzle-orm";
+import { and, desc, eq, lt, sql } from "drizzle-orm";
 import { getDb } from "@/db";
-import { agentApprovals } from "@/db/schema";
-import { approvalTierFor, type ApprovalTier } from "./financial.ts";
+import { agentApprovalDecisions, agentApprovals } from "@/db/schema";
+import { approvalTierFor, requiredApprovalsFor, type ApprovalTier } from "./financial.ts";
 import type { ToolDescriptor } from "./registry.ts";
 
 import { canDecide } from "./approval-rules.ts";
@@ -37,6 +37,9 @@ export interface ApprovalRequest {
   evidence: Record<string, unknown>;
   amountCents?: number;
   currency?: string;
+  tier?: ApprovalTier;
+  requiredApprovals?: number;
+  policyVersion?: number;
 }
 
 export interface ApprovalRecord {
@@ -56,6 +59,9 @@ export interface ApprovalRecord {
   decidedAt: Date | null;
   decidedByUserId: string | null;
   decisionNote: string | null;
+  requiredApprovals: number;
+  approvalsReceived: number;
+  policyVersion: number;
 }
 
 /**
@@ -76,7 +82,7 @@ export async function requestApproval(request: ApprovalRequest): Promise<Approva
     stepIndex: request.stepIndex,
     toolName: request.tool.name,
     riskLevel: request.tool.riskLevel,
-    tier: request.amountCents === undefined ? ("single_approver" as ApprovalTier) : approvalTierFor(request.amountCents),
+    tier: request.tier ?? (request.amountCents === undefined ? ("single_approver" as ApprovalTier) : approvalTierFor(request.amountCents)),
     amountCents: request.amountCents ?? null,
     currency: request.currency ?? null,
     evidenceJson: JSON.stringify(request.evidence),
@@ -86,6 +92,9 @@ export async function requestApproval(request: ApprovalRequest): Promise<Approva
     decidedAt: null,
     decidedByUserId: null,
     decisionNote: null,
+    requiredApprovals: request.requiredApprovals ?? (requiredApprovalsFor(request.tier ?? "single_approver") || 1),
+    approvalsReceived: 0,
+    policyVersion: request.policyVersion ?? 1,
   };
 
   try {
@@ -146,8 +155,8 @@ export async function listPendingApprovals(organizationId: string, limit = 50): 
 }
 
 export type DecisionOutcome =
-  | { ok: true; approval: ApprovalRecord }
-  | { ok: false; reason: "not_found" | "already_decided" | "expired" | "self_approval" };
+  | { ok: true; approval: ApprovalRecord; complete: boolean }
+  | { ok: false; reason: "not_found" | "already_decided" | "expired" | "self_approval" | "duplicate_approver" };
 
 /**
  * Records a decision.
@@ -188,21 +197,61 @@ export async function decideApproval(
   }
 
   const now = new Date();
-  await getDb()
-    .update(agentApprovals)
-    .set({ status: decision, decidedAt: now, decidedByUserId, decisionNote: note ?? null })
-    .where(and(eq(agentApprovals.id, approvalId), eq(agentApprovals.status, "pending")));
+  try {
+    await getDb().insert(agentApprovalDecisions).values({
+      id: crypto.randomUUID(),
+      approvalId,
+      organizationId,
+      userId: decidedByUserId,
+      decision,
+      note: note ?? null,
+      createdAt: now,
+    });
+  } catch {
+    return { ok: false, reason: "duplicate_approver" };
+  }
+
+  if (decision === "rejected") {
+    await getDb().update(agentApprovals)
+      .set({ status: "rejected", decidedAt: now, decidedByUserId, decisionNote: note ?? null })
+      .where(and(eq(agentApprovals.id, approvalId), eq(agentApprovals.status, "pending")));
+    const updated = await getApproval(organizationId, approvalId);
+    if (!updated || updated.status !== "rejected") return { ok: false, reason: "already_decided" };
+    return { ok: true, approval: updated, complete: true };
+  }
+
+  const [count] = await getDb().select({ value: sql<number>`count(*)` })
+    .from(agentApprovalDecisions)
+    .where(and(eq(agentApprovalDecisions.approvalId, approvalId), eq(agentApprovalDecisions.decision, "approved")));
+  const approvalsReceived = Number(count?.value ?? 0);
+  const complete = approvalsReceived >= approval.requiredApprovals;
+  await getDb().update(agentApprovals).set({
+    approvalsReceived,
+    ...(complete ? { status: "approved", decidedAt: now, decidedByUserId, decisionNote: note ?? null } : {}),
+  }).where(and(eq(agentApprovals.id, approvalId), eq(agentApprovals.status, "pending")));
 
   const updated = await getApproval(organizationId, approvalId);
-  if (!updated || updated.status !== decision) return { ok: false, reason: "already_decided" };
-  return { ok: true, approval: updated };
+  if (!updated) return { ok: false, reason: "already_decided" };
+  if (complete && updated.status !== "approved") return { ok: false, reason: "already_decided" };
+  if (!complete && updated.status !== "pending") return { ok: false, reason: "already_decided" };
+  return { ok: true, approval: updated, complete };
 }
 
-/** Marks overdue requests expired. Called opportunistically from the approvals listing, the same idiom lib/security/rate-limit.ts uses — this app has no scheduled worker to sweep on a timer. */
+/** Marks one workspace's overdue requests expired; the cron also sweeps globally. */
 export async function expireStaleApprovals(organizationId: string): Promise<void> {
   await getDb()
     .update(agentApprovals)
     .set({ status: "expired" })
     .where(and(eq(agentApprovals.organizationId, organizationId), eq(agentApprovals.status, "pending"), lt(agentApprovals.expiresAt, new Date())))
     .catch((err) => console.error("agent_approval_expiry_failed", err));
+}
+
+/** Scheduled-worker sweep across workspaces. It changes only overdue pending rows. */
+export async function expireAllStaleApprovals(): Promise<number> {
+  const result = await getDb()
+    .update(agentApprovals)
+    .set({ status: "expired" })
+    .where(and(eq(agentApprovals.status, "pending"), lt(agentApprovals.expiresAt, new Date())));
+  const value = result as { rowsAffected?: number; meta?: { changes?: number }; changes?: number };
+  return value.rowsAffected ?? value.meta?.changes ?? value.changes ?? 0;
 }

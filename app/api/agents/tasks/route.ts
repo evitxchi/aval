@@ -3,20 +3,18 @@ import { getApiIdentity, isGuestIdentity } from "@/lib/integrations/session";
 import { ensureOrganization } from "@/lib/integrations/organizations";
 import { clientIp, isRateLimited, recordAttempt } from "@/lib/security/rate-limit";
 import { createTask, listTasks, DEFAULT_MAX_STEPS } from "@/lib/agents/tasks";
-import { advanceTask, newWorkerId } from "@/lib/agents/runtime";
 import { roleForPersona } from "@/lib/agents/permissions";
 import { appendAuditEvents } from "@/lib/audit/log";
 import { digestPayload } from "@/lib/audit/chain";
-import type { AskAvalEnv } from "@/lib/ask-aval/anthropic";
+import { getRequestExecutionContext } from "vinext/shims/request-context";
+import { runTaskInBackground, type AgentWorkerEnv } from "@/lib/agents/worker";
 
 /**
  * Durable agent tasks — the goal-shaped counterpart to /api/assistant/ask.
  *
- * POST creates a task and runs it as far as one invocation allows. The task is
- * persisted first and advanced second, deliberately: if this request dies
- * halfway, the row survives and the next poll resumes it. A run that returned
- * only when finished would be the "one giant HTTP request" §13 tells us not to
- * build.
+ * POST persists and returns a task immediately. `waitUntil` starts it without
+ * holding the HTTP response open, and the minute cron is the recovery path if
+ * that isolate disappears. Browser polling only observes state.
  *
  * Guests may create and watch tasks (the demo is the product's front door) but
  * every mutating tool is denied to them by policy, so a guest task can only
@@ -75,6 +73,8 @@ export async function POST(request: Request) {
     { kind: "task_created", label: roleForPersona(agentId), payloadDigest: await digestPayload(goal), count: task.maxSteps },
   ]);
 
-  const outcome = await advanceTask(env as unknown as AskAvalEnv, identity.organizationId, task.id, newWorkerId());
-  return Response.json({ id: task.id, ...outcome }, { status: 202, headers: { "cache-control": "no-store" } });
+  const work = runTaskInBackground(env as unknown as AgentWorkerEnv, identity.organizationId, task.id, "request")
+    .catch((error) => console.error("agent_task_request_background_failed", { taskId: task.id, error }));
+  getRequestExecutionContext()?.waitUntil(work);
+  return Response.json({ id: task.id, taskId: task.id, status: "QUEUED", stepsRun: 0 }, { status: 202, headers: { "cache-control": "no-store" } });
 }

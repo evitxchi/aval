@@ -3,10 +3,10 @@ import { getApiIdentity, isGuestIdentity } from "@/lib/integrations/session";
 import { ensureOrganization } from "@/lib/integrations/organizations";
 import { decideApproval, expireStaleApprovals, getApproval, listPendingApprovals } from "@/lib/agents/approvals";
 import { getTask } from "@/lib/agents/tasks";
-import { advanceTask, newWorkerId } from "@/lib/agents/runtime";
 import { appendAuditEvents } from "@/lib/audit/log";
 import { digestPayload } from "@/lib/audit/chain";
-import type { AskAvalEnv } from "@/lib/ask-aval/anthropic";
+import { getRequestExecutionContext } from "vinext/shims/request-context";
+import { runTaskInBackground, type AgentWorkerEnv } from "@/lib/agents/worker";
 
 /**
  * The human half of §12: actions an agent prepared and is not allowed to take.
@@ -25,9 +25,8 @@ export async function GET(request: Request) {
   if (!identity) return Response.json({ error: "Authentication required" }, { status: 401 });
   await ensureOrganization(identity);
 
-  // Swept here rather than on a timer: this stack has no scheduled worker, and
-  // the listing is the one place staleness is actually observable. Same idiom
-  // as lib/security/rate-limit.ts.
+  // The cron is authoritative; this opportunistic sweep keeps a just-expired
+  // request from appearing actionable between minute ticks.
   await expireStaleApprovals(identity.organizationId);
 
   const pending = await listPendingApprovals(identity.organizationId);
@@ -43,6 +42,8 @@ export async function GET(request: Request) {
       evidence: safeParse(approval.evidenceJson),
       requestedAt: approval.requestedAt,
       expiresAt: approval.expiresAt,
+      requiredApprovals: approval.requiredApprovals,
+      approvalsReceived: approval.approvalsReceived,
     })),
   }, { headers: { "cache-control": "no-store" } });
 }
@@ -85,10 +86,21 @@ export async function POST(request: Request) {
     { kind: "approval_decided", label: `${approval.toolName}:${decision}`, payloadDigest: await digestPayload(approvalId), count: approval.stepIndex },
   ]);
 
-  // Un-park the task so it can either run the approved action or record the
-  // refusal and conclude with what it has.
-  const advanced = await advanceTask(env as unknown as AskAvalEnv, identity.organizationId, task.id, newWorkerId());
-  return Response.json({ id: approvalId, decision, task: advanced }, { headers: { "cache-control": "no-store" } });
+  // A first decision on an elevated action leaves it parked until a second,
+  // distinct person approves. Rejection is immediately final.
+  if (outcome.complete) {
+    const work = runTaskInBackground(env as unknown as AgentWorkerEnv, identity.organizationId, task.id, "approval")
+      .catch((error) => console.error("agent_approval_background_failed", { approvalId, taskId: task.id, error }));
+    getRequestExecutionContext()?.waitUntil(work);
+  }
+  return Response.json({
+    id: approvalId,
+    decision,
+    complete: outcome.complete,
+    approvalsReceived: outcome.approval.approvalsReceived,
+    requiredApprovals: outcome.approval.requiredApprovals,
+    task: { id: task.id, status: task.status, resumeScheduled: outcome.complete },
+  }, { headers: { "cache-control": "no-store" } });
 }
 
 const MESSAGES = {
@@ -96,6 +108,7 @@ const MESSAGES = {
   already_decided: "This action was already decided.",
   expired: "This approval request expired. The agent must propose the action again.",
   self_approval: "A critical action cannot be approved by the person whose task proposed it.",
+  duplicate_approver: "Your decision is already recorded. An elevated action needs another distinct approver.",
 } as const;
 
 function safeParse(json: string): unknown {

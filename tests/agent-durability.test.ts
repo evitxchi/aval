@@ -20,6 +20,7 @@ import { LEASE_MS } from "../lib/agents/task-state.ts";
 
 function migratedDatabase(): DatabaseSync {
   const db = new DatabaseSync(":memory:");
+  db.exec("PRAGMA foreign_keys = ON");
   const files = readdirSync("drizzle").filter((name) => name.endsWith(".sql")).sort();
   for (const file of files) {
     const sql = readFileSync(`drizzle/${file}`, "utf8");
@@ -250,5 +251,111 @@ test("two people deciding at once produce one decision, not two", () => {
   const [row] = db.prepare("SELECT status, decided_by_user_id FROM agent_approvals WHERE id = 'approval_1'").all() as { status: string; decided_by_user_id: string }[];
   assert.equal(row.status, "approved");
   assert.equal(row.decided_by_user_id, "user_2");
+  db.close();
+});
+
+test("an elevated approval counts two distinct people, never two clicks", () => {
+  const db = migratedDatabase();
+  seedTask(db);
+  insertApproval(db, { id: "approval_1", required_approvals: 2, approvals_received: 0 });
+  const insert = db.prepare("INSERT INTO agent_approval_decisions (id, approval_id, organization_id, user_id, decision, created_at) VALUES (?,?,?,?,?,?)");
+  insert.run("decision_1", "approval_1", "org_1", "user_2", "approved", NOW + 1);
+  assert.throws(() => insert.run("decision_2", "approval_1", "org_1", "user_2", "approved", NOW + 2), /UNIQUE|constraint/i);
+  insert.run("decision_3", "approval_1", "org_1", "user_3", "approved", NOW + 3);
+  const [{ n }] = db.prepare("SELECT COUNT(*) AS n FROM agent_approval_decisions WHERE approval_id = ? AND decision = 'approved'").all("approval_1") as { n: number }[];
+  assert.equal(n, 2);
+  db.close();
+});
+
+function insertFinancialOperation(db: DatabaseSync, over: Partial<Record<string, unknown>> = {}) {
+  const row = {
+    id: "operation_1", organization_id: "org_1", task_id: "task_1", approval_id: null,
+    step_index: 4, tool_name: "issue_payment", idempotency_key: "issue_payment:task_1:step_4",
+    amount_cents: 12_500, currency: "USD", account_fingerprint: "sha256-account",
+    status: "submitted", reconciliation_status: "pending", external_transaction_id: "tr_123",
+    result_digest: "digest", discrepancy_code: null, reconcile_attempts: 0,
+    next_reconcile_at: NOW, last_reconciled_at: null, reconcile_lease_owner: null,
+    reconcile_lease_expires_at: null, created_at: NOW, updated_at: NOW, settled_at: null,
+    ...over,
+  };
+  const columns = Object.keys(row);
+  return db.prepare(`INSERT INTO agent_financial_operations (${columns.join(",")}) VALUES (${columns.map(() => "?").join(",")})`)
+    .run(...columns.map((key) => row[key as keyof typeof row] as never));
+}
+
+test("the financial ledger independently rejects duplicate keys and provider ids", () => {
+  const db = migratedDatabase();
+  seedTask(db);
+  insertFinancialOperation(db);
+  assert.throws(() => insertFinancialOperation(db, { id: "operation_2", external_transaction_id: "tr_456" }), /UNIQUE|constraint/i);
+  assert.throws(() => insertFinancialOperation(db, { id: "operation_3", idempotency_key: "different", external_transaction_id: "tr_123" }), /UNIQUE|constraint/i);
+  db.close();
+});
+
+test("the rolling spend cap is arbitrated inside the reservation write", () => {
+  const db = migratedDatabase();
+  seedTask(db);
+  insertFinancialOperation(db, { amount_cents: 60_000, status: "reserved", external_transaction_id: null });
+
+  // Mirrors reserveFinancialOperation's INSERT ... SELECT predicate. The
+  // second writer sees the first committed reservation because SQLite
+  // serializes writes; there is no separate read/check window to race.
+  const reserve = db.prepare(`
+    INSERT INTO agent_financial_operations (
+      id, organization_id, task_id, approval_id, step_index, tool_name,
+      idempotency_key, amount_cents, currency, account_fingerprint, status,
+      reconciliation_status, reconcile_attempts, next_reconcile_at, created_at, updated_at
+    )
+    SELECT ?, 'org_1', 'task_1', NULL, 5, 'issue_payment', ?, ?, 'USD',
+      'sha256-account-2', 'reserved', 'pending', 0, ?, ?, ?
+    WHERE (
+      SELECT COALESCE(SUM(amount_cents), 0)
+      FROM agent_financial_operations
+      WHERE organization_id = 'org_1'
+        AND created_at > ?
+        AND status IN ('reserved', 'submitted', 'settled', 'unknown')
+    ) + ? <= ?
+  `);
+  const denied = reserve.run("operation_2", "key_2", 50_000, NOW, NOW, NOW, NOW - 86_400_000, 50_000, 100_000);
+  assert.equal(Number(denied.changes), 0);
+  const accepted = reserve.run("operation_3", "key_3", 40_000, NOW, NOW, NOW, NOW - 86_400_000, 40_000, 100_000);
+  assert.equal(Number(accepted.changes), 1);
+  const [{ total }] = db.prepare("SELECT SUM(amount_cents) AS total FROM agent_financial_operations WHERE organization_id = 'org_1'").all() as { total: number }[];
+  assert.equal(total, 100_000);
+  db.close();
+});
+
+test("only one reconciler claims an operation and a crashed lease is recoverable", () => {
+  const db = migratedDatabase();
+  seedTask(db);
+  insertFinancialOperation(db);
+  const claimReconciliation = (worker: string, now: number) => Number(db.prepare(
+    `UPDATE agent_financial_operations
+     SET reconcile_lease_owner = ?, reconcile_lease_expires_at = ?
+     WHERE id = 'operation_1'
+       AND reconciliation_status = 'pending'
+       AND next_reconcile_at <= ?
+       AND (reconcile_lease_expires_at IS NULL OR reconcile_lease_expires_at < ?)`,
+  ).run(worker, now + 60_000, now, now).changes);
+
+  assert.equal(claimReconciliation("reconciler_a", NOW), 1);
+  assert.equal(claimReconciliation("reconciler_b", NOW + 1), 0);
+  assert.equal(claimReconciliation("reconciler_b", NOW + 60_001), 1);
+  db.close();
+});
+
+test("the financial event journal is append-only and strictly sequenced", () => {
+  const db = migratedDatabase();
+  seedTask(db);
+  insertFinancialOperation(db);
+  const insert = db.prepare("INSERT INTO agent_financial_events (id, operation_id, organization_id, sequence, kind, payload_digest, created_at) VALUES (?,?,?,?,?,?,?)");
+  insert.run("event_1", "operation_1", "org_1", 1, "reserved", "a", NOW);
+  insert.run("event_2", "operation_1", "org_1", 2, "submitted", "b", NOW + 1);
+  assert.throws(() => insert.run("event_3", "operation_1", "org_1", 2, "matched", "c", NOW + 2), /UNIQUE|constraint/i);
+  const rows = db.prepare("SELECT sequence, kind FROM agent_financial_events WHERE operation_id = 'operation_1' ORDER BY sequence").all() as { sequence: number; kind: string }[];
+  assert.deepEqual(rows.map(({ sequence, kind }) => ({ sequence, kind })), [
+    { sequence: 1, kind: "reserved" },
+    { sequence: 2, kind: "submitted" },
+  ]);
   db.close();
 });

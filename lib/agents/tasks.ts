@@ -22,11 +22,12 @@
  *   that already started.
  */
 
-import { and, asc, desc, eq, inArray, lt, or, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, lt, lte, or, isNull, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { agentTasks, agentTaskSteps } from "@/db/schema";
 import { canTransition, LEASE_MS, TERMINAL_STATES, type TaskState } from "./task-state.ts";
 import { DEFAULT_MAX_STEPS, DEFAULT_MAX_TOKENS } from "./task-state.ts";
+import { retryJitterMs, taskRetryDelayMs } from "./retry-policy.ts";
 
 export {
   TASK_STATES,
@@ -62,11 +63,14 @@ export interface TaskRecord {
   maxSteps: number;
   tokensUsed: number;
   maxTokens: number;
+  executionAttempts: number;
+  nextAttemptAt: Date | null;
   parentTaskId: string | null;
   delegationDepth: number;
   cancelRequested: boolean;
   leaseOwner: string | null;
   leaseExpiresAt: Date | null;
+  lastHeartbeatAt: Date | null;
   resultJson: string | null;
   error: string | null;
   createdAt: Date;
@@ -88,11 +92,14 @@ export async function createTask(input: NewTask): Promise<TaskRecord> {
     maxSteps: input.maxSteps ?? DEFAULT_MAX_STEPS,
     tokensUsed: 0,
     maxTokens: input.maxTokens ?? DEFAULT_MAX_TOKENS,
+    executionAttempts: 0,
+    nextAttemptAt: null,
     parentTaskId: input.parentTaskId ?? null,
     delegationDepth: input.delegationDepth ?? 0,
     cancelRequested: false,
     leaseOwner: null,
     leaseExpiresAt: null,
+    lastHeartbeatAt: null,
     resultJson: null,
     error: null,
     createdAt: now,
@@ -137,12 +144,13 @@ export async function claimTask(taskId: string, workerId: string, from: TaskStat
   const now = new Date();
   const result = await getDb()
     .update(agentTasks)
-    .set({ status: "RUNNING", leaseOwner: workerId, leaseExpiresAt: new Date(now.getTime() + LEASE_MS), updatedAt: now })
+    .set({ status: "RUNNING", leaseOwner: workerId, leaseExpiresAt: new Date(now.getTime() + LEASE_MS), lastHeartbeatAt: now, updatedAt: now })
     .where(
       and(
         eq(agentTasks.id, taskId),
         eq(agentTasks.status, from),
         or(isNull(agentTasks.leaseExpiresAt), lt(agentTasks.leaseExpiresAt, now)),
+        or(isNull(agentTasks.nextAttemptAt), lte(agentTasks.nextAttemptAt, now)),
       ),
     );
     // D1 reports affected rows on `meta.changes`; drizzle surfaces it as
@@ -156,7 +164,7 @@ export async function heartbeat(taskId: string, workerId: string): Promise<boole
   const now = new Date();
   const result = await getDb()
     .update(agentTasks)
-    .set({ leaseExpiresAt: new Date(now.getTime() + LEASE_MS), updatedAt: now })
+    .set({ leaseExpiresAt: new Date(now.getTime() + LEASE_MS), lastHeartbeatAt: now, updatedAt: now })
     .where(and(eq(agentTasks.id, taskId), eq(agentTasks.leaseOwner, workerId)));
   return affectedRows(result) === 1;
 }
@@ -168,6 +176,8 @@ export interface TaskUpdate {
   tokensUsed?: number;
   resultJson?: string | null;
   error?: string | null;
+  executionAttempts?: number;
+  nextAttemptAt?: Date | null;
   releaseLease?: boolean;
 }
 
@@ -191,6 +201,8 @@ export async function updateTask(task: TaskRecord, workerId: string, update: Tas
       ...(update.tokensUsed !== undefined ? { tokensUsed: update.tokensUsed } : {}),
       ...(update.resultJson !== undefined ? { resultJson: update.resultJson } : {}),
       ...(update.error !== undefined ? { error: update.error } : {}),
+      ...(update.executionAttempts !== undefined ? { executionAttempts: update.executionAttempts } : {}),
+      ...(update.nextAttemptAt !== undefined ? { nextAttemptAt: update.nextAttemptAt } : {}),
       ...(update.releaseLease || terminal ? { leaseOwner: null, leaseExpiresAt: null } : {}),
       ...(terminal ? { finishedAt: now } : {}),
       updatedAt: now,
@@ -204,6 +216,18 @@ export class IllegalTransitionError extends Error {
     super(`Illegal task transition ${from} → ${to}.`);
     this.name = "IllegalTransitionError";
   }
+}
+
+/** Park a retryable provider failure for a later worker with bounded backoff. */
+export async function scheduleTaskRetry(task: TaskRecord, workerId: string, message: string): Promise<boolean> {
+  const attempt = task.executionAttempts + 1;
+  return updateTask(task, workerId, {
+    status: "QUEUED",
+    executionAttempts: attempt,
+    nextAttemptAt: new Date(Date.now() + taskRetryDelayMs(attempt) + retryJitterMs(task.id)),
+    error: message,
+    releaseLease: true,
+  });
 }
 
 /**
@@ -277,9 +301,28 @@ export async function claimableTasks(limit = 5): Promise<TaskRecord[]> {
       and(
         inArray(agentTasks.status, ["QUEUED", "RUNNING", "WAITING_FOR_TOOL"]),
         or(isNull(agentTasks.leaseExpiresAt), lt(agentTasks.leaseExpiresAt, now)),
+        or(isNull(agentTasks.nextAttemptAt), lte(agentTasks.nextAttemptAt, now)),
       ),
     )
     .orderBy(asc(agentTasks.createdAt))
+    .limit(limit);
+  return rows as TaskRecord[];
+}
+
+/** Approval-parked tasks whose latest request was decided or has expired. */
+export async function resumableApprovalTasks(limit = 10): Promise<TaskRecord[]> {
+  const now = new Date();
+  const rows = await getDb().select().from(agentTasks)
+    .where(and(
+      eq(agentTasks.status, "WAITING_FOR_APPROVAL"),
+      sql`exists (
+        select 1 from agent_approvals a
+        where a.task_id = ${agentTasks.id}
+          and a.step_index = (select max(a2.step_index) from agent_approvals a2 where a2.task_id = ${agentTasks.id})
+          and (a.status <> 'pending' or a.expires_at < ${now})
+      )`,
+    ))
+    .orderBy(asc(agentTasks.updatedAt))
     .limit(limit);
   return rows as TaskRecord[];
 }
@@ -291,6 +334,8 @@ export interface StepInput {
   organizationId: string;
   stepIndex: number;
   kind: string;
+  modelProvider?: string;
+  modelName?: string;
   toolName?: string;
   policyEffect?: string;
   denyCode?: string;
@@ -331,6 +376,8 @@ export async function appendStep(step: StepInput): Promise<boolean> {
       sequence: (head?.sequence ?? 0) + 1,
       stepIndex: step.stepIndex,
       kind: step.kind,
+      modelProvider: step.modelProvider ?? null,
+      modelName: step.modelName ?? null,
       toolName: step.toolName ?? null,
       policyEffect: step.policyEffect ?? null,
       denyCode: step.denyCode ?? null,

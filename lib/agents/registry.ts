@@ -61,6 +61,9 @@ export interface ToolDescriptor {
     amountField: string;
     /** Argument holding the ISO-4217 code. */
     currencyField: string;
+    /** Provider-owned destination/account identifier. It is validated against
+     * an org allowlist and only a one-way fingerprint is persisted. */
+    accountField: string;
     /** Currencies this tool accepts. Anything else is denied before any policy threshold is consulted. */
     allowedCurrencies: readonly string[];
   };
@@ -139,14 +142,14 @@ const DESCRIPTORS: ToolDescriptor[] = [
     summary: "Authorize spend against a vendor estimate.",
     riskLevel: "critical", mutates: true, requiredPermission: "vendor.spend.authorize",
     timeoutMs: 30_000, maxRetries: 0, idempotent: false, requiresApproval: true, unimplemented: true,
-    financial: { amountField: "amount_cents", currencyField: "currency", allowedCurrencies: ["USD", "MXN"] },
+    financial: { amountField: "amount_cents", currencyField: "currency", accountField: "vendor_id", allowedCurrencies: ["USD", "MXN"] },
   },
   {
     name: "issue_payment",
     summary: "Move money to an external account.",
     riskLevel: "critical", mutates: true, requiredPermission: "payments.execute",
     timeoutMs: 30_000, maxRetries: 0, idempotent: false, requiresApproval: true, unimplemented: true,
-    financial: { amountField: "amount_cents", currencyField: "currency", allowedCurrencies: ["USD", "MXN"] },
+    financial: { amountField: "amount_cents", currencyField: "currency", accountField: "destination_account_id", allowedCurrencies: ["USD", "MXN"] },
   },
   { name: "execute_lease", summary: "Countersign and execute a lease.", riskLevel: "critical", mutates: true, requiredPermission: "lease.execute", timeoutMs: 30_000, maxRetries: 0, idempotent: false, requiresApproval: true, unimplemented: true },
 ];

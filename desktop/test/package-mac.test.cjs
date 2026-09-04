@@ -40,6 +40,21 @@ test("electron-builder uses the approved Aval DMG layout", () => {
   ]);
 });
 
+test("production packaging cannot fall back to an unsigned or unnotarized app", () => {
+  const { build } = packageJson;
+  assert.equal(build.forceCodeSigning, true);
+  assert.equal(build.mac.hardenedRuntime, true);
+  assert.equal(build.mac.notarize, true);
+  assert.equal(build.mac.entitlements, "build/entitlements.mac.plist");
+  assert.equal(build.mac.entitlementsInherit, "build/entitlements.mac.inherit.plist");
+
+  for (const filename of [build.mac.entitlements, build.mac.entitlementsInherit]) {
+    const contents = fs.readFileSync(path.join(desktopRoot, filename), "utf8");
+    assert.match(contents, /com\.apple\.security\.cs\.allow-jit/);
+    assert.match(contents, /com\.apple\.security\.cs\.disable-library-validation/);
+  }
+});
+
 test("DMG background provides standard and Retina assets", () => {
   assert.deepEqual(pngDimensions(path.join(desktopRoot, "assets", "dmg-background.png")), { width: 660, height: 420 });
   assert.deepEqual(pngDimensions(path.join(desktopRoot, "assets", "dmg-background@2x.png")), { width: 1320, height: 840 });

@@ -27,6 +27,8 @@ import { idempotencyKey } from "./financial.ts";
 import { reserveMutation } from "./tasks.ts";
 import type { ToolDescriptor } from "./registry.ts";
 import { redactArguments } from "./redaction.ts";
+import { evaluateFinancialProposal, type FinancialProposalDecision } from "./execution-policy.ts";
+import { recordFinancialToolResult, reserveFinancialOperation } from "./financial-operations.ts";
 
 export interface ExecutionRequest {
   toolName: string;
@@ -38,13 +40,13 @@ export interface ExecutionRequest {
    * no task row — the effect is that a mutating tool cannot be executed from
    * the chat loop at all, since there is nowhere to record its idempotency key.
    */
-  task?: { id: string; stepIndex: number };
+  task?: { id: string; stepIndex: number; approvalId?: string; policyVersion?: number };
 }
 
 export type ExecutionResult =
   | { status: "ok"; json: unknown; numbers: number[]; durationMs: number; attempts: number; tool: ToolDescriptor }
   | { status: "denied"; code: DenyCode; reason: string }
-  | { status: "needs_approval"; tool: ToolDescriptor; reason: string; idempotencyKey: string | null }
+  | { status: "needs_approval"; tool: ToolDescriptor; reason: string; idempotencyKey: string | null; tier: "single_approver" | "elevated_approver"; requiredApprovals: number; policyVersion: number }
   | { status: "duplicate"; idempotencyKey: string }
   | { status: "failed"; reason: string; attempts: number; tool: ToolDescriptor };
 
@@ -74,6 +76,22 @@ export async function executeTool(request: ExecutionRequest): Promise<ExecutionO
 
   const tool = decision.tool;
 
+  const financialDecision = tool.financial
+    ? await evaluateFinancialProposal(request.subject.organizationId, tool, request.args)
+    : null;
+  if (financialDecision && !financialDecision.ok) {
+    return {
+      result: { status: "denied", code: "financial_policy_denied", reason: financialDecision.reason },
+      audit,
+    };
+  }
+  if (financialDecision?.ok && request.task?.policyVersion !== undefined && request.task.policyVersion !== financialDecision.policy.version) {
+    return {
+      result: { status: "denied", code: "financial_policy_denied", reason: "The financial policy changed after this action was approved. Propose it again under the current policy." },
+      audit,
+    };
+  }
+
   // A mutating tool without a task row has nowhere to record its key, so it
   // cannot be made safe to retry — refusing is the only honest answer.
   const key = tool.mutates
@@ -91,10 +109,22 @@ export async function executeTool(request: ExecutionRequest): Promise<ExecutionO
 
   if (decision.effect === "require_approval") {
     audit.push({ kind: "approval_requested", label: tool.name, payloadDigest: await digestPayload(redactArguments(request.args)), count: 0 });
-    return { result: { status: "needs_approval", tool, reason: decision.reason, idempotencyKey: key }, audit };
+    const financial = financialDecision?.ok ? financialDecision : null;
+    return {
+      result: {
+        status: "needs_approval",
+        tool,
+        reason: decision.reason,
+        idempotencyKey: key,
+        tier: financial?.tier ?? "single_approver",
+        requiredApprovals: financial?.requiredApprovals ?? 1,
+        policyVersion: financial?.policy.version ?? 1,
+      },
+      audit,
+    };
   }
 
-  return reserveThenRun(tool, request, key, audit);
+  return reserveThenRun(tool, request, key, audit, financialDecision?.ok ? financialDecision : null);
 }
 
 /**
@@ -109,6 +139,7 @@ async function reserveThenRun(
   request: ExecutionRequest,
   key: string | null,
   audit: AuditEvent[],
+  financial: Extract<FinancialProposalDecision, { ok: true }> | null = null,
 ): Promise<ExecutionOutcome> {
   if (key && request.task) {
     const reserved = await reserveMutation({
@@ -125,7 +156,31 @@ async function reserveThenRun(
       return { result: { status: "duplicate", idempotencyKey: key }, audit };
     }
   }
-  return runWithRetries(tool, request, key, audit);
+
+  let financialOperationId: string | null = null;
+  if (key && request.task && financial) {
+    const reservation = await reserveFinancialOperation({
+      organizationId: request.subject.organizationId,
+      taskId: request.task.id,
+      approvalId: request.task.approvalId,
+      stepIndex: request.task.stepIndex,
+      toolName: tool.name,
+      idempotencyKey: key,
+      amountCents: financial.amountCents,
+      currency: financial.currency,
+      accountFingerprint: financial.accountFingerprint,
+      dailyLimitCents: financial.policy.dailyLimitCents,
+    });
+    if (!reservation.ok) {
+      if (reservation.duplicate) return { result: { status: "duplicate", idempotencyKey: key }, audit };
+      const reason = reservation.reason === "daily_limit"
+        ? "The rolling 24-hour financial limit was reached before reservation. Nothing was executed."
+        : "The financial operation could not be durably reserved. Nothing was executed.";
+      return { result: { status: "failed", reason, attempts: 0, tool }, audit };
+    }
+    financialOperationId = reservation.operation.id;
+  }
+  return runWithRetries(tool, request, key, audit, financialOperationId);
 }
 
 /**
@@ -144,8 +199,17 @@ export async function executeApprovedTool(request: ExecutionRequest & { task: { 
     return { result: { status: "denied", code: decision.code, reason: decision.reason }, audit };
   }
   const tool = decision.tool;
+  const financialDecision = tool.financial
+    ? await evaluateFinancialProposal(request.subject.organizationId, tool, request.args)
+    : null;
+  if (financialDecision && !financialDecision.ok) {
+    return { result: { status: "denied", code: "financial_policy_denied", reason: financialDecision.reason }, audit };
+  }
+  if (financialDecision?.ok && request.task.policyVersion !== undefined && request.task.policyVersion !== financialDecision.policy.version) {
+    return { result: { status: "denied", code: "financial_policy_denied", reason: "The financial policy changed after approval. The action must be proposed again." }, audit };
+  }
   const key = tool.mutates ? idempotencyKey(request.task.id, request.task.stepIndex, tool.name) : null;
-  return reserveThenRun(tool, request, key, audit);
+  return reserveThenRun(tool, request, key, audit, financialDecision?.ok ? financialDecision : null);
 }
 
 async function runWithRetries(
@@ -153,6 +217,7 @@ async function runWithRetries(
   request: ExecutionRequest,
   _key: string | null,
   audit: AuditEvent[],
+  financialOperationId: string | null,
 ): Promise<ExecutionOutcome> {
   const started = Date.now();
   let lastError = "";
@@ -165,6 +230,13 @@ async function runWithRetries(
         tool.name,
       );
       const durationMs = Date.now() - started;
+      if (financialOperationId) {
+        const recorded = await recordFinancialToolResult(financialOperationId, request.subject.organizationId, out.json);
+        if (!recorded.ok) {
+          audit.push({ kind: "tool_error", label: `${tool.name}:reconciliation_required`, payloadDigest: await digestPayload(recorded.reason), count: attempt });
+          return { result: { status: "failed", reason: `${recorded.reason} The operation is marked unknown and requires reconciliation; it will not be retried.`, attempts: attempt, tool }, audit };
+        }
+      }
       audit.push({ kind: "tool_call", label: tool.name, payloadDigest: await digestPayload(out.json), count: out.numbers.length });
       return {
         result: { status: "ok", json: out.json, numbers: out.numbers, durationMs, attempts: attempt, tool },

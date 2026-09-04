@@ -1,6 +1,6 @@
 {
   "name": "aval-desktop",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "private": true,
   "description": "Trusted desktop shell for Aval with a local Codex App Server bridge",
   "main": "main.cjs",
@@ -21,6 +21,7 @@
     "appId": "com.evalxnder.aval",
     "productName": "Aval",
     "asar": true,
+    "forceCodeSigning": true,
     "directories": {
       "output": "dist"
     },
@@ -56,6 +57,10 @@
     "mac": {
       "category": "public.app-category.business",
       "icon": "../public/icon-512.png",
+      "hardenedRuntime": true,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.inherit.plist",
+      "notarize": true,
       "target": [
         {
           "target": "dmg",

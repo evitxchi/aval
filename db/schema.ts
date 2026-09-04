@@ -969,6 +969,11 @@ export const agentTasks = sqliteTable(
     maxSteps: integer("max_steps").notNull(),
     tokensUsed: integer("tokens_used").notNull().default(0),
     maxTokens: integer("max_tokens").notNull(),
+    // Task-level retry bookkeeping. A model/provider outage is retried by a
+    // later worker invocation with exponential backoff; it is not converted
+    // immediately into a terminal failure and it is never retried in-memory.
+    executionAttempts: integer("execution_attempts").notNull().default(0),
+    nextAttemptAt: integer("next_attempt_at", { mode: "timestamp_ms" }),
     // Delegation lineage (§19). Depth is capped in lib/agents/policy.ts.
     parentTaskId: text("parent_task_id"),
     delegationDepth: integer("delegation_depth").notNull().default(0),
@@ -981,6 +986,7 @@ export const agentTasks = sqliteTable(
     // simply times out and the next worker picks the task up mid-run.
     leaseOwner: text("lease_owner"),
     leaseExpiresAt: integer("lease_expires_at", { mode: "timestamp_ms" }),
+    lastHeartbeatAt: integer("last_heartbeat_at", { mode: "timestamp_ms" }),
     // Terminal outcome. `resultJson` is the rendered answer, the one payload
     // worth retaining because the user asked for it; `error` is a message,
     // never a stack trace or a provider response body.
@@ -994,6 +1000,7 @@ export const agentTasks = sqliteTable(
     index("agent_tasks_org_created_idx").on(table.organizationId, table.createdAt),
     // The claim query: find runnable work whose lease has expired.
     index("agent_tasks_status_lease_idx").on(table.status, table.leaseExpiresAt),
+    index("agent_tasks_status_attempt_idx").on(table.status, table.nextAttemptAt),
     index("agent_tasks_parent_idx").on(table.parentTaskId),
   ],
 );
@@ -1017,6 +1024,10 @@ export const agentTaskSteps = sqliteTable(
     stepIndex: integer("step_index").notNull(),
     // model_call | tool_call | policy_deny | approval_requested | approval_decided | delegation | error | completion
     kind: text("kind").notNull(),
+    // The concrete route used for a model_call. Explicit history matters when
+    // an org changes providers after a task has already run.
+    modelProvider: text("model_provider"),
+    modelName: text("model_name"),
     toolName: text("tool_name"),
     // allow | deny | require_approval — the policy engine's verdict, recorded
     // whether or not the tool then ran.
@@ -1078,9 +1089,133 @@ export const agentApprovals = sqliteTable(
     decidedAt: integer("decided_at", { mode: "timestamp_ms" }),
     decidedByUserId: text("decided_by_user_id"),
     decisionNote: text("decision_note"),
+    // Elevated financial actions need two distinct approvers. Decisions are
+    // append-only rows below; these counters are only the query-friendly
+    // projection used to decide whether the parked task may resume.
+    requiredApprovals: integer("required_approvals").notNull().default(1),
+    approvalsReceived: integer("approvals_received").notNull().default(0),
+    policyVersion: integer("policy_version").notNull().default(1),
   },
   (table) => [
     index("agent_approvals_org_status_idx").on(table.organizationId, table.status),
     uniqueIndex("agent_approvals_task_step_uq").on(table.taskId, table.stepIndex),
   ],
+);
+
+// One immutable row per human decision. A unique (approval, user) pair means
+// two clicks by the same person can never satisfy a two-person gate.
+export const agentApprovalDecisions = sqliteTable(
+  "agent_approval_decisions",
+  {
+    id: text("id").primaryKey(),
+    approvalId: text("approval_id").notNull().references(() => agentApprovals.id),
+    organizationId: text("organization_id").notNull().references(() => organizations.id),
+    userId: text("user_id").notNull(),
+    decision: text("decision").notNull(), // approved | rejected
+    note: text("note"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("agent_approval_decisions_approval_user_uq").on(table.approvalId, table.userId),
+    index("agent_approval_decisions_org_created_idx").on(table.organizationId, table.createdAt),
+  ],
+);
+
+// A financial policy is unusable until the workspace owner explicitly
+// approves it. Automatic payment authority is intentionally absent: every
+// money-moving action always requires at least one human decision.
+export const agentExecutionPolicies = sqliteTable("agent_execution_policies", {
+  organizationId: text("organization_id").primaryKey().references(() => organizations.id),
+  status: text("status").notNull().default("draft"), // draft | approved | suspended
+  singleApprovalMaxCents: integer("single_approval_max_cents").notNull().default(50_000),
+  hardCeilingCents: integer("hard_ceiling_cents").notNull().default(2_500_000),
+  dailyLimitCents: integer("daily_limit_cents").notNull().default(5_000_000),
+  allowedCurrenciesJson: text("allowed_currencies_json").notNull().default('["USD"]'),
+  // SHA-256 fingerprints only. Account identifiers remain in the provider;
+  // Aval can check an allowlist without becoming another copy of bank data.
+  allowedAccountFingerprintsJson: text("allowed_account_fingerprints_json").notNull().default("[]"),
+  version: integer("version").notNull().default(1),
+  approvedByUserId: text("approved_by_user_id"),
+  approvedAt: integer("approved_at", { mode: "timestamp_ms" }),
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+});
+
+// Mutable reconciliation projection for each financial side effect. The
+// adjacent event table is the immutable record; this row makes due-work and
+// discrepancy queries bounded and indexable.
+export const agentFinancialOperations = sqliteTable(
+  "agent_financial_operations",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id").notNull().references(() => organizations.id),
+    taskId: text("task_id").notNull().references(() => agentTasks.id),
+    approvalId: text("approval_id").references(() => agentApprovals.id),
+    stepIndex: integer("step_index").notNull(),
+    toolName: text("tool_name").notNull(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    amountCents: integer("amount_cents").notNull(),
+    currency: text("currency").notNull(),
+    accountFingerprint: text("account_fingerprint").notNull(),
+    status: text("status").notNull(), // reserved | submitted | settled | failed | unknown | reversed
+    reconciliationStatus: text("reconciliation_status").notNull().default("pending"),
+    externalTransactionId: text("external_transaction_id"),
+    resultDigest: text("result_digest"),
+    discrepancyCode: text("discrepancy_code"),
+    reconcileAttempts: integer("reconcile_attempts").notNull().default(0),
+    nextReconcileAt: integer("next_reconcile_at", { mode: "timestamp_ms" }).notNull(),
+    lastReconciledAt: integer("last_reconciled_at", { mode: "timestamp_ms" }),
+    // Separate from the task lease: provider read-backs can overlap a task's
+    // own worker, and two cron invocations must never reconcile one operation
+    // concurrently. Expiry makes a dead reconciler recoverable.
+    reconcileLeaseOwner: text("reconcile_lease_owner"),
+    reconcileLeaseExpiresAt: integer("reconcile_lease_expires_at", { mode: "timestamp_ms" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+    settledAt: integer("settled_at", { mode: "timestamp_ms" }),
+  },
+  (table) => [
+    uniqueIndex("agent_financial_operations_idempotency_uq").on(table.idempotencyKey),
+    uniqueIndex("agent_financial_operations_external_uq").on(table.toolName, table.externalTransactionId),
+    index("agent_financial_operations_reconcile_idx").on(table.reconciliationStatus, table.nextReconcileAt, table.reconcileLeaseExpiresAt),
+    index("agent_financial_operations_org_created_idx").on(table.organizationId, table.createdAt),
+  ],
+);
+
+export const agentFinancialEvents = sqliteTable(
+  "agent_financial_events",
+  {
+    id: text("id").primaryKey(),
+    operationId: text("operation_id").notNull().references(() => agentFinancialOperations.id),
+    organizationId: text("organization_id").notNull().references(() => organizations.id),
+    sequence: integer("sequence").notNull(),
+    kind: text("kind").notNull(),
+    payloadDigest: text("payload_digest").notNull(),
+    externalTransactionId: text("external_transaction_id"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("agent_financial_events_operation_sequence_uq").on(table.operationId, table.sequence),
+    index("agent_financial_events_org_created_idx").on(table.organizationId, table.createdAt),
+  ],
+);
+
+// Persistent worker telemetry backs the health endpoint and survives log
+// retention. It contains counts and timings only, never goals or tool data.
+export const agentWorkerRuns = sqliteTable(
+  "agent_worker_runs",
+  {
+    id: text("id").primaryKey(),
+    trigger: text("trigger").notNull(), // scheduled | request | approval | manual
+    status: text("status").notNull(), // running | completed | failed
+    tasksScanned: integer("tasks_scanned").notNull().default(0),
+    tasksAdvanced: integer("tasks_advanced").notNull().default(0),
+    tasksCompleted: integer("tasks_completed").notNull().default(0),
+    tasksFailed: integer("tasks_failed").notNull().default(0),
+    tasksParked: integer("tasks_parked").notNull().default(0),
+    errorDigest: text("error_digest"),
+    startedAt: integer("started_at", { mode: "timestamp_ms" }).notNull(),
+    finishedAt: integer("finished_at", { mode: "timestamp_ms" }),
+  },
+  (table) => [index("agent_worker_runs_started_idx").on(table.startedAt)],
 );

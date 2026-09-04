@@ -33,6 +33,7 @@ export type DenyCode =
   | "permission_denied"
   | "guest_mutation_denied"
   | "invalid_arguments"
+  | "financial_policy_denied"
   | "delegation_depth_exceeded"
   | "budget_exhausted";
 

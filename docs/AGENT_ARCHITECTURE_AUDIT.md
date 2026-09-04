@@ -242,3 +242,22 @@ shows execution rather than personality selection (§24).
 
 All seven were subsequently built. See `docs/AGENT_RUNTIME.md` for what is
 verified by executable tests and what remains unproven.
+
+---
+
+## Post-audit implementation status — 2026-09-04
+
+The original scores above describe the pre-remediation tree and remain intact
+as the baseline. The implementation now meets the Level 4 architecture for
+durable analytical agents: execution-time authorization, persistent state,
+worker leases and crash recovery, bounded retries, resumability, cancellation,
+human approval states, constrained delegation, complete execution traces,
+scheduled workers, monitoring, and deployment smoke coverage.
+
+Level 5 financial controls are present but fail closed: owner-versioned limits,
+currency/account allowlists, distinct-approver counting, immutable operation
+events, idempotency reservation, external transaction ids, and independent
+reconciliation. Real financial tools remain unwired until provider, business,
+identity/role, and compliance gates in `docs/AGENT_PRODUCTION_RUNBOOK.md` are
+met. That distinction is intentional: control infrastructure is not evidence
+that Aval is authorized to move money.

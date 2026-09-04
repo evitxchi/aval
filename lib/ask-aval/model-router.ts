@@ -106,26 +106,45 @@ async function resolveOverride(env: AskAvalEnv, orgId: string): Promise<Override
 
 export async function callModel(env: AskAvalEnv, orgId: string, params: CallParams): Promise<MessagesResponse> {
   const override = await resolveOverride(env, orgId);
-  if (!override) return callClaude(env, params);
+  if (!override) {
+    const model = env.ANTHROPIC_MODEL ?? "claude-sonnet-5";
+    return withRouting(await callClaude(env, params), "anthropic", model);
+  }
 
   if (override.kind === "subscription") {
-    if (override.providerId === "claude") return callClaudeOAuth(override.accessToken, { ...params, model: override.model });
-    return callChatgptOAuth(override.accessToken, override.accountId, {
+    if (override.providerId === "claude") {
+      const model = override.model ?? "claude-sonnet-5";
+      return withRouting(await callClaudeOAuth(override.accessToken, { ...params, model }), "claude", model);
+    }
+    const model = override.model ?? "gpt-5.1-codex";
+    return withRouting(await callChatgptOAuth(override.accessToken, override.accountId, {
       ...params,
-      model: override.model,
+      model,
       reasoningEffort: override.reasoningEffort ?? params.reasoningEffort,
       // Derived from the org id so it is stable per workspace — a fresh id
       // on every call would look like a new install each time.
       installationId: await codexInstallationId(orgId),
-    });
+    }), "chatgpt", model);
   }
 
   if (override.providerId === "anthropic") {
-    return callClaude({ ...env, ANTHROPIC_API_KEY: override.apiKey, ANTHROPIC_MODEL: override.model ?? getProvider("anthropic")?.defaultModel }, params);
+    const model = override.model ?? getProvider("anthropic")?.defaultModel ?? "claude-sonnet-5";
+    return withRouting(await callClaude({ ...env, ANTHROPIC_API_KEY: override.apiKey, ANTHROPIC_MODEL: model }, params), "anthropic", model);
   }
 
   const catalogEntry = getProvider(override.providerId);
   const model = override.model ?? catalogEntry?.defaultModel;
-  if (!catalogEntry?.baseUrl || !model) return callClaude(env, params);
-  return callOpenAiCompatible({ baseUrl: catalogEntry.baseUrl, apiKey: override.apiKey, model, providerLabel: catalogEntry.title }, params);
+  if (!catalogEntry?.baseUrl || !model) {
+    const fallbackModel = env.ANTHROPIC_MODEL ?? "claude-sonnet-5";
+    return withRouting(await callClaude(env, params), "anthropic", fallbackModel);
+  }
+  return withRouting(
+    await callOpenAiCompatible({ baseUrl: catalogEntry.baseUrl, apiKey: override.apiKey, model, providerLabel: catalogEntry.title }, params),
+    override.providerId,
+    model,
+  );
+}
+
+function withRouting(response: MessagesResponse, providerId: string, model: string): MessagesResponse {
+  return { ...response, routing: { providerId, model } };
 }

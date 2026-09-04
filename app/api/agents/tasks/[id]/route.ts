@@ -1,19 +1,14 @@
-import { env } from "cloudflare:workers";
 import { getApiIdentity } from "@/lib/integrations/session";
 import { ensureOrganization } from "@/lib/integrations/organizations";
 import { getTask, listSteps, requestCancel, TERMINAL_STATES, type TaskState } from "@/lib/agents/tasks";
-import { ADVANCEABLE_STATES } from "@/lib/agents/task-state";
-import { advanceTask, newWorkerId } from "@/lib/agents/runtime";
-import type { AskAvalEnv } from "@/lib/ask-aval/anthropic";
 
 /**
  * One task: its state, its execution trace, and the two things a caller can do
  * to it.
  *
- * GET doubles as the poll that drives the run forward. A task yielded at an
- * invocation boundary (status QUEUED with steps already spent) is advanced
- * here, so progress does not depend on a scheduled worker this stack does not
- * have. Terminal and approval-parked tasks are only read.
+ * GET is strictly read-only. Request-background execution gives a new or
+ * approved task a fast start; Cloudflare's cron owns continuation and crash
+ * recovery. Observing a task can never spend tokens or execute a tool.
  *
  * The step list is the execution trace §24 asks the UI to show: what the agent
  * actually did, in order, with the policy verdict on each tool call. Digests
@@ -27,18 +22,8 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   await ensureOrganization(identity);
 
   const { id } = await context.params;
-  let task = await getTask(identity.organizationId, id);
+  const task = await getTask(identity.organizationId, id);
   if (!task) return Response.json({ error: "No such task" }, { status: 404 });
-
-  const url = new URL(request.url);
-  const shouldAdvance = url.searchParams.get("advance") !== "0";
-  // RUNNING is intentionally advanceable: after its lease expires, this poll
-  // is the recovery worker. Excluding it would make the database lock
-  // reclaimable in theory but leave no production path that actually reclaims it.
-  if (shouldAdvance && ADVANCEABLE_STATES.has(task.status)) {
-    await advanceTask(env as unknown as AskAvalEnv, identity.organizationId, id, newWorkerId());
-    task = (await getTask(identity.organizationId, id)) ?? task;
-  }
 
   const steps = await listSteps(id, identity.organizationId);
   return Response.json({

@@ -1,10 +1,18 @@
 /** Cloudflare Worker entry point for the vinext-starter template. */
 import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
+import type { AgentWorkerEnv } from "@/lib/agents/worker";
 
 interface Env {
   ASSETS: Fetcher;
   DB: D1Database;
+  ANTHROPIC_API_KEY?: string;
+  ANTHROPIC_MODEL?: string;
+  AI_DAILY_CALL_CAP?: string;
+  STRIPE_SECRET_KEY?: string;
+  AGENT_HEALTH_TOKEN?: string;
+  AGENT_ALERT_WEBHOOK_URL?: string;
+  AGENT_ALERT_WEBHOOK_TOKEN?: string;
   IMAGES: {
     input(stream: ReadableStream): {
       transform(options: Record<string, unknown>): {
@@ -41,6 +49,16 @@ const worker = {
     }
 
     return handler.fetch(request, env, ctx);
+  },
+
+  async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    // Request waitUntil gives new tasks a fast start; this minute sweep is the
+    // durable continuation and crash-recovery path. Keep the import lazy: the
+    // regular fetch bundle can be loaded by non-Workers render/test harnesses
+    // without eagerly resolving the Cloudflare-only D1 environment module.
+    ctx.waitUntil(import("@/lib/agents/worker").then(({ runAgentWorkerBatch }) =>
+      runAgentWorkerBatch(env as unknown as AgentWorkerEnv, "scheduled"),
+    ));
   },
 };
 

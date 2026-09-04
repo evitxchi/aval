@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   APPROVAL_THRESHOLDS,
   DAILY_ORG_LIMIT_CENTS,
+  DEFAULT_FINANCIAL_POLICY,
   approvalTierFor,
   idempotencyKey,
   validateFinancialArguments,
@@ -18,41 +19,44 @@ import { getTool } from "../lib/agents/registry.ts";
  */
 
 const PAYMENT = getTool("issue_payment")!;
+const DESTINATION = "acct_vendor_approved";
+const proposal = (amount_cents: unknown, currency: unknown = "USD") => ({ amount_cents, currency, destination_account_id: DESTINATION });
 
 test("a well-formed proposal passes", () => {
-  assert.equal(validateFinancialArguments(PAYMENT, { amount_cents: 124_500, currency: "USD" }), null);
+  assert.equal(validateFinancialArguments(PAYMENT, proposal(124_500)), null);
 });
 
 test("an amount that is not a whole number of cents is refused", () => {
   // The realistic bug is a scale error: dollars sent where cents were
   // expected. Rounding it would turn a 100x mistake into a silent one.
   for (const amount of [45.5, 0.1, 1_000.0001]) {
-    assert.match(validateFinancialArguments(PAYMENT, { amount_cents: amount, currency: "USD" }) ?? "", /whole number/);
+    assert.match(validateFinancialArguments(PAYMENT, proposal(amount)) ?? "", /whole number/);
   }
 });
 
 test("zero, negative and non-finite amounts are refused", () => {
   for (const amount of [0, -1, -450_000, Number.NaN, Number.POSITIVE_INFINITY]) {
-    assert.notEqual(validateFinancialArguments(PAYMENT, { amount_cents: amount, currency: "USD" }), null, `${amount} should be refused`);
+    assert.notEqual(validateFinancialArguments(PAYMENT, proposal(amount)), null, `${amount} should be refused`);
   }
 });
 
 test("an amount above the hard ceiling is refused before any approval is considered", () => {
   const over = APPROVAL_THRESHOLDS.HARD_CEILING_CENTS + 1;
-  assert.match(validateFinancialArguments(PAYMENT, { amount_cents: over, currency: "USD" }) ?? "", /hard ceiling/);
+  assert.match(validateFinancialArguments(PAYMENT, proposal(over)) ?? "", /hard ceiling/);
   assert.equal(approvalTierFor(over), "refused");
 });
 
 test("a currency outside the allow-list is refused", () => {
   for (const currency of ["EUR", "BTC", "usd", "", "US"]) {
-    assert.notEqual(validateFinancialArguments(PAYMENT, { amount_cents: 1000, currency }), null, `"${currency}" should be refused`);
+    assert.notEqual(validateFinancialArguments(PAYMENT, proposal(1000, currency)), null, `"${currency}" should be refused`);
   }
-  assert.equal(validateFinancialArguments(PAYMENT, { amount_cents: 1000, currency: "MXN" }), null);
+  const mxnPolicy = { ...DEFAULT_FINANCIAL_POLICY, allowedCurrencies: ["USD", "MXN"] };
+  assert.equal(validateFinancialArguments(PAYMENT, proposal(1000, "MXN"), mxnPolicy), null);
 });
 
 test("a missing or wrongly-typed amount is refused rather than coerced", () => {
   for (const amount of [undefined, null, "45000", {}, []]) {
-    assert.notEqual(validateFinancialArguments(PAYMENT, { amount_cents: amount, currency: "USD" }), null);
+    assert.notEqual(validateFinancialArguments(PAYMENT, proposal(amount)), null);
   }
 });
 
@@ -100,7 +104,11 @@ test("every financial descriptor names fields that its validator actually reads"
     assert.equal(tool.maxRetries, 0, `${name} must never retry`);
     // A validator that reads a field the descriptor does not name would pass
     // everything; this asserts the two agree.
-    const problem = validateFinancialArguments(tool, { [tool.financial!.amountField]: 1000, [tool.financial!.currencyField]: tool.financial!.allowedCurrencies[0] });
+    const problem = validateFinancialArguments(tool, {
+      [tool.financial!.amountField]: 1000,
+      [tool.financial!.currencyField]: tool.financial!.allowedCurrencies[0],
+      [tool.financial!.accountField]: "approved_destination",
+    });
     assert.equal(problem, null);
   }
 });

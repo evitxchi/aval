@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { formatDuration, groupBySteps, nextTaskToAdvance, toneFor } from "../lib/agents/trace-view.ts";
+import { formatDuration, groupBySteps, toneFor } from "../lib/agents/trace-view.ts";
 import { TASK_STATES, TERMINAL_STATES } from "../lib/agents/task-state.ts";
 
 /**
@@ -127,28 +128,13 @@ test("every task state has a status translation, so no raw enum reaches the UI",
   }
 });
 
-test("polling advances a live task even when no trace card is expanded", () => {
-  const tasks = [
-    { id: "done", status: "COMPLETED" },
-    { id: "recover", status: "RUNNING" },
-    { id: "queued", status: "QUEUED" },
-  ];
-  assert.equal(nextTaskToAdvance(tasks, null), "recover");
-  assert.equal(nextTaskToAdvance(tasks, "queued"), "queued");
-});
-
-test("a parked task is polled so a decision or expiry can resume it", () => {
-  const tasks = [
-    { id: "approval", status: "WAITING_FOR_APPROVAL" },
-    { id: "failed", status: "FAILED" },
-  ];
-  assert.equal(nextTaskToAdvance(tasks, "approval"), "approval");
-});
-
-test("runnable work is not starved by a pending approval", () => {
-  const tasks = [
-    { id: "approval", status: "WAITING_FOR_APPROVAL" },
-    { id: "queued", status: "QUEUED" },
-  ];
-  assert.equal(nextTaskToAdvance(tasks, "approval"), "queued");
+test("browser polling only observes tasks; it cannot advance the runtime", async () => {
+  const [component, detailRoute] = await Promise.all([
+    readFile(new URL("../app/components/agent-trace.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/agents/tasks/[id]/route.ts", import.meta.url), "utf8"),
+  ]);
+  assert.doesNotMatch(component, /advance=true|nextTaskToAdvance/);
+  assert.doesNotMatch(component, /fetch\(`\/api\/agents\/tasks\/\$\{[^}]+\}`, \{ method: ["']POST["']/);
+  assert.doesNotMatch(detailRoute, /advanceTask|runTaskInBackground|searchParams\.get\(["']advance["']\)/);
+  assert.match(detailRoute, /GET is strictly read-only/);
 });

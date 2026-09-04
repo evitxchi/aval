@@ -2215,3 +2215,37 @@ and the deletion confirmed at zero. Production holds 21 organizations and 20 use
 
 **Verification.** 20 planner tests (up from 18). Deployed twice — version `493f05f2` for the probe,
 `4b725013` with the idempotency fix. `applyImport` is no longer an argument; it is a tested path.
+
+## 2026-09-04 — Level 4 agents use a small internal runtime, not an imported framework
+
+**References reviewed.** Microsoft's `ai-agents-for-beginners` was useful as a
+curriculum-level checklist for tool use, multi-agent patterns, planning,
+memory, reliable operation, evaluation, and production concerns. TradingAgents
+was useful as a concrete multi-role graph: specialized analysts, a debate-like
+research layer, risk management, and a decision-producing workflow. Neither is
+an appropriate runtime dependency for Aval. The Microsoft repository is
+examples across several providers/frameworks, while TradingAgents is a Python
+research framework for simulated trading decisions. Aval is a TypeScript
+Cloudflare/D1 product with tenant isolation, a pre-existing tool layer, and
+financial/property-management constraints.
+
+**What was adopted.** Preserve specialized roles over one orchestration layer;
+make delegation an explicit graph; persist every state transition; expose an
+execution trace; bound steps/tokens/retries; and treat evaluation, monitoring,
+and human gates as product features rather than prompt text.
+
+**What was intentionally not adopted.** No free-form agent-to-agent messaging,
+no framework-owned memory, no model-authorized tools, no trading-style
+autonomous decision execution, and no extra orchestration dependency. The
+backend registry, policy engine, leases, approvals, and D1 constraints remain
+the authority. This keeps the architecture inspectable and preserves the
+existing operations/faithfulness invariants.
+
+**Level 4 implementation.** Durable queued tasks now run through a scheduled
+Cloudflare worker with expiring leases, checkpointed transcripts, bounded
+retry, cancellation, constrained delegation, model/provider provenance,
+health telemetry, and a read-only execution UI. Financial action controls add
+owner-versioned caps and allowlists, distinct human decisions, atomic
+idempotency/spend reservation, immutable events, and independent provider
+reconciliation. Real financial tool executors remain unwired until the
+business, provider, team-role, and compliance gates are met.

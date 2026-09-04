@@ -28,9 +28,9 @@
  *    that needs a person, so it sits at the top regardless of how many tasks
  *    are running below it.
  *
- * Polling exists because progress genuinely depends on it: this stack has no
- * scheduled worker, so `GET /api/agents/tasks/:id` is what advances a task
- * that yielded at an invocation boundary. It stops the moment nothing is live.
+ * Polling is observation only. Request-background execution and the Cloudflare
+ * cron advance tasks; opening or refreshing this view can never execute a tool
+ * or spend a model step.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -51,7 +51,7 @@ import {
 } from "iconoir-react";
 import { AvalAgentAvatar } from "@/app/components/agent-avatar/AgentAvatar";
 import { PERSONA_PRESETS, DATA_SOURCE_NODES, type PersonaId } from "@/app/components/agent-avatar/personas";
-import { formatDuration, groupBySteps, nextTaskToAdvance, toneFor, type RowTone } from "@/lib/agents/trace-view";
+import { formatDuration, groupBySteps, toneFor, type RowTone } from "@/lib/agents/trace-view";
 
 /* ── shapes returned by app/api/agents/* ──────────────────────────────────── */
 
@@ -99,6 +99,8 @@ interface PendingApproval {
   evidence: { goal?: string; agent?: string; reason?: string; arguments?: Record<string, unknown> };
   requestedAt: number;
   expiresAt: number;
+  requiredApprovals: number;
+  approvalsReceived: number;
 }
 
 /** Terminal states, mirroring TERMINAL_STATES in lib/agents/task-state.ts. A task in one of these never changes again, so it is never polled. */
@@ -256,6 +258,9 @@ function ApprovalCard({ approval, busy, onDecide, locale }: {
           <Check width={15} height={15}/>{t("AgentTrace.approve")}
         </button>
       </div>
+      {approval.requiredApprovals > 1 && (
+        <p className="agent-approval-note">{t("AgentTrace.approvalProgress", { received: approval.approvalsReceived, required: approval.requiredApprovals })}</p>
+      )}
       <p className="agent-approval-note">{t("AgentTrace.approvalNote")}</p>
     </article>
   );
@@ -379,13 +384,9 @@ export function AgentTrace() {
     setLoaded(true);
   }, []);
 
-  /**
-   * Reads one task's detail. `advance=0` asks the server to report state
-   * without running the task — used when merely opening a card, so expanding
-   * a row to look at it never has the side effect of spending a step.
-   */
-  const loadDetail = useCallback(async (id: string, advance: boolean, signal?: AbortSignal) => {
-    const response = await fetch(`/api/agents/tasks/${id}${advance ? "" : "?advance=0"}`, { signal });
+  /** Reads one task's detail. The endpoint is side-effect free. */
+  const loadDetail = useCallback(async (id: string, signal?: AbortSignal) => {
+    const response = await fetch(`/api/agents/tasks/${id}`, { signal });
     const detail = (await response.json().catch(() => null)) as TaskDetail | null;
     if (!mounted.current || signal?.aborted) return null;
     if (detail?.id) setDetails((current) => ({ ...current, [id]: detail }));
@@ -398,9 +399,8 @@ export function AgentTrace() {
     return () => controller.abort();
   }, [loadTasks]);
 
-  // Polling drives execution forward: a task that yielded at an invocation
-  // boundary is advanced by the next read. It runs only while something is
-  // actually live, so an idle workspace makes no requests at all.
+  // Polling observes worker-owned execution. It runs only while something is
+  // live, so an idle workspace makes no requests at all.
   const hasLive = tasks.some((task) => !SETTLED.has(task.status));
   useEffect(() => {
     if (!hasLive) return;
@@ -408,13 +408,12 @@ export function AgentTrace() {
     let timer: ReturnType<typeof setTimeout> | undefined;
     let stopped = false;
 
-    // Schedule after completion rather than with setInterval: one advance may
-    // hold an HTTP request for a full invocation budget, and overlapping polls
-    // would create needless workers racing for the same lease.
+    // Schedule after completion rather than with setInterval so slow reads do
+    // not accumulate overlapping requests.
     const poll = async () => {
-      const target = nextTaskToAdvance(tasks, expandedRef.current);
-      if (target) await loadDetail(target, true, controller.signal);
       await loadTasks(controller.signal);
+      const open = expandedRef.current;
+      if (open) await loadDetail(open, controller.signal);
       if (!stopped) timer = setTimeout(poll, 2500);
     };
     timer = setTimeout(poll, 2500);
@@ -423,12 +422,12 @@ export function AgentTrace() {
       controller.abort();
       if (timer) clearTimeout(timer);
     };
-  }, [hasLive, loadDetail, loadTasks, tasks]);
+  }, [hasLive, loadDetail, loadTasks]);
 
   const toggle = async (id: string) => {
     if (expanded === id) { setExpanded(null); return; }
     setExpanded(id);
-    if (!details[id]) await loadDetail(id, false);
+    if (!details[id]) await loadDetail(id);
   };
 
   const start = async () => {
@@ -445,7 +444,7 @@ export function AgentTrace() {
       const data = (await response.json().catch(() => ({}))) as { id?: string; error?: string };
       if (!response.ok || data.error) { setNotice(data.error ?? t("AgentTrace.startFailed")); return; }
       setGoal("");
-      if (data.id) { setExpanded(data.id); await loadDetail(data.id, false); }
+      if (data.id) { setExpanded(data.id); await loadDetail(data.id); }
       await loadTasks();
     } finally {
       setBusy(false);
@@ -464,7 +463,7 @@ export function AgentTrace() {
       const data = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok || data.error) { setNotice(data.error ?? t("AgentTrace.decisionFailed")); return; }
       const open = expandedRef.current;
-      if (open) await loadDetail(open, false);
+      if (open) await loadDetail(open);
       await loadTasks();
     } finally {
       setBusy(false);
@@ -477,7 +476,7 @@ export function AgentTrace() {
       const response = await fetch(`/api/agents/tasks/${id}`, { method: "DELETE" });
       const data = (await response.json().catch(() => ({}))) as { message?: string };
       if (data.message) setNotice(data.message);
-      await Promise.all([loadDetail(id, false), loadTasks()]);
+      await Promise.all([loadDetail(id), loadTasks()]);
     } finally {
       setBusy(false);
     }

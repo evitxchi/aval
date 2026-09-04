@@ -69,6 +69,8 @@ export interface MessagesResponse {
   content: ContentBlock[];
   stop_reason: "end_turn" | "tool_use" | "max_tokens" | "stop_sequence";
   usage: { input_tokens: number; output_tokens: number };
+  /** Resolved by model-router so durable traces name the actual execution route. */
+  routing?: { providerId: string; model: string };
 }
 
 export class AnthropicError extends Error {
