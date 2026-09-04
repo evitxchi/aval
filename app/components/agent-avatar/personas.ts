@@ -56,13 +56,13 @@ export const PERSONA_IDS = Object.keys(PERSONA_PRESETS) as PersonaId[];
  */
 export const PERSONA_TOOL_ACCESS: Record<PersonaId, string[] | null> = {
   general: null,
-  financial: ["get_portfolio_metrics", "get_metric_series", "get_accounting_breakdown"],
-  brokerage: ["get_leasing_funnel", "get_property_breakdown", "get_metric_series"],
-  realEstate: ["get_property_breakdown", "get_portfolio_metrics"],
-  marketResearch: ["get_metric_series", "get_portfolio_metrics", "get_leasing_funnel"],
-  maintenance: ["get_portfolio_metrics", "get_delinquent_accounts"],
-  riskAnalyst: ["get_delinquent_accounts", "get_portfolio_metrics", "get_accounting_breakdown"],
-  portfolioOutlook: ["get_metric_series", "get_portfolio_metrics"],
+  financial: ["get_portfolio_metrics", "get_metric_series", "get_accounting_breakdown", "get_operating_statement", "get_delinquent_accounts"],
+  brokerage: ["get_leasing_funnel", "get_property_breakdown", "get_metric_series", "get_leasing_velocity"],
+  realEstate: ["get_property_breakdown", "get_portfolio_metrics", "get_leasing_velocity"],
+  marketResearch: ["get_metric_series", "get_portfolio_metrics", "get_leasing_funnel", "get_leasing_velocity"],
+  maintenance: ["get_portfolio_metrics", "get_delinquent_accounts", "get_maintenance_performance"],
+  riskAnalyst: ["get_delinquent_accounts", "get_portfolio_metrics", "get_accounting_breakdown", "get_operations_insights", "get_data_conflicts"],
+  portfolioOutlook: ["get_metric_series", "get_portfolio_metrics", "get_operating_statement", "get_operations_insights"],
   leaseReview: ["list_documents", "read_document"],
 };
 
@@ -76,4 +76,14 @@ export const DATA_SOURCE_NODES: { tool: string; labelKey: string }[] = [
   { tool: "get_delinquent_accounts", labelKey: "SetupView.sourceDelinquency" },
   { tool: "list_documents", labelKey: "SetupView.sourceDocuments" },
   { tool: "read_document", labelKey: "SetupView.sourceDocumentText" },
+  // The operations tools (lib/ask-aval/operations-tools.ts). They read the
+  // property, lease, work-order and ledger records themselves rather than the
+  // pre-aggregated snapshots the nodes above read, which is why both families
+  // are drawn: an agent's reach genuinely differs depending on which of the
+  // two a workspace has data in.
+  { tool: "get_operating_statement", labelKey: "SetupView.sourceOperatingStatement" },
+  { tool: "get_leasing_velocity", labelKey: "SetupView.sourceLeasingVelocity" },
+  { tool: "get_maintenance_performance", labelKey: "SetupView.sourceMaintenancePerformance" },
+  { tool: "get_operations_insights", labelKey: "SetupView.sourceOperationsInsights" },
+  { tool: "get_data_conflicts", labelKey: "SetupView.sourceDataConflicts" },
 ];

@@ -489,3 +489,443 @@ export const documents = sqliteTable(
   },
   (table) => [index("documents_org_idx").on(table.organizationId)],
 );
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * OPERATIONS
+ *
+ * The canonical record layer behind the Operations module (Properties,
+ * Leasing, Maintenance, Accounting). Until now this app stored only
+ * `portfolio_snapshots` — a flat metric_key → number table — which can report
+ * "occupancy is 94%" but cannot answer which unit type is slowest to lease,
+ * which vendor misses its SLA, or who is 60 days past due. Those questions
+ * need records, not pre-aggregated metrics, so these tables hold records and
+ * every figure the app shows is computed from them (lib/operations/).
+ *
+ * Three decisions run through all of it:
+ *
+ * 1. ONE VOCABULARY, MANY SOURCES. A portfolio is rarely on one system —
+ *    leasing in AppFolio, books in QuickBooks, work orders somewhere else.
+ *    These tables are the normalized shape everything lands in, so figures
+ *    aggregate across a mixed stack instead of per-connector. Field names
+ *    follow the MITS/NMHC domains (Property-Marketing, Lease/Application,
+ *    Resident Transactions, Lead Management) that the real connectors
+ *    ultimately map from.
+ *
+ * 2. PROVENANCE ON EVERY ROW. `sourceProvider` + `externalId` say where a row
+ *    came from ("manual" when a person typed it), and their unique index per
+ *    org makes re-syncing an upsert rather than a duplicate. A number with no
+ *    traceable origin is not something this app is willing to show.
+ *
+ * 3. DISAGREEMENTS ARE RECORDED, NEVER SILENTLY RESOLVED. When two connected
+ *    systems report different values for the same field, `operations_conflicts`
+ *    keeps both and flags it. Picking a winner invisibly is how a dashboard
+ *    ends up confidently wrong — the same failure the faithfulness gate and
+ *    audit chain exist to prevent, one layer lower down.
+ *
+ * Money is integer cents everywhere, matching the rest of this schema; see
+ * lib/finance/money.ts for the arithmetic.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+export const properties = sqliteTable(
+  "properties",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id").notNull().references(() => organizations.id),
+    name: text("name").notNull(),
+    addressLine1: text("address_line1"),
+    city: text("city"),
+    region: text("region"),
+    postalCode: text("postal_code"),
+    country: text("country").notNull().default("US"),
+    propertyType: text("property_type").notNull().default("multifamily"), // PropertyType, lib/operations/types.ts
+    // What the source system *says* the unit count is, which is not always the
+    // number of unit rows it actually delivered. Kept separate from the derived
+    // count rather than reconciled on write: a mismatch is a real finding about
+    // an incomplete sync, and overwriting one with the other would hide it.
+    reportedUnitCount: integer("reported_unit_count"),
+    yearBuilt: integer("year_built"),
+    squareFeet: integer("square_feet"),
+    // Present only where a source or the operator supplied them; cap-rate and
+    // valuation math is skipped rather than estimated when they are null.
+    acquisitionCostCents: integer("acquisition_cost_cents"),
+    currentValueCents: integer("current_value_cents"),
+    status: text("status").notNull().default("active"), // "active" | "inactive"
+    sourceProvider: text("source_provider").notNull().default("manual"),
+    sourceConnectionId: text("source_connection_id").references(() => integrationConnections.id),
+    externalId: text("external_id"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("properties_org_source_external_uq").on(table.organizationId, table.sourceProvider, table.externalId),
+    index("properties_org_status_idx").on(table.organizationId, table.status),
+  ],
+);
+
+export const units = sqliteTable(
+  "units",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id").notNull().references(() => organizations.id),
+    propertyId: text("property_id").notNull().references(() => properties.id),
+    unitNumber: text("unit_number").notNull(),
+    bedrooms: integer("bedrooms"),
+    bathrooms: real("bathrooms"), // real: 1.5-bath units are ordinary
+    squareFeet: integer("square_feet"),
+    // The asking rent for this unit today. Distinct from the rent on its
+    // active lease, and the difference between them is loss-to-lease — a
+    // figure operators care about that is invisible if only one is stored.
+    marketRentCents: integer("market_rent_cents"),
+    status: text("status").notNull().default("vacant_ready"), // UnitStatus, lib/operations/types.ts
+    // Set when the unit last went vacant, so days-vacant is measured rather
+    // than guessed. Null for a unit that has never turned over here.
+    vacantSince: integer("vacant_since", { mode: "timestamp_ms" }),
+    sourceProvider: text("source_provider").notNull().default("manual"),
+    sourceConnectionId: text("source_connection_id").references(() => integrationConnections.id),
+    externalId: text("external_id"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("units_org_source_external_uq").on(table.organizationId, table.sourceProvider, table.externalId),
+    index("units_org_property_idx").on(table.organizationId, table.propertyId),
+    index("units_org_status_idx").on(table.organizationId, table.status),
+  ],
+);
+
+// A person on a lease or an application. Holds contact details because
+// collections and leasing both need a channel to reach someone on — this is
+// the one operations table carrying personal data, and it is org-scoped and
+// never written into learned_preferences or the audit log (which store
+// digests and tags precisely so they cannot become a second copy of this).
+export const residents = sqliteTable(
+  "residents",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id").notNull().references(() => organizations.id),
+    displayName: text("display_name").notNull(),
+    email: text("email"),
+    phone: text("phone"),
+    status: text("status").notNull().default("current"), // ResidentStatus, lib/operations/types.ts
+    sourceProvider: text("source_provider").notNull().default("manual"),
+    sourceConnectionId: text("source_connection_id").references(() => integrationConnections.id),
+    externalId: text("external_id"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("residents_org_source_external_uq").on(table.organizationId, table.sourceProvider, table.externalId),
+    index("residents_org_status_idx").on(table.organizationId, table.status),
+  ],
+);
+
+export const leases = sqliteTable(
+  "leases",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id").notNull().references(() => organizations.id),
+    unitId: text("unit_id").notNull().references(() => units.id),
+    propertyId: text("property_id").notNull().references(() => properties.id), // denormalized so portfolio rollups don't join through units
+    status: text("status").notNull().default("active"), // LeaseStatus, lib/operations/types.ts
+    startDate: integer("start_date", { mode: "timestamp_ms" }).notNull(),
+    // Null for month-to-month, which is why isMonthToMonth exists separately:
+    // a null end date otherwise reads identically to "we didn't get one".
+    endDate: integer("end_date", { mode: "timestamp_ms" }),
+    isMonthToMonth: integer("is_month_to_month", { mode: "boolean" }).notNull().default(false),
+    moveInDate: integer("move_in_date", { mode: "timestamp_ms" }),
+    moveOutDate: integer("move_out_date", { mode: "timestamp_ms" }),
+    rentCents: integer("rent_cents").notNull(),
+    // Held on behalf of the resident, not revenue. Kept on the lease and
+    // mirrored into a trust-flagged GL account rather than mixed into
+    // operating income — most states require the separation, and the ledger
+    // categorizes deposits apart from rent for the same reason.
+    depositCents: integer("deposit_cents").notNull().default(0),
+    rentDueDay: integer("rent_due_day").notNull().default(1),
+    // Points at the lease this one renewed, so renewal rate is counted from
+    // records rather than inferred from dates lining up.
+    renewalOfLeaseId: text("renewal_of_lease_id"),
+    sourceProvider: text("source_provider").notNull().default("manual"),
+    sourceConnectionId: text("source_connection_id").references(() => integrationConnections.id),
+    externalId: text("external_id"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("leases_org_source_external_uq").on(table.organizationId, table.sourceProvider, table.externalId),
+    index("leases_org_status_idx").on(table.organizationId, table.status),
+    index("leases_org_end_idx").on(table.organizationId, table.endDate),
+    index("leases_unit_idx").on(table.unitId),
+  ],
+);
+
+// Many-to-many: a lease routinely has co-residents and guarantors, and
+// collapsing them to a single "tenant name" column loses whoever else is
+// actually liable for the balance.
+export const leaseResidents = sqliteTable(
+  "lease_residents",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id").notNull().references(() => organizations.id),
+    leaseId: text("lease_id").notNull().references(() => leases.id),
+    residentId: text("resident_id").notNull().references(() => residents.id),
+    role: text("role").notNull().default("primary"), // "primary" | "co_resident" | "guarantor"
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("lease_residents_lease_resident_uq").on(table.leaseId, table.residentId),
+    index("lease_residents_org_idx").on(table.organizationId),
+  ],
+);
+
+// The receivables spine: one row per charge, payment, credit or refund
+// against a lease. Delinquency and AR aging are derived by walking these
+// rows, never stored as a balance column — a stored balance drifts from its
+// own history the first time a row is corrected, and then the number on
+// screen has no way to be checked.
+//
+// `amountCents` is always POSITIVE; `entryType` carries the direction. A
+// signed column invites a sign bug that silently turns a payment into a
+// charge, and a negative number in a ledger export is ambiguous besides.
+export const ledgerEntries = sqliteTable(
+  "ledger_entries",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id").notNull().references(() => organizations.id),
+    leaseId: text("lease_id").notNull().references(() => leases.id),
+    propertyId: text("property_id").notNull().references(() => properties.id), // denormalized for property-level AR without a join
+    entryType: text("entry_type").notNull(), // LedgerEntryType: "charge" | "payment" | "credit" | "refund"
+    category: text("category").notNull(), // LedgerCategory: "rent" | "deposit" | "late_fee" | "utility" | "other"
+    amountCents: integer("amount_cents").notNull(),
+    currency: text("currency").notNull().default("USD"),
+    postedAt: integer("posted_at", { mode: "timestamp_ms" }).notNull(),
+    // Charges only — the date aging is measured from. Null on payments, which
+    // are not owed on a date.
+    dueAt: integer("due_at", { mode: "timestamp_ms" }),
+    memo: text("memo"),
+    sourceProvider: text("source_provider").notNull().default("manual"),
+    sourceConnectionId: text("source_connection_id").references(() => integrationConnections.id),
+    externalId: text("external_id"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("ledger_entries_org_source_external_uq").on(table.organizationId, table.sourceProvider, table.externalId),
+    index("ledger_entries_org_lease_idx").on(table.organizationId, table.leaseId),
+    index("ledger_entries_org_posted_idx").on(table.organizationId, table.postedAt),
+    index("ledger_entries_org_due_idx").on(table.organizationId, table.dueAt),
+  ],
+);
+
+export const vendors = sqliteTable(
+  "vendors",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id").notNull().references(() => organizations.id),
+    name: text("name").notNull(),
+    trade: text("trade"), // free text: the trades a portfolio uses are not a closed set
+    email: text("email"),
+    phone: text("phone"),
+    // Compliance, not trivia: an expired COI on an assigned vendor is a
+    // liability an operator wants surfaced before the work is booked.
+    insuranceExpiresAt: integer("insurance_expires_at", { mode: "timestamp_ms" }),
+    isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+    sourceProvider: text("source_provider").notNull().default("manual"),
+    sourceConnectionId: text("source_connection_id").references(() => integrationConnections.id),
+    externalId: text("external_id"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("vendors_org_source_external_uq").on(table.organizationId, table.sourceProvider, table.externalId),
+    index("vendors_org_active_idx").on(table.organizationId, table.isActive),
+  ],
+);
+
+// One row per maintenance request. The four lifecycle timestamps are separate
+// columns rather than a status-change log because every maintenance metric
+// operators actually use is a difference between two of them — response time
+// (reported→assigned), time to repair (reported→completed), and a vendor's
+// own turnaround (assigned→completed). A status field alone can say a work
+// order is closed but never how long it took.
+export const workOrders = sqliteTable(
+  "work_orders",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id").notNull().references(() => organizations.id),
+    propertyId: text("property_id").notNull().references(() => properties.id),
+    unitId: text("unit_id").references(() => units.id), // null for common-area work
+    leaseId: text("lease_id").references(() => leases.id), // who reported it, when a resident did
+    category: text("category").notNull().default("general"), // WorkOrderCategory, lib/operations/types.ts
+    priority: text("priority").notNull().default("routine"), // WorkOrderPriority — drives the SLA target
+    status: text("status").notNull().default("reported"), // WorkOrderStatus
+    summary: text("summary").notNull(),
+    reportedAt: integer("reported_at", { mode: "timestamp_ms" }).notNull(),
+    assignedAt: integer("assigned_at", { mode: "timestamp_ms" }),
+    startedAt: integer("started_at", { mode: "timestamp_ms" }),
+    completedAt: integer("completed_at", { mode: "timestamp_ms" }),
+    vendorId: text("vendor_id").references(() => vendors.id),
+    estimateCents: integer("estimate_cents"),
+    actualCostCents: integer("actual_cost_cents"),
+    // Set when this work order is a return visit for work already done —
+    // the raw material for first-time-fix rate, which the maintenance
+    // research identifies as the single metric most tied to vendor cost.
+    // Recorded explicitly rather than guessed from "same unit, same category,
+    // within 30 days", which would count two genuinely different faults as a
+    // callback.
+    callbackOfWorkOrderId: text("callback_of_work_order_id"),
+    sourceProvider: text("source_provider").notNull().default("manual"),
+    sourceConnectionId: text("source_connection_id").references(() => integrationConnections.id),
+    externalId: text("external_id"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("work_orders_org_source_external_uq").on(table.organizationId, table.sourceProvider, table.externalId),
+    index("work_orders_org_status_idx").on(table.organizationId, table.status),
+    index("work_orders_org_reported_idx").on(table.organizationId, table.reportedAt),
+    index("work_orders_org_vendor_idx").on(table.organizationId, table.vendorId),
+    index("work_orders_org_property_idx").on(table.organizationId, table.propertyId),
+  ],
+);
+
+// Chart of accounts. Kept in the database rather than in code (unlike
+// lib/billing/plans.ts) because it is the customer's chart, mirrored from
+// their accounting system — every portfolio numbers and names it differently.
+export const glAccounts = sqliteTable(
+  "gl_accounts",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id").notNull().references(() => organizations.id),
+    code: text("code").notNull(), // e.g. "4000", "6120"
+    name: text("name").notNull(),
+    accountType: text("account_type").notNull(), // GlAccountType, lib/operations/types.ts
+    // Client money — deposits and owner funds — which most states require be
+    // held separately from operating funds. Flagged here so a P&L rollup can
+    // exclude it by construction instead of by remembering to.
+    isTrustAccount: integer("is_trust_account", { mode: "boolean" }).notNull().default(false),
+    sourceProvider: text("source_provider").notNull().default("manual"),
+    sourceConnectionId: text("source_connection_id").references(() => integrationConnections.id),
+    externalId: text("external_id"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("gl_accounts_org_code_uq").on(table.organizationId, table.code),
+    index("gl_accounts_org_type_idx").on(table.organizationId, table.accountType),
+  ],
+);
+
+// Posted amounts against a GL account, optionally attributed to a property.
+//
+// This is a REPORTING ledger, not a double-entry book of record: one row per
+// posted amount, positive in the account's own natural direction (income rows
+// are revenue, expense rows are spend). Aval reads books it does not keep —
+// modeling debits and credits would imply this app could be the system of
+// record for someone's accounting, which it is not and should not claim.
+export const glTransactions = sqliteTable(
+  "gl_transactions",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id").notNull().references(() => organizations.id),
+    accountId: text("account_id").notNull().references(() => glAccounts.id),
+    propertyId: text("property_id").references(() => properties.id), // null for portfolio-level or unallocated entries
+    amountCents: integer("amount_cents").notNull(),
+    currency: text("currency").notNull().default("USD"),
+    postedAt: integer("posted_at", { mode: "timestamp_ms" }).notNull(),
+    memo: text("memo"),
+    sourceProvider: text("source_provider").notNull().default("manual"),
+    sourceConnectionId: text("source_connection_id").references(() => integrationConnections.id),
+    externalId: text("external_id"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("gl_transactions_org_source_external_uq").on(table.organizationId, table.sourceProvider, table.externalId),
+    index("gl_transactions_org_posted_idx").on(table.organizationId, table.postedAt),
+    index("gl_transactions_org_property_idx").on(table.organizationId, table.propertyId),
+  ],
+);
+
+// One row per prospect, with a timestamp per stage reached.
+//
+// This is what `funnel_snapshots` cannot be. That table stores a count per
+// stage per capture, which answers "how many applied last week" and nothing
+// else. Stage timestamps on a record answer the questions operators actually
+// act on: where the funnel drops off, how long each step takes, and which
+// unit types sit longest — the leasing-velocity metrics the 2026 multifamily
+// research puts at the top. Both tables stay: snapshots remain the cheap
+// shape for a connector that only exposes aggregates.
+export const leasingLeads = sqliteTable(
+  "leasing_leads",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id").notNull().references(() => organizations.id),
+    propertyId: text("property_id").references(() => properties.id),
+    unitId: text("unit_id").references(() => units.id),
+    residentId: text("resident_id").references(() => residents.id), // set once a prospect becomes a person on a lease
+    // Where the lead came from (ILS, website, referral, walk-in). Free text
+    // rather than an enum: channel names differ per market and per connector,
+    // and an unrecognized channel should still be counted, not dropped.
+    channel: text("channel"),
+    // The unit type asked for, as a label ("2BR/1BA"). Days-to-lease is only
+    // actionable broken out this way — a portfolio-wide average hides that
+    // studios move in a week and three-beds sit for two months.
+    unitTypeLabel: text("unit_type_label"),
+    stage: text("stage").notNull().default("inquiry"), // LeadStage, lib/operations/types.ts
+    inquiredAt: integer("inquired_at", { mode: "timestamp_ms" }).notNull(),
+    contactedAt: integer("contacted_at", { mode: "timestamp_ms" }),
+    touredAt: integer("toured_at", { mode: "timestamp_ms" }),
+    appliedAt: integer("applied_at", { mode: "timestamp_ms" }),
+    approvedAt: integer("approved_at", { mode: "timestamp_ms" }),
+    signedAt: integer("signed_at", { mode: "timestamp_ms" }),
+    lostAt: integer("lost_at", { mode: "timestamp_ms" }),
+    lostReason: text("lost_reason"),
+    sourceProvider: text("source_provider").notNull().default("manual"),
+    sourceConnectionId: text("source_connection_id").references(() => integrationConnections.id),
+    externalId: text("external_id"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("leasing_leads_org_source_external_uq").on(table.organizationId, table.sourceProvider, table.externalId),
+    index("leasing_leads_org_stage_idx").on(table.organizationId, table.stage),
+    index("leasing_leads_org_inquired_idx").on(table.organizationId, table.inquiredAt),
+  ],
+);
+
+// Two connected systems describing the same thing differently.
+//
+// The premise of connecting a portfolio's whole stack is that the pieces
+// disagree — a PMS and an accounting system will not report the same rent for
+// the same unit forever. The tempting behavior is last-write-wins, which
+// produces a dashboard that is confidently wrong and gives a user no way to
+// notice. So a differing value from a different source is written HERE and the
+// stored row is left alone; the operator decides, and until they do, readers
+// can see the field is contested.
+//
+// Holds values as text (`valueA`/`valueB`) because it spans every field type
+// in the operations model, and it is a record of what each system said rather
+// than something arithmetic is done on.
+export const operationsConflicts = sqliteTable(
+  "operations_conflicts",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id").notNull().references(() => organizations.id),
+    entityType: text("entity_type").notNull(), // ConflictEntityType, lib/operations/types.ts
+    entityId: text("entity_id").notNull(),
+    field: text("field").notNull(),
+    valueA: text("value_a").notNull(),
+    sourceA: text("source_a").notNull(),
+    valueB: text("value_b").notNull(),
+    sourceB: text("source_b").notNull(),
+    status: text("status").notNull().default("open"), // "open" | "resolved"
+    resolution: text("resolution"), // "kept_a" | "kept_b" | "dismissed"
+    detectedAt: integer("detected_at", { mode: "timestamp_ms" }).notNull(),
+    resolvedAt: integer("resolved_at", { mode: "timestamp_ms" }),
+  },
+  (table) => [
+    // One open conflict per contested field, not one per sync run: a nightly
+    // sync would otherwise pile up an identical row every night until someone
+    // resolved it, burying the other findings.
+    uniqueIndex("operations_conflicts_entity_field_uq").on(table.organizationId, table.entityType, table.entityId, table.field),
+    index("operations_conflicts_org_status_idx").on(table.organizationId, table.status),
+  ],
+);

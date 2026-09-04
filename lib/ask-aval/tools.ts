@@ -14,6 +14,7 @@
  */
 
 import type { ToolSchema } from "./anthropic";
+import { OPERATIONS_TOOLS, runOperationsTool } from "./operations-tools";
 import { METRIC_KEYS, deltaPct, noDataAvailable, readFunnel, readMetricSeries, readMetrics, type MetricKey } from "./portfolio-data";
 import { PREFERENCE_TOPICS, recordPreference, describePreference, type PreferenceTopic } from "./preferences";
 
@@ -39,19 +40,10 @@ const DATA_TOOLS: ToolSchema[] = [
       },
     },
   },
-  {
-    name: "get_property_breakdown",
-    description: "Per-property unit counts, occupancy, and units ready to lease. Use for property-level occupancy questions.",
-    input_schema: { type: "object", properties: {} },
-  },
-  {
-    name: "get_delinquent_accounts",
-    description: "Reachable residents with an outstanding balance: name, balance, and messaging channel. Use for collections questions.",
-    input_schema: {
-      type: "object",
-      properties: { limit: { type: "number", description: "Default 20, max 50." } },
-    },
-  },
+  // `get_property_breakdown` and `get_delinquent_accounts` are declared in
+  // operations-tools.ts, which owns the record-based versions of both. Their
+  // snapshot-based executors below still run for a workspace that has metrics
+  // but no operations records — see `runOperationsTool`'s fallthrough.
   {
     name: "get_leasing_funnel",
     description: "Lead-to-lease funnel counts and stage conversion for a week, plus the six-week trend behind it.",
@@ -190,10 +182,18 @@ const COMPOSE_DOCUMENT_TOOL: ToolSchema = {
   },
 };
 
+/**
+ * Every data tool the model can see: the snapshot-based ones above plus the
+ * record-based operations tools. Order matters only for readability — the
+ * model picks by description, and the two families are described in terms of
+ * what they can answer rather than which table they read.
+ */
+const ALL_DATA_TOOLS: ToolSchema[] = [...DATA_TOOLS, ...OPERATIONS_TOOLS];
+
 /** Tools for a quick chat answer — `render_answer`'s `document` is optional. */
-export const TOOLS: ToolSchema[] = [...DATA_TOOLS, RENDER_ANSWER_TOOL];
+export const TOOLS: ToolSchema[] = [...ALL_DATA_TOOLS, RENDER_ANSWER_TOOL];
 /** Tools for a drafting request — `compose_document`'s `document` is required. */
-export const DRAFT_TOOLS: ToolSchema[] = [...DATA_TOOLS, COMPOSE_DOCUMENT_TOOL];
+export const DRAFT_TOOLS: ToolSchema[] = [...ALL_DATA_TOOLS, COMPOSE_DOCUMENT_TOOL];
 
 /* ── executors ──────────────────────────────────────────────────────────── */
 
@@ -207,6 +207,13 @@ function collectNumbers(v: unknown, out: number[] = []): number[] {
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 export async function runTool(name: string, input: Record<string, unknown>, organizationId?: string): Promise<ToolOutput> {
+  // The operations layer gets first refusal. It returns null both for names it
+  // does not own and for the two shared names on a workspace with no records,
+  // so the snapshot executors below stay reachable for workspaces whose
+  // connectors only push aggregates.
+  const fromOperations = await runOperationsTool(name, input, organizationId);
+  if (fromOperations) return fromOperations;
+
   switch (name) {
     case "get_portfolio_metrics": {
       if (!organizationId) return { json: noDataAvailable("portfolio metrics"), numbers: [] };

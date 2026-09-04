@@ -1845,3 +1845,134 @@ resident record" in the Inbox, "Security model" in Connections, and "Edit profil
 Three of those are explanatory; "Edit profile" says workspace identity changes require an
 administrator. They are listed here so their status is recorded rather than mistaken for
 unfinished wiring.
+
+## 2026-09-03 — Built the Operations backend: a record layer, not more metrics
+
+**Context.** "Build out the backend required for our entire operations module… do market research on
+what property management want and need for tracking data." The Operations nav has five items —
+Properties, Leasing, Maintenance, Accounting, Infrastructure — and only Infrastructure had a
+backend. The other four rendered `app/data/sample.ts` through a shared `OperationsView` placeholder.
+
+**What the research changed about the design.** Three findings did real work here:
+
+- *Fragmentation is the pain, not reporting.* Operators run a mesh of spreadsheets and separate
+  logins for accounting, maintenance and communication; owners' top complaint about their manager
+  is poor communication about performance, and firms over 200 units spend 8–15 hours a month
+  assembling owner reports by hand. So the value is the join across systems, not another chart.
+- *Records answer what metrics cannot.* The published 2026 KPI sets are all record-shaped —
+  days-to-lease **by unit type**, conversion **per funnel step**, first-time-fix **per vendor**,
+  aging **per account**. `portfolio_snapshots` is a flat `metric_key → number` table. It can say
+  occupancy is 94%; it cannot say which unit type is slow or which vendor comes back twice.
+- *The money is in maintenance and vendor management.* Untracked contracts and unmeasured SLAs are
+  put at 18–24% of maintenance spend, and first-time-fix is the metric most directly tied to it.
+
+**So the schema holds records** (migration `0015`, 12 tables): properties, units, residents, leases,
+lease_residents, ledger_entries, vendors, work_orders, gl_accounts, gl_transactions, leasing_leads,
+operations_conflicts. Field names follow the MITS/NMHC domains real connectors map from.
+
+**The load-bearing design decision: disagreements are recorded, never resolved.** The premise of
+connecting a portfolio's whole stack is that the pieces disagree — a PMS and an accounting system
+will not report the same rent for the same unit forever. Last-write-wins produces a dashboard that
+is confidently wrong with nothing on screen to say so, which is the failure the faithfulness gate
+and the audit chain exist to prevent, one layer down. `lib/operations/merge.ts` therefore applies
+three rules: a source is authoritative for its own rows (an ordinary re-sync flags nothing); a
+second source filling a `null` is new information, not a conflict; a second source *changing* a
+value keeps the stored one and writes the clash to `operations_conflicts`. Eleven tests pin them,
+including that a secondary source's blank cannot clear a value it does not have, and that two `Date`
+objects for the same instant are not a disagreement.
+
+**`null` is not zero, everywhere.** This is the rule the metric functions are built around and the
+one most of the tests exist to defend. Occupancy over zero rentable units is `null`, not 0%. A
+priority with nothing completed has `null` compliance, not 100%. A vendor with no estimates on file
+has `null` cost-variance, not an implied on-budget. Collection rate with nothing billed is `null`.
+`summarizeAccounting` returns `null` sections with a line in `notes` rather than a P&L of zeroes —
+a zeroed P&L claims the portfolio earned and spent nothing, which an owner reads very differently
+from "no books are connected."
+
+**Six places where the obvious implementation would have quietly lied:**
+
+- *Aging applies credits oldest-charge-first.* Newest-first would leave the oldest charge open and
+  push accounts into the 90+ bucket they don't belong in. A test pins that a $2,500 payment against
+  three $2,000 charges clears the 95-day one and leaves nothing in 90+.
+- *Deposits held is payments minus refunds, not the signed ledger sum.* `entrySign` answers "does
+  this change what the resident owes", which is the opposite question for a deposit — netting the
+  charge against the payment reports a fully-collected deposit as zero held. Deposits are also
+  excluded from balances, collection rate and the P&L: trust money is not revenue.
+- *Callbacks are only ever counted when someone linked them.* `suggestCallbacks` finds same-unit,
+  same-trade work inside 30 days and returns it as suggestions for a human — it feeds no metric.
+  Two genuinely different faults in a busy unit look identical from outside, and a vendor's renewal
+  is not a place to put an inference. A test asserts first-time-fix is unchanged by suggestions.
+- *Renewals are counted from explicit `renewalOfLeaseId` links.* Inferring one from a new lease
+  starting where an old one ended reads a real turnover with a fast re-lease as a renewal —
+  flattering precisely the metric owners judge resident satisfaction by.
+- *Open SLA breaches are counted separately from compliance.* Compliance can only be computed over
+  completed work, so a portfolio that never closes its emergencies would report 100% on the handful
+  it did close. `openBreachedCount` sits beside it.
+- *Vacant units missing `vacantSince` shrink the sample rather than pulling the average to zero.*
+  `unmeasuredUnits` is reported so a reader can see how much the figure covers.
+
+**Every compliance percentage ships with the target it was measured against.** `DEFAULT_SLA_TARGET_HOURS`
+is Aval's default, not the workspace's contracted SLA, and both the API response and the insight
+text say so. Same for `INSIGHT_THRESHOLDS`, returned by `/api/operations/insights` so a reader can
+tell a judgment from a measurement.
+
+**The insight rules are the deliverable, not the dashboard.** `deriveInsights` turns the summaries
+into ranked findings, each carrying the row ids it was computed from and a `figures` array of every
+number in its text — so the faithfulness gate verifies against what the rules computed rather than
+against whatever numerals a sentence contains. Minimum sample sizes stop a single job or lead from
+producing a confident-sounding rate. **An empty workspace produces an empty array**, and the API
+returns `hasNoData` beside it, because "no findings" and "nothing is wrong" must not render the same.
+
+**One cross-system check exists today and it is the whole thesis in miniature.** `reconcileUtilities`
+compares `utility_bills` (Aval's own infrastructure module) against the utilities line in the
+general ledger. The same spend recorded in two places should agree; when it doesn't, something is
+wrong in one of them and neither system can find that alone. It reports the difference and adjusts
+nothing.
+
+**Ask Aval got seven tools over the record layer** (`lib/ask-aval/operations-tools.ts`), including
+real implementations of `get_delinquent_accounts` and `get_property_breakdown` — both of which
+previously returned "no data available" unconditionally. Those two names fall through to their
+snapshot-based executors on a workspace with no records, so a portfolio whose connector only pushes
+aggregates keeps the answer it had. Document numbers still never reach the gate; operations figures
+do, because they are computed from the workspace's own rows rather than asserted by a counterparty.
+
+**Not built, deliberately.** No UI — the four tabs still render the sample placeholder, and wiring
+them is the next piece of work (the other terminal owns `dashboard-client.tsx` this session). No
+connector writes these tables yet; `upsertPropertyFromSource` / `upsertUnitFromSource` are the entry
+points a sync would call, and the merge rules are already tested against the multi-source case they
+will hit. Per-workspace SLA targets and insight thresholds are constants, not settings — recorded
+here rather than faked with a number presented as authoritative.
+
+**Verification.** 217 tests passing (up from 129, +88 across six new files). typecheck, lint (0
+errors), i18n parity (951 keys), and build all clean; all 16 `/api/operations/*` routes registered.
+Migration `0015` applied to production D1 and all 12 tables verified present. Every route is
+auth-gated on `getApiIdentity` and every query is org-scoped.
+
+**Exercised against production, not just typechecked.** A probe portfolio was written into the live
+D1 — one property claiming 4 units with 3 delivered, an occupied unit leased under market, a unit
+vacant 60 days, two unpaid charges with a partial payment against them, a completed job billed over
+its estimate, an emergency open 30 hours, a real chart of accounts, and ten leads that stall at the
+tour — then read back out and passed through the same metric functions the routes call. Every
+figure was checked by hand:
+
+- Occupancy `66.67%` (2 occupied of 3 rentable); vacancy `60` days; loss to lease `$200.00` — only
+  the unit holding both a market rent and a lease, the other occupied unit correctly excluded.
+- Aging put `$500.00` in 90+ and `$2,000.00` in 31–60. That is the oldest-first credit rule working:
+  the $1,500 payment cleared three-quarters of the 95-day charge rather than the recent one.
+- Collection rate `37.5%` — the $2,000 deposit payment correctly excluded from both sides.
+  Deposits held `$2,000.00`, from payments-minus-refunds rather than the signed sum.
+- NOI `$7,250.00` with the `$9,000` roof and the `$2,000` trust movement both excluded, OER `27.5%`.
+- One emergency open past its stated 4-hour target; vendor billing `+40%` over estimate; `1 of 2`
+  work orders flagged as having no cost recorded.
+- Lead-to-lease `10%`, weakest step `toured → applied` at `12.5%` — the leak the data was built with.
+- Seven insights, correctly ranked, including the deliberate unit-count mismatch as a *data* finding
+  rather than a vacancy one.
+
+Probe rows were deleted afterwards and the deletion confirmed (0 remaining).
+
+**The probe found a real defect, which is why it was worth running.** `INSIGHT_THRESHOLDS.vacancyDays`
+was 45 and nothing read it — the rule actually fired at `summarizeVacancyDuration`'s default of 30,
+and the title hardcoded "30" a third time. Since `/api/operations/insights` returns `thresholds`
+precisely so a reader can tell a judgment from a measurement, it would have advertised a bar the
+rule did not use. Now one `VACANCY_THRESHOLD_DAYS` in `types.ts`, read by the filter, the threshold
+list and the insight text.

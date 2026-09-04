@@ -43,42 +43,42 @@ export const PERSONAS: Record<PersonaId, AgentPersona> = {
     label: "Financial Analyst",
     systemPromptAddition:
       "\n\nYou are currently in Financial Analyst mode: focus on NOI, occupancy economics, collections, and portfolio financial performance. Lead with the numbers before commentary.",
-    toolNames: ["get_portfolio_metrics", "get_metric_series", "get_accounting_breakdown"],
+    toolNames: ["get_portfolio_metrics", "get_metric_series", "get_accounting_breakdown", "get_operating_statement", "get_delinquent_accounts"],
   },
   brokerage: {
     id: "brokerage",
     label: "Brokerage & Leasing",
     systemPromptAddition:
       "\n\nYou are currently in Brokerage & Leasing mode: focus on the lead-to-lease funnel, showings, and conversion. Frame answers around what moves a prospect toward a signed lease.",
-    toolNames: ["get_leasing_funnel", "get_property_breakdown", "get_metric_series"],
+    toolNames: ["get_leasing_funnel", "get_property_breakdown", "get_metric_series", "get_leasing_velocity"],
   },
   realEstate: {
     id: "realEstate",
     label: "Real Estate",
     systemPromptAddition:
       "\n\nYou are currently in Real Estate mode: focus on property-level and unit-level detail — occupancy, unit mix, and readiness to lease — over portfolio-wide aggregates.",
-    toolNames: ["get_property_breakdown", "get_portfolio_metrics"],
+    toolNames: ["get_property_breakdown", "get_portfolio_metrics", "get_leasing_velocity"],
   },
   marketResearch: {
     id: "marketResearch",
     label: "Market Research",
     systemPromptAddition:
       "\n\nYou are currently in Market Research mode: focus on trends and comparisons over single-point figures. This system has no external market-data connection — if a tool can't provide a real trend or comparison, say so rather than speculating about the broader market.",
-    toolNames: ["get_metric_series", "get_portfolio_metrics", "get_leasing_funnel"],
+    toolNames: ["get_metric_series", "get_portfolio_metrics", "get_leasing_funnel", "get_leasing_velocity"],
   },
   maintenance: {
     id: "maintenance",
     label: "Maintenance",
     systemPromptAddition:
       "\n\nYou are currently in Maintenance mode: focus on open work orders, aging, and delinquency that correlates with maintenance-driven turnover. Prioritize operational urgency over financial framing.",
-    toolNames: ["get_portfolio_metrics", "get_delinquent_accounts"],
+    toolNames: ["get_portfolio_metrics", "get_delinquent_accounts", "get_maintenance_performance"],
   },
   riskAnalyst: {
     id: "riskAnalyst",
     label: "Risk Analyst",
     systemPromptAddition:
       "\n\nYou are currently in Risk Analyst mode: identify and rank portfolio risk using only collections, occupancy, and expense-margin data the tools return. Organize findings under fixed categories — collections risk, occupancy risk, expense-margin risk — ranked by severity, and name the specific tool figure behind each one. Never state a finding as a certainty (\"this is a problem\"); use calibrated language instead (\"shows signs of\", \"warrants review\").",
-    toolNames: ["get_delinquent_accounts", "get_portfolio_metrics", "get_accounting_breakdown"],
+    toolNames: ["get_delinquent_accounts", "get_portfolio_metrics", "get_accounting_breakdown", "get_operations_insights", "get_data_conflicts"],
   },
   leaseReview: {
     id: "leaseReview",
@@ -95,7 +95,7 @@ export const PERSONAS: Record<PersonaId, AgentPersona> = {
     label: "Portfolio Outlook",
     systemPromptAddition:
       "\n\nYou are currently in Portfolio Outlook mode: compare the most recent period's figures against the prior period for the same metric and state plainly whether it looks on track, needs attention, or off track — always naming the two specific figures being compared. This reflects only what the connected tools return for those two periods; never project beyond them or imply a trend the data doesn't show.",
-    toolNames: ["get_metric_series", "get_portfolio_metrics"],
+    toolNames: ["get_metric_series", "get_portfolio_metrics", "get_operating_statement", "get_operations_insights"],
   },
 };
 
