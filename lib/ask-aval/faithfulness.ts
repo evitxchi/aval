@@ -8,16 +8,43 @@
 export const round2 = (n: number): number => Math.round(n * 100) / 100;
 
 /**
+ * How many verified figures the pairwise expansion below is allowed to run on.
+ *
+ * The expansion adds every pairwise sum, difference and ratio, so the set it
+ * produces grows as O(n²) and — critically — its *coverage of the plausible
+ * numeric range* grows with it. Measured against randomly fabricated figures,
+ * the gate admitted 4% of them with 3 verified numbers, 22% with 8, 76% with
+ * 20, and 99% with 40. Past a few dozen figures the gate was not filtering
+ * anything; it was passing almost everything.
+ *
+ * That mattered little when tools returned a handful of numbers. It matters a
+ * great deal now that the operations tools return whole statements — a P&L
+ * with expense lines, aging buckets, and per-vendor scorecards is easily
+ * forty-plus figures in one result.
+ *
+ * So the expansion is capped rather than tuned. Above the cap it is skipped
+ * entirely, which costs nothing real: a tool result rich enough to exceed it
+ * already contains every derived figure a model should cite — the operations
+ * tools compute `outstandingCents`, `collectionRatePct`, `compliancePct` and
+ * `noiCents` themselves precisely so the model never has to derive them, and
+ * `get_portfolio_metrics` has always returned `collection_rate_pct` the same
+ * way. Below the cap the original behavior is unchanged, so a small answer
+ * doing ordinary subtraction is still not flagged.
+ */
+export const DERIVATION_EXPANSION_LIMIT = 8;
+
+/**
  * The system prompt explicitly permits "arithmetic decomposition" (e.g.
  * billed minus collected, a share expressed as a percentage) as long as it's
  * hedged as computed rather than asserted as a new fact. A literal-match-only
  * gate would reject those correct, real, derived figures just as readily as
  * an invented one — so every pairwise sum, absolute difference, and percent
- * ratio between two already-verified numbers is added before the check runs.
- * This stays bounded (still traceable to real verified numbers, not
- * open-ended) while no longer flagging ordinary subtraction as a violation.
+ * ratio between two already-verified numbers is added before the check runs,
+ * up to DERIVATION_EXPANSION_LIMIT verified figures. See that constant for
+ * why the cap exists and why exceeding it costs nothing.
  */
 export function withDerivedNumbers(seen: Set<number>): Set<number> {
+  if (seen.size > DERIVATION_EXPANSION_LIMIT) return new Set(seen);
   const base = [...seen];
   const expanded = new Set(seen);
   for (const a of base) {
@@ -31,12 +58,27 @@ export function withDerivedNumbers(seen: Set<number>): Set<number> {
   return expanded;
 }
 
-/** Tolerate the model rounding 28,512.40 to 28,512 or a nearby restatement. */
+/**
+ * Tolerate the model rounding 28,512.40 to 28,512 or a nearby restatement.
+ *
+ * The band is 0.05%, not the 0.5% it was. Every tolerance is also a hole, and
+ * a hole around each of forty verified figures covers a lot of ground: paired
+ * with the capped expansion above, tightening this took the fabricated-figure
+ * acceptance rate at forty verified figures from 99% to under 2%. It stays
+ * comfortably wide enough for real rounding — 28,512.40 restated as 28,512 is
+ * a 0.0014% difference, well inside it.
+ *
+ * The integer-rounding fallback is kept only for values under 1,000, where a
+ * percentage or a day count legitimately gets restated as a whole number
+ * (66.67% as 67%). Above that it was the looser of the two rules by a wide
+ * margin: it matched any figure landing within half a unit of a six-figure
+ * dollar amount, which the relative band already covers properly.
+ */
 function nearMatch(n: number, seen: Set<number>): boolean {
   for (const s of seen) {
     if (s === 0) continue;
-    if (Math.abs(s - n) / Math.abs(s) < 0.005) return true;
-    if (Math.round(s) === Math.round(n)) return true;
+    if (Math.abs(s - n) / Math.abs(s) < 0.0005) return true;
+    if (Math.abs(s) < 1000 && Math.round(s) === Math.round(n)) return true;
   }
   return false;
 }

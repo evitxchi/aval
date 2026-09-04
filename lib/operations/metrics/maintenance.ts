@@ -305,36 +305,88 @@ export interface CallbackSuggestion {
 }
 
 /**
- * Work orders that *might* be unlogged callbacks: same unit, same category,
- * opened within `windowDays` of a completion.
+ * Work orders that *might* be unlogged callbacks: opened in the same unit and
+ * trade within `windowDays` of an earlier completion.
  *
  * Returned as suggestions for a human to confirm, and never fed into
  * `firstTimeFixPct` or a vendor scorecard. Two genuinely different faults in
  * one busy unit look exactly like this from the outside, and a vendor's
  * renewal is not a place to put an inference.
+ *
+ * **At most one suggestion per candidate: the nearest preceding completion.**
+ * Both a correctness and a cost decision. A unit with a recurring fault
+ * accumulates many prior jobs, and pairing a new report with all of them
+ * produces noise a reviewer has to wade through to find the one link that
+ * might be real — the immediately preceding visit is the one a callback would
+ * actually be against. It is also what keeps this from being quadratic: the
+ * all-pairs form emitted O(n²) rows and took 2.4 seconds over 20,000 work
+ * orders, on a path that runs over a workspace's entire history every time the
+ * Maintenance tab loads.
+ *
+ * Now O(n log n): bucket completions by unit and trade, sort each bucket once,
+ * then binary-search each candidate's own bucket for the latest completion at
+ * or before it. A test asserts the scaling, so removing the index fails the
+ * build rather than quietly costing every large portfolio two seconds.
  */
 export function suggestCallbacks(
   workOrders: WorkOrderLike[],
   windowDays: number,
 ): CallbackSuggestion[] {
-  const completed = workOrders.filter((order) => order.completedAt !== null && order.unitId !== null);
-  const suggestions: CallbackSuggestion[] = [];
+  const bucketKey = (unitId: string, category: WorkOrderCategory) => `${unitId}\u001f${category}`;
 
+  // Bucket completed work by the pair a callback has to match on, so a
+  // candidate only ever compares against work that could plausibly be its
+  // original — not against every job in the portfolio.
+  const buckets = new Map<string, WorkOrderLike[]>();
+  for (const order of workOrders) {
+    if (order.completedAt === null || order.unitId === null) continue;
+    const key = bucketKey(order.unitId, order.category);
+    const bucket = buckets.get(key);
+    if (bucket) bucket.push(order);
+    else buckets.set(key, [order]);
+  }
+  for (const bucket of buckets.values()) {
+    bucket.sort((a, b) => (a.completedAt as Date).getTime() - (b.completedAt as Date).getTime());
+  }
+
+  const suggestions: CallbackSuggestion[] = [];
   for (const candidate of workOrders) {
     if (candidate.unitId === null || candidate.callbackOfWorkOrderId !== null) continue;
-    for (const original of completed) {
-      if (original.id === candidate.id) continue;
-      if (original.unitId !== candidate.unitId || original.category !== candidate.category) continue;
-      const gap = daysBetween(original.completedAt as Date, candidate.reportedAt);
-      if (gap < 0 || gap > windowDays) continue;
-      suggestions.push({
-        candidateWorkOrderId: candidate.id,
-        possibleOriginalWorkOrderId: original.id,
-        unitId: candidate.unitId,
-        category: candidate.category,
-        daysAfterCompletion: gap,
-      });
+    const bucket = buckets.get(bucketKey(candidate.unitId, candidate.category));
+    if (!bucket) continue;
+
+    // Rightmost completion at or before this report. Binary search rather than
+    // a scan, so a unit with hundreds of jobs costs a handful of comparisons.
+    const reportedAt = candidate.reportedAt.getTime();
+    let low = 0;
+    let high = bucket.length - 1;
+    let index = -1;
+    while (low <= high) {
+      const mid = (low + high) >> 1;
+      if ((bucket[mid].completedAt as Date).getTime() <= reportedAt) {
+        index = mid;
+        low = mid + 1;
+      } else {
+        high = mid - 1;
+      }
     }
+
+    // Step back past the candidate itself, which sits in this bucket too when
+    // it is completed work being considered against earlier completed work.
+    while (index >= 0 && bucket[index].id === candidate.id) index -= 1;
+    if (index < 0) continue;
+
+    const original = bucket[index];
+    const gap = daysBetween(original.completedAt as Date, candidate.reportedAt);
+    if (gap < 0 || gap > windowDays) continue;
+
+    suggestions.push({
+      candidateWorkOrderId: candidate.id,
+      possibleOriginalWorkOrderId: original.id,
+      unitId: candidate.unitId,
+      category: candidate.category,
+      daysAfterCompletion: gap,
+    });
   }
 
   return suggestions.sort((a, b) => a.daysAfterCompletion - b.daysAfterCompletion);

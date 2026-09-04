@@ -1976,3 +1976,89 @@ and the title hardcoded "30" a third time. Since `/api/operations/insights` retu
 precisely so a reader can tell a judgment from a measurement, it would have advertised a bar the
 rule did not use. Now one `VACANCY_THRESHOLD_DAYS` in `types.ts`, read by the filter, the threshold
 list and the insight text.
+
+## 2026-09-03 — Algorithmic integrity pass: two real defects, one of them serious
+
+**Context.** "Do a series of tests to ensure our backend isn't just an LLM wrapper. Ensure true
+algorithm/agent quality." A fair challenge to answer with evidence rather than assertion, so this
+was run as an audit: properties that only hold for real deterministic arithmetic, checked over
+~20,000 randomized cases, plus differential comparison against independently-written references.
+
+**Two new suites.** `operations-algorithmic-integrity.test.ts` covers structure (no operations
+module may import a model provider or perform network I/O — asserted against the source, with
+comments stripped so prose about "models" doesn't make it theatre), determinism (500 runs,
+byte-identical), order independence (200 shuffles each — a database returning rows in a different
+order must not change the delinquency report), and runtime bounds.
+`operations-property-invariants.test.ts` covers the laws: money conservation, bucket partitioning,
+monotonicity in time, integer exactness, and NOI's invariance under capital and trust activity.
+
+**The FIFO reference is deliberately different mathematics.** The implementation is an iterative
+drawdown loop; the reference is closed-form over cumulative sums — charge *i*'s open amount is
+clamp(Σ₁..ᵢc − C, 0, cᵢ). They agree across 3,000 random ledgers, which is evidence precisely
+because neither could be a transcription of the other.
+
+**Defect 1 — `suggestCallbacks` was quadratic.** The scaling test measured 15.2× the time for 4×
+the input, and 2.4 seconds over 20,000 work orders — on a path that runs across a workspace's
+entire history every time the Maintenance tab loads or `get_maintenance_performance` is called.
+Fixed by bucketing completions on (unit, trade), sorting each bucket once, and binary-searching for
+the latest completion at or before each candidate: **2,390ms → 11.7ms, and the ratio fell to 3.5×**.
+
+The fix also improved the output. It now emits **at most one suggestion per candidate — the nearest
+preceding completion** — because that is what a callback would actually be against; pairing a new
+report with every prior job in a recurring-fault unit produced noise a reviewer had to wade through
+to find the one link that might be real. The scaling assertion stays in the suite, so removing the
+index fails the build rather than quietly costing every large portfolio two seconds.
+
+**Defect 2 — the faithfulness gate had stopped filtering, and this session's work made it worse.**
+The gate is the reason Ask Aval is not a thin wrapper: the model picks tools and writes prose, but
+every figure it states is checked against numbers a tool actually returned. It had no tests. Probing
+it with randomly fabricated figures showed it admitting:
+
+| verified figures in evidence | fabrications accepted (before) | (after) |
+|---|---|---|
+| 8 | 22% | 3.7% |
+| 20 | 76% | 1.2% |
+| 40 | **99%** | 1.9% |
+| 80 | **100%** | 4.2% |
+
+The cause is `withDerivedNumbers`, which adds every pairwise sum, difference and ratio so a model
+doing legitimate arithmetic isn't falsely rejected. That set grows O(n²), and its *coverage of the
+plausible numeric range* grows with it until nearly any number is inside it. A 0.5% tolerance band
+around each of forty figures compounded it.
+
+This was tolerable when tools returned a handful of numbers. It is not now: the operations tools
+added this session return whole statements — a P&L with expense lines, aging buckets and per-vendor
+scorecards is comfortably forty-plus figures in one result — so **the 40-and-80 rows are the normal
+case, not the edge case.** The audit found a defect this session's own work had amplified.
+
+**Fixed by capping rather than tuning.** The expansion is skipped entirely above eight verified
+figures, and the tolerance tightened from 0.5% to 0.05% (with the integer-rounding fallback kept
+only under 1,000, where a percentage legitimately gets restated whole). Removing the ratio term
+alone was measured first and barely helped — 99% to 94% — which is what ruled out tuning.
+
+**Skipping the expansion costs nothing real**, and that is what makes the cap defensible rather than
+arbitrary: a result rich enough to exceed the cap already contains every derived figure a model
+should cite. The operations tools compute `outstandingCents`, `collectionRatePct`, `compliancePct`
+and `noiCents` themselves for exactly this reason, and `get_portfolio_metrics` has always returned
+`collection_rate_pct` the same way. Below the cap, behavior is unchanged — a test asserts that
+billed-minus-collected is still permitted, so a small answer doing ordinary subtraction is not
+newly withheld.
+
+**The measured rates are themselves a regression test.** `faithfulness-gate.test.ts` asserts under
+5% at forty figures and under 10% at eighty, and prints the table on every run. The gate degrades
+with evidence size — that is inherent to matching on values rather than on provenance — so the
+honest thing is to bound it and watch it, not to claim it is airtight.
+
+**The structural fix, not taken.** Matching a claimed figure against *any* verified value cannot be
+made exact; the number of holes scales with the evidence. The design that does not degrade is
+provenance-tagged citation — the model names which tool and field each figure came from, and the
+gate checks that specific field. That changes the tool contract and every persona's prompt, so it is
+recorded here as the next real improvement rather than attempted as a side effect of an audit.
+
+**Verification.** 251 tests passing (up from 217): +11 integrity, +12 property/differential, +11
+adversarial gate. typecheck, lint (0 errors), i18n parity (951 keys) and build all clean.
+
+**One thing worth stating plainly:** the operations layer imports `drizzle-orm`, `@/db` and its own
+siblings, and nothing else — no model provider, no HTTP client, no `fetch`. Every figure in this
+module is computed. The LLM sits above it, chooses which of these functions to call, and has its
+output checked against what they returned.
