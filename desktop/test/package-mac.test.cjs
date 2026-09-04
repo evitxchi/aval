@@ -121,7 +121,13 @@ test("the DMG ships a self-contained Codex runtime", () => {
   }
 });
 
-test("the vendored Codex binary is present and executable", () => {
+// npm resolves @openai/codex-darwin-arm64 only on Apple silicon, so this can
+// never hold on the Linux verify runner. Skipping there rather than asserting
+// keeps the check where it is a real precondition: the macOS job that builds
+// and signs the DMG, which is the only place a missing runtime could ship.
+const APPLE_SILICON = process.platform === "darwin" && process.arch === "arm64";
+
+test("the vendored Codex binary is present and executable", { skip: APPLE_SILICON ? false : "requires an Apple silicon host" }, () => {
   const codex = path.join(desktopRoot, "node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/bin/codex");
   assert.ok(fs.existsSync(codex), "run `npm ci` in desktop/ to install the Codex runtime");
   assert.doesNotThrow(() => fs.accessSync(codex, fs.constants.X_OK));
