@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1320" height="840" viewBox="0 0 1320 840">
+  <defs>
+    <filter id="halo-shadow" x="-30%" y="-30%" width="160%" height="180%">
+      <feDropShadow dx="0" dy="20" stdDeviation="24" flood-color="#000000" flood-opacity="0.075"/>
+    </filter>
+    <filter id="folder-shadow" x="-30%" y="-30%" width="160%" height="180%">
+      <feDropShadow dx="0" dy="12" stdDeviation="12" flood-color="#17638f" flood-opacity="0.24"/>
+    </filter>
+    <linearGradient id="folder-back" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#94e0ff"/>
+      <stop offset="1" stop-color="#3aa8e8"/>
+    </linearGradient>
+    <linearGradient id="folder-front" x1="0" y1="0" x2="0.9" y2="1">
+      <stop offset="0" stop-color="#72cdf8"/>
+      <stop offset="0.55" stop-color="#38abea"/>
+      <stop offset="1" stop-color="#188bd5"/>
+    </linearGradient>
+  </defs>
+
+  <g font-family="Helvetica Neue, Helvetica, Arial, sans-serif" text-anchor="middle">
+    <text x="660" y="116" fill="#1d1d1f" font-size="58" font-weight="600" letter-spacing="-2.6">Install Aval</text>
+    <text x="660" y="161" fill="#6e6e73" font-size="22" font-weight="400" letter-spacing="-0.35">Drag Aval to Applications</text>
+  </g>
+
+  <g filter="url(#halo-shadow)">
+    <rect x="228" y="260" width="254" height="254" rx="58" fill="#ffffff" fill-opacity="0.20" stroke="#ffffff" stroke-opacity="0.78"/>
+    <rect x="838" y="260" width="254" height="254" rx="58" fill="#ffffff" fill-opacity="0.20" stroke="#ffffff" stroke-opacity="0.78"/>
+  </g>
+
+  <g transform="translate(870 292)" filter="url(#folder-shadow)">
+    <path d="M18 53V42c0-14 11-25 25-25h43c9 0 15 4 21 11l14 17h62c13 0 23 10 23 23v20H18Z" fill="url(#folder-back)"/>
+    <rect x="12" y="55" width="200" height="137" rx="31" fill="url(#folder-front)"/>
+    <path d="M28 72c4-7 11-11 20-11h128c11 0 19 5 23 13" fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round" stroke-opacity="0.34"/>
+    <g fill="none" stroke="#eaf8ff" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.82">
+      <path d="M72 153l40-70"/>
+      <path d="M118 83l40 70"/>
+      <path d="M62 137h106"/>
+    </g>
+  </g>
+
+  <g fill="none" stroke="#6e6e73" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M588 401H724"/>
+    <path d="M700 378L724 401L700 424"/>
+  </g>
+
+  <text x="660" y="786" fill="#6e6e73" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="15" font-weight="400" text-anchor="middle" letter-spacing="-0.1">Then open Aval from your Applications folder.</text>
+</svg>

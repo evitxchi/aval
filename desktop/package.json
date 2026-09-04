@@ -1,6 +1,6 @@
 {
   "name": "aval-desktop",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "Trusted desktop shell for Aval with a local Codex App Server bridge",
   "main": "main.cjs",
@@ -24,6 +24,18 @@
     "files": ["main.cjs", "preload.cjs", "codex-app-server.cjs", "package.json"],
     "extraResources": [{ "from": "../public/icon-512.png", "to": "icon.png" }],
     "mac": { "category": "public.app-category.business", "icon": "../public/icon-512.png", "target": ["dmg", "zip"] },
+    "dmg": {
+      "background": "assets/dmg-background.png",
+      "window": { "size": { "width": 660, "height": 420 } },
+      "contents": [
+        { "x": 175, "y": 194, "type": "file" },
+        { "x": 485, "y": 194, "type": "link", "path": "/Applications" }
+      ],
+      "iconSize": 112,
+      "iconTextSize": 13,
+      "title": "Aval",
+      "format": "UDZO"
+    },
     "win": { "target": "nsis" },
     "linux": { "category": "Office", "target": ["AppImage"] }
   }

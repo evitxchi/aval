@@ -25,4 +25,4 @@ npm run package:mac
 
 Unsigned local builds are suitable for development. Public distribution still requires platform code signing/notarization and confirmation that the Codex App Server's experimental interface is appropriate for the intended commercial release.
 
-When npm is unavailable, `npm run package:mac:offline` can create an Apple-silicon development DMG from an already-installed Electron 44 runtime. The resulting app is ad-hoc signed for local testing, not notarized for public distribution.
+When npm is unavailable, `npm run package:mac:offline` can create an Apple-silicon development DMG from an already-installed Electron 44 runtime. The resulting app is ad-hoc signed for local testing, not notarized for public distribution. The DMG uses the same 660×420 Aval-branded Finder layout as the normal electron-builder package, including a live `/Applications` link; eject any older Aval disk image before rebuilding.

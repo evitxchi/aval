@@ -11,8 +11,16 @@ APP_VERSION="$(/usr/bin/plutil -extract version raw "${DESKTOP_DIR}/package.json
 DMG_OUTPUT="${OUTPUT_DIR}/Aval-${APP_VERSION}-arm64.dmg"
 WORK_DIR="$(/usr/bin/mktemp -d /private/tmp/aval-offline-package.XXXXXX)"
 STAGED_APP="${WORK_DIR}/Aval.app"
+MOUNT_DIR="/Volumes/Aval"
+BACKGROUND_1X="${DESKTOP_DIR}/assets/dmg-background.png"
+BACKGROUND_2X="${DESKTOP_DIR}/assets/dmg-background@2x.png"
+FINDER_LAYOUT_SCRIPT="${SCRIPT_DIR}/configure-dmg.applescript"
+MOUNT_ATTACHED=0
 
 cleanup() {
+  if (( MOUNT_ATTACHED )); then
+    /usr/bin/hdiutil detach "${MOUNT_DIR}" -force >/dev/null 2>&1 || true
+  fi
   /bin/rm -rf -- "${WORK_DIR}"
 }
 trap cleanup EXIT
@@ -20,6 +28,18 @@ trap cleanup EXIT
 if [[ ! -d "${SOURCE_APP}/Contents/Frameworks/Electron Framework.framework" ]]; then
   print -u2 "No reusable Electron runtime found at ${SOURCE_APP}."
   print -u2 "Set AVAL_ELECTRON_SOURCE_APP to an installed Electron 44 application."
+  exit 1
+fi
+
+for REQUIRED_ASSET in "${BACKGROUND_1X}" "${BACKGROUND_2X}" "${FINDER_LAYOUT_SCRIPT}"; do
+  if [[ ! -f "${REQUIRED_ASSET}" ]]; then
+    print -u2 "Missing DMG packaging asset: ${REQUIRED_ASSET}"
+    exit 1
+  fi
+done
+
+if /usr/bin/hdiutil info | /usr/bin/grep -qE '/Volumes/Aval($| )'; then
+  print -u2 "An Aval disk image is already mounted. Eject it before packaging."
   exit 1
 fi
 
@@ -90,22 +110,56 @@ if [[ -e "${APP_OUTPUT}" ]]; then /bin/rm -rf -- "${APP_OUTPUT}"; fi
 if [[ -e "${DMG_OUTPUT}" ]]; then /bin/rm -f -- "${DMG_OUTPUT}"; fi
 /usr/bin/ditto "${STAGED_APP}" "${APP_OUTPUT}"
 
-DMG_ROOT="${WORK_DIR}/dmg"
-/bin/mkdir -p "${DMG_ROOT}"
-/usr/bin/ditto "${STAGED_APP}" "${DMG_ROOT}/Aval.app"
-/bin/ln -s /Applications "${DMG_ROOT}/Applications"
-if ! /usr/bin/hdiutil create -volname Aval -srcfolder "${DMG_ROOT}" -format UDZO -ov "${DMG_OUTPUT}"; then
-  # Managed shells can forbid hdiutil from attaching the temporary device it
-  # uses for UDZO creation. makehybrid writes UDF without that device step;
-  # convert can then wrap and compress the raw image as a checksummed UDIF.
-  /bin/rm -f -- "${DMG_OUTPUT}"
-  # DiscRecording's HFS hybrid generator attaches com.apple.FinderInfo to
-  # every copied file. That invalidates an already-signed app bundle when it
-  # is copied out of the DMG. UDF preserves the bundle without those xattrs.
-  RAW_IMAGE="${WORK_DIR}/Aval-udf.iso"
-  /usr/bin/hdiutil makehybrid -udf -udf-version 1.50 -udf-volume-name Aval -o "${RAW_IMAGE}" "${DMG_ROOT}"
-  /usr/bin/hdiutil convert "${RAW_IMAGE}" -format UDZO -o "${DMG_OUTPUT}"
+APP_SIZE_KB="$(/usr/bin/du -sk "${STAGED_APP}" | /usr/bin/awk '{print $1}')"
+IMAGE_SIZE_KB="$(( APP_SIZE_KB + 131072 ))"
+READ_WRITE_IMAGE="${WORK_DIR}/Aval-read-write.dmg"
+
+/usr/bin/hdiutil create -size "${IMAGE_SIZE_KB}k" -fs HFS+ -volname Aval -type UDIF -ov "${READ_WRITE_IMAGE}"
+/usr/bin/hdiutil attach -readwrite -noverify -noautoopen "${READ_WRITE_IMAGE}"
+MOUNT_ATTACHED=1
+
+if [[ ! -d "${MOUNT_DIR}" ]]; then
+  print -u2 "Expected writable image at ${MOUNT_DIR}, but it was not mounted there."
+  exit 1
 fi
+
+/usr/bin/ditto "${STAGED_APP}" "${MOUNT_DIR}/Aval.app"
+/bin/ln -s /Applications "${MOUNT_DIR}/Applications"
+/bin/mkdir -p "${MOUNT_DIR}/.background"
+/bin/cp "${BACKGROUND_1X}" "${MOUNT_DIR}/.background/dmg-background.png"
+/bin/cp "${BACKGROUND_2X}" "${MOUNT_DIR}/.background/dmg-background@2x.png"
+/usr/bin/SetFile -a V "${MOUNT_DIR}/.background"
+
+FINDER_DISK_READY=false
+for ATTEMPT in 1 2 3 4 5 6 7 8 9 10; do
+  if [[ "$(/usr/bin/osascript -e 'tell application "Finder" to exists disk "Aval"')" == "true" ]]; then
+    FINDER_DISK_READY=true
+    break
+  fi
+  /bin/sleep 1
+done
+if [[ "${FINDER_DISK_READY}" != "true" ]]; then
+  print -u2 "Finder could not see the mounted Aval image."
+  exit 1
+fi
+
+/usr/bin/osascript "${FINDER_LAYOUT_SCRIPT}" Aval
+for ATTEMPT in 1 2 3 4 5; do
+  [[ -f "${MOUNT_DIR}/.DS_Store" ]] && break
+  /bin/sleep 1
+done
+if [[ ! -f "${MOUNT_DIR}/.DS_Store" ]]; then
+  print -u2 "Finder did not write the DMG layout metadata."
+  exit 1
+fi
+
+/usr/bin/stat -f 'Applications: %HT -> %Y' "${MOUNT_DIR}/Applications"
+/usr/bin/codesign --verify --deep --strict --verbose=2 "${MOUNT_DIR}/Aval.app"
+/bin/sync
+/usr/bin/hdiutil detach "${MOUNT_DIR}"
+MOUNT_ATTACHED=0
+
+/usr/bin/hdiutil convert "${READ_WRITE_IMAGE}" -format UDZO -imagekey zlib-level=9 -o "${DMG_OUTPUT}"
 
 /usr/bin/hdiutil verify "${DMG_OUTPUT}"
 
