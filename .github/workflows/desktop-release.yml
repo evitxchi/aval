@@ -26,6 +26,10 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
+      # `npm test` at the root discovers desktop/test/ too, and those cases read
+      # the electron-builder schema out of desktop's own dependencies. The one
+      # check that needs Apple silicon skips itself here; the rest need this.
+      - run: npm ci --prefix desktop
       - run: npm run i18n:check
       - run: npm run typecheck
       - run: npm run lint
