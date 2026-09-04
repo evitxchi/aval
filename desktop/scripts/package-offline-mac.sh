@@ -11,10 +11,12 @@ APP_VERSION="$(/usr/bin/plutil -extract version raw "${DESKTOP_DIR}/package.json
 DMG_OUTPUT="${OUTPUT_DIR}/Aval-${APP_VERSION}-arm64.dmg"
 WORK_DIR="$(/usr/bin/mktemp -d /private/tmp/aval-offline-package.XXXXXX)"
 STAGED_APP="${WORK_DIR}/Aval.app"
+APP_SOURCE="${WORK_DIR}/app-source"
 MOUNT_DIR="/Volumes/Aval"
 BACKGROUND_1X="${DESKTOP_DIR}/assets/dmg-background.png"
 BACKGROUND_2X="${DESKTOP_DIR}/assets/dmg-background@2x.png"
 FINDER_LAYOUT_SCRIPT="${SCRIPT_DIR}/configure-dmg.applescript"
+ASAR_PACKER="${SCRIPT_DIR}/create-asar.cjs"
 MOUNT_ATTACHED=0
 
 cleanup() {
@@ -31,14 +33,14 @@ if [[ ! -d "${SOURCE_APP}/Contents/Frameworks/Electron Framework.framework" ]]; 
   exit 1
 fi
 
-for REQUIRED_ASSET in "${BACKGROUND_1X}" "${BACKGROUND_2X}" "${FINDER_LAYOUT_SCRIPT}"; do
+for REQUIRED_ASSET in "${BACKGROUND_1X}" "${BACKGROUND_2X}" "${FINDER_LAYOUT_SCRIPT}" "${ASAR_PACKER}"; do
   if [[ ! -f "${REQUIRED_ASSET}" ]]; then
     print -u2 "Missing DMG packaging asset: ${REQUIRED_ASSET}"
     exit 1
   fi
 done
 
-if /usr/bin/hdiutil info | /usr/bin/grep -qE '/Volumes/Aval($| )'; then
+if /usr/bin/hdiutil info | /usr/bin/grep -E '/Volumes/Aval([[:space:]][0-9]+)?([[:space:]]|$)' >/dev/null; then
   print -u2 "An Aval disk image is already mounted. Eject it before packaging."
   exit 1
 fi
@@ -49,7 +51,7 @@ if [[ "${RUNTIME_VERSION}" != 44.* ]]; then
   exit 1
 fi
 
-/bin/mkdir -p "${STAGED_APP}/Contents/MacOS" "${STAGED_APP}/Contents/Resources/app"
+/bin/mkdir -p "${STAGED_APP}/Contents/MacOS" "${STAGED_APP}/Contents/Resources" "${APP_SOURCE}"
 /usr/bin/ditto "${SOURCE_APP}/Contents/Frameworks" "${STAGED_APP}/Contents/Frameworks"
 /bin/cp "${SOURCE_APP}/Contents/MacOS/Granola" "${STAGED_APP}/Contents/MacOS/Aval"
 /bin/cp "${SOURCE_APP}/Contents/Info.plist" "${STAGED_APP}/Contents/Info.plist"
@@ -80,7 +82,12 @@ for KEY in CFBundleIconName CFBundleURLTypes ElectronAsarIntegrity GranolaManage
   /usr/libexec/PlistBuddy -c "Delete :${KEY}" "${PLIST}" 2>/dev/null || true
 done
 
-/bin/cp "${DESKTOP_DIR}/main.cjs" "${DESKTOP_DIR}/preload.cjs" "${DESKTOP_DIR}/codex-app-server.cjs" "${DESKTOP_DIR}/package.json" "${STAGED_APP}/Contents/Resources/app/"
+/bin/cp "${DESKTOP_DIR}/main.cjs" "${DESKTOP_DIR}/preload.cjs" "${DESKTOP_DIR}/codex-app-server.cjs" "${DESKTOP_DIR}/package.json" "${APP_SOURCE}/"
+ASAR_HASH="$(node "${ASAR_PACKER}" "${APP_SOURCE}" "${STAGED_APP}/Contents/Resources/app.asar")"
+/usr/libexec/PlistBuddy -c 'Add :ElectronAsarIntegrity dict' "${PLIST}"
+/usr/libexec/PlistBuddy -c 'Add :ElectronAsarIntegrity:Resources/app.asar dict' "${PLIST}"
+/usr/libexec/PlistBuddy -c 'Add :ElectronAsarIntegrity:Resources/app.asar:algorithm string SHA256' "${PLIST}"
+/usr/libexec/PlistBuddy -c "Add :ElectronAsarIntegrity:Resources/app.asar:hash string ${ASAR_HASH}" "${PLIST}"
 /bin/cp "${DESKTOP_DIR}/ELECTRON-LICENSE.txt" "${STAGED_APP}/Contents/Resources/"
 if [[ -f /Applications/Cursor.app/Contents/Resources/LICENSES.chromium.html ]]; then
   /bin/cp /Applications/Cursor.app/Contents/Resources/LICENSES.chromium.html "${STAGED_APP}/Contents/Resources/"
@@ -104,6 +111,7 @@ find "${STAGED_APP}" -name _CodeSignature -type d -prune -exec /bin/rm -rf -- {}
 /usr/bin/xattr -cr "${STAGED_APP}"
 /usr/bin/codesign --force --deep --sign - --timestamp=none "${STAGED_APP}"
 /usr/bin/codesign --verify --deep --strict --verbose=2 "${STAGED_APP}"
+AVAL_DESKTOP_SMOKE_TEST=1 "${STAGED_APP}/Contents/MacOS/Aval"
 
 /bin/mkdir -p "${OUTPUT_DIR}"
 if [[ -e "${APP_OUTPUT}" ]]; then /bin/rm -rf -- "${APP_OUTPUT}"; fi

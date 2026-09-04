@@ -14,6 +14,7 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    ".superdesign/**",
   ]),
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
@@ -22,6 +23,13 @@ const eslintConfig = defineConfig([
   reactHooks.configs.flat["recommended-latest"],
   jsxA11y.flatConfigs.recommended,
   next.configs["core-web-vitals"],
+  {
+    // The Electron shell is genuinely CommonJS; require() is correct there.
+    files: ["desktop/**/*.cjs"],
+    rules: {
+      "@typescript-eslint/no-require-imports": "off",
+    },
+  },
   {
     languageOptions: {
       globals: {

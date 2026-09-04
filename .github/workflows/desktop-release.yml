@@ -1,0 +1,92 @@
+name: Desktop release
+
+# Every push to main publishes a fresh macOS DMG to the rolling
+# "desktop-latest" prerelease, so the download link never changes.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Rapid pushes should not race each other for the rolling tag.
+concurrency:
+  group: desktop-release
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  verify-web:
+    name: Verify web app
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm run i18n:check
+      - run: npm run typecheck
+      - run: npm run lint
+
+  release-desktop:
+    name: Build and publish DMG
+    # The bundled Codex runtime is darwin-arm64, so this must stay on Apple silicon.
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Install desktop dependencies
+        working-directory: desktop
+        run: npm ci
+
+      - name: Run desktop tests
+        working-directory: desktop
+        run: npm test
+
+      - name: Build the macOS DMG
+        working-directory: desktop
+        env:
+          # The app is not code-signed; without this electron-builder tries to
+          # discover an identity and fails the build on a clean runner.
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: npx electron-builder --mac --publish never
+
+      - name: Publish rolling desktop-latest release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          cd desktop/dist
+          ls -lh ./*.dmg ./*.zip
+
+          notes="$(cat <<EOF
+          Automated build of \`${GITHUB_SHA:0:7}\` on \`${GITHUB_REF_NAME}\`.
+
+          Includes a bundled Codex runtime, so the app works without a separate
+          Codex CLI install, and adopts an existing Codex login if you have one.
+
+          **This build is not code-signed.** macOS will refuse it on first open.
+          Right-click the app and choose Open, or clear the quarantine flag:
+
+          \`\`\`
+          xattr -dr com.apple.quarantine /Applications/Aval.app
+          \`\`\`
+          EOF
+          )"
+
+          # Recreate the rolling release so the tag follows the newest commit.
+          gh release delete desktop-latest --yes --cleanup-tag || true
+          gh release create desktop-latest \
+            --target "$GITHUB_SHA" \
+            --title "Aval Desktop (latest)" \
+            --notes "$notes" \
+            --prerelease \
+            ./*.dmg ./*.zip

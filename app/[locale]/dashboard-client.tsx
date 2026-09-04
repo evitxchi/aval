@@ -5,10 +5,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ComponentType, FormEvent, ReactNode } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import * as Dialog from "@radix-ui/react-dialog";
+import type { DateRange } from "react-day-picker";
+import { enUS, es } from "date-fns/locale";
 import {
   Archive, Attachment, Bell, Calendar, ChatLines, Check, CheckCircle, ClipboardCheck, Clock,
   Coins, CoinsSwap, Dashboard, Database, FilterList, Flash, Globe, HalfMoon, HomeSimpleDoor, Key,
-  Language, LogOut, NetworkLeft, NavArrowDown, NavArrowLeft, NavArrowRight, Page, Pause,
+  Language, LogOut, NetworkLeft, NavArrowDown, NavArrowRight, Page, Pause,
   Phone, Plus, ScaleFrameEnlarge, ScaleFrameReduce, Search, SendDiagonal, Settings, ShieldCheck, SmartphoneDevice,
   Refresh, SoundHigh, SoundOff, StatsUpSquare, SunLight, TaskList, Tools, User, WarningTriangle,
   ViewColumns3, ViewGrid, Xmark, XmarkCircle,
@@ -31,6 +33,7 @@ import { DATA_SOURCE_NODES, PERSONA_IDS, PERSONA_PRESETS, PERSONA_TOOL_ACCESS, t
 import { buildingAssets, capitalForecast, complianceItems, fixtureLoad, FIXTURE_UNIT_TABLE_CEILING, infrastructureSummary, preventiveTasks, totalAnnualReserveCents, type AssetCategory, type AssetCondition, type DueStatus } from "@/app/data/infrastructure-sample";
 import type { UtilityType } from "@/lib/infrastructure/types";
 import { AccountingSankey, LeasingTrendChart, MaintenanceRoseChart, PropertyOccupancyChart } from "@/app/components/charts";
+import { Calendar as RangeCalendar } from "@/components/ui/calendar-with-presets";
 
 type View = "overview" | "tasks" | "reviewCenter" | "inbox" | "properties" | "leasing" | "maintenance" | "accounting" | "infrastructure" | "connections" | "documents" | "setup" | "settings";
 type DataMode = "sample" | "empty" | "live";
@@ -293,9 +296,6 @@ function addDays(date: Date, amount: number): Date {
 function startOfQuarter(date: Date): Date {
   return new Date(date.getFullYear(), Math.floor(date.getMonth() / 3) * 3, 1);
 }
-function isSameDay(a: Date, b: Date): boolean {
-  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-}
 function formatDateRange(start: Date, end: Date, locale: string): string {
   const monthFmt = new Intl.DateTimeFormat(locale, { month: "short" });
   const dayFmt = new Intl.DateTimeFormat(locale, { day: "numeric" });
@@ -303,13 +303,6 @@ function formatDateRange(start: Date, end: Date, locale: string): string {
   return sameMonth
     ? `${monthFmt.format(start)} ${dayFmt.format(start)}–${dayFmt.format(end)}`
     : `${monthFmt.format(start)} ${dayFmt.format(start)} – ${monthFmt.format(end)} ${dayFmt.format(end)}`;
-}
-function buildMonthCells(year: number, month: number): (Date | null)[] {
-  const firstWeekday = new Date(year, month, 1).getDay();
-  const totalDays = new Date(year, month + 1, 0).getDate();
-  const cells: (Date | null)[] = Array.from({ length: firstWeekday }, () => null);
-  for (let day = 1; day <= totalDays; day++) cells.push(new Date(year, month, day));
-  return cells;
 }
 // Real property-management calendar shapes, not arbitrary day counts: a
 // billing week, the same six-week window the leasing trend chart shows,
@@ -322,86 +315,53 @@ const DATE_PRESETS: { labelKey: string; range: [Date, Date] }[] = [
   { labelKey: "Overview.periodYearToDate", range: [new Date(SAMPLE_TODAY.getFullYear(), 0, 1), SAMPLE_TODAY] },
 ];
 
-/**
- * Preset list by default; "Custom range" swaps in a two-month drag-select
- * calendar (click a start day, hover previews the range, click an end day
- * to apply) — the same click-then-click interaction flight-booking date
- * pickers use. Days after SAMPLE_TODAY are disabled: sample data has
- * nothing to show for a period that hasn't happened yet.
- */
+/** A reusable shadcn/DayPicker range calendar with operational presets. */
 function DateRangePicker({ period, onChange, t, locale }: { period: string; onChange: (label: string) => void; t: T; locale: string }) {
   const [open, setOpen] = useState(false);
-  const [customMode, setCustomMode] = useState(false);
-  const [calendarAnchor, setCalendarAnchor] = useState(() => new Date(SAMPLE_TODAY.getFullYear(), SAMPLE_TODAY.getMonth() - 1, 1));
-  const [rangeStart, setRangeStart] = useState<Date | null>(null);
-  const [rangeHover, setRangeHover] = useState<Date | null>(null);
-
-  const closeMenu = () => { setOpen(false); setCustomMode(false); setRangeStart(null); setRangeHover(null); };
-  const backToPresets = () => { setCustomMode(false); setRangeStart(null); setRangeHover(null); };
+  const [month, setMonth] = useState(() => new Date(SAMPLE_TODAY.getFullYear(), SAMPLE_TODAY.getMonth() - 1, 1));
+  const [date, setDate] = useState<DateRange | undefined>({ from: addDays(SAMPLE_TODAY, -6), to: SAMPLE_TODAY });
 
   const applyPreset = (preset: (typeof DATE_PRESETS)[number]) => {
+    setDate({ from: preset.range[0], to: preset.range[1] });
+    setMonth(preset.range[0]);
     onChange(formatDateRange(preset.range[0], preset.range[1], locale));
-    closeMenu();
+    setOpen(false);
   };
 
-  const handleDayClick = (day: Date) => {
-    if (day > SAMPLE_TODAY) return;
-    if (!rangeStart) { setRangeStart(day); setRangeHover(day); return; }
-    const [start, end] = day < rangeStart ? [day, rangeStart] : [rangeStart, day];
-    onChange(formatDateRange(start, end, locale));
-    closeMenu();
+  const selectRange = (next: DateRange | undefined) => {
+    setDate(next);
+    if (!next?.from || !next.to) return;
+    onChange(formatDateRange(next.from, next.to, locale));
+    setOpen(false);
   };
-
-  const weekdayFmt = new Intl.DateTimeFormat(locale, { weekday: "short" });
-  const monthYearFmt = new Intl.DateTimeFormat(locale, { month: "long", year: "numeric" });
-  const dayLabelFmt = new Intl.DateTimeFormat(locale, { dateStyle: "long" });
-  const weekdayLabels = Array.from({ length: 7 }, (_, index) => weekdayFmt.format(new Date(2026, 7, 9 + index)));
-  const months = [calendarAnchor, new Date(calendarAnchor.getFullYear(), calendarAnchor.getMonth() + 1, 1)];
-  const rangeBounds = rangeStart && rangeHover ? (rangeHover < rangeStart ? [rangeHover, rangeStart] : [rangeStart, rangeHover]) : null;
 
   return (
     <details className="app-menu date-range-menu" open={open} onToggle={(event) => setOpen((event.target as HTMLDetailsElement).open)}>
       <summary className="soft-button"><Calendar width={18} height={18}/>{period}<NavArrowDown width={16} height={16}/></summary>
       <div className="menu-popover date-range-popover">
-        {!customMode
-          ? <div className="date-preset-list">
-              {DATE_PRESETS.map((preset) => <button type="button" key={preset.labelKey} onClick={() => applyPreset(preset)}>{t(preset.labelKey)}</button>)}
-              <button type="button" className="date-custom-trigger" onClick={() => setCustomMode(true)}>{t("Overview.periodCustomRange")}<NavArrowRight width={14} height={14}/></button>
-            </div>
-          : <div className="date-calendar">
-              <div className="date-calendar-nav">
-                <button type="button" className="icon-button" onClick={() => setCalendarAnchor((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1))} aria-label={t("Overview.previousMonth")}><NavArrowLeft width={16} height={16}/></button>
-                <button type="button" className="text-button" onClick={backToPresets}>{t("Overview.backToPresets")}</button>
-                <button type="button" className="icon-button" onClick={() => setCalendarAnchor((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1))} aria-label={t("Overview.nextMonth")}><NavArrowRight width={16} height={16}/></button>
-              </div>
-              <div className="date-calendar-months">
-                {months.map((monthDate) => (
-                  <div className="date-calendar-month" key={`${monthDate.getFullYear()}-${monthDate.getMonth()}`}>
-                    <p className="date-calendar-month-label">{monthYearFmt.format(monthDate)}</p>
-                    <div className="date-calendar-weekdays">{weekdayLabels.map((label, index) => <span key={index}>{label}</span>)}</div>
-                    <div className="date-calendar-grid">
-                      {buildMonthCells(monthDate.getFullYear(), monthDate.getMonth()).map((day, index) => {
-                        if (!day) return <span key={index}/>;
-                        const isFuture = day > SAMPLE_TODAY;
-                        const isEdge = (rangeStart && isSameDay(day, rangeStart)) || (rangeHover && isSameDay(day, rangeHover));
-                        const inRange = rangeBounds !== null && day >= rangeBounds[0] && day <= rangeBounds[1];
-                        return (
-                          <button
-                            type="button" key={index}
-                            className={`date-calendar-day${isEdge ? " selected" : ""}${inRange ? " in-range" : ""}${isSameDay(day, SAMPLE_TODAY) ? " today" : ""}`}
-                            disabled={isFuture}
-                            onClick={() => handleDayClick(day)}
-                            onMouseEnter={() => rangeStart && setRangeHover(day)}
-                            aria-label={dayLabelFmt.format(day)}
-                          >{day.getDate()}</button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <p className="date-calendar-hint">{rangeStart ? t("Overview.selectEndDate") : t("Overview.selectStartDate")}</p>
-            </div>}
+        <aside className="date-preset-list" aria-label={t("Overview.periodCustomRange")}>
+          {DATE_PRESETS.map((preset) => <button type="button" key={preset.labelKey} onClick={() => applyPreset(preset)}>{t(preset.labelKey)}</button>)}
+        </aside>
+        <div className="date-calendar-wrap">
+          <RangeCalendar
+            mode="range"
+            month={month}
+            onMonthChange={setMonth}
+            selected={date}
+            onSelect={selectRange}
+            numberOfMonths={2}
+            locale={locale.toLowerCase().startsWith("es") ? es : enUS}
+            labels={{
+              labelPrevious: () => t("Overview.previousMonth"),
+              labelNext: () => t("Overview.nextMonth"),
+            }}
+            disabled={{ after: SAMPLE_TODAY }}
+            endMonth={SAMPLE_TODAY}
+            fixedWeeks
+            className="date-calendar"
+          />
+          <p className="date-calendar-hint">{date?.from && !date.to ? t("Overview.selectEndDate") : t("Overview.selectStartDate")}</p>
+        </div>
       </div>
     </details>
   );

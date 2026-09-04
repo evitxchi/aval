@@ -1,5 +1,5 @@
 "use strict";
-/* eslint-disable @typescript-eslint/no-require-imports */
+ 
 
 const { EventEmitter } = require("node:events");
 const { spawn } = require("node:child_process");
@@ -171,10 +171,11 @@ function publicRateLimits(snapshot) {
   };
 }
 
-function resolveCodexExecutable({ env = process.env, platform = process.platform, home = os.homedir(), accessSync = fs.accessSync } = {}) {
+function resolveCodexExecutable({ env = process.env, platform = process.platform, home = os.homedir(), resourcesPath, accessSync = fs.accessSync } = {}) {
   const executable = platform === "win32" ? "codex.exe" : "codex";
   const candidates = [];
   if (env.AVAL_CODEX_PATH) candidates.push(env.AVAL_CODEX_PATH);
+  if (resourcesPath) candidates.push(path.join(resourcesPath, "bin", executable));
   for (const directory of String(env.PATH || "").split(path.delimiter).filter(Boolean)) candidates.push(path.join(directory, executable));
   if (platform === "win32") {
     if (env.LOCALAPPDATA) candidates.push(path.join(env.LOCALAPPDATA, "Programs", "codex", executable));
@@ -285,7 +286,7 @@ class JsonLineRpc extends EventEmitter {
 }
 
 class CodexAppServerService extends EventEmitter {
-  constructor({ userDataDir, version = "0.1.0", spawnImpl = spawn, openExternal = async () => {}, env = process.env } = {}) {
+  constructor({ userDataDir, version = "0.1.0", spawnImpl = spawn, openExternal = async () => {}, env = process.env, homeDir = os.homedir(), resourcesPath } = {}) {
     super();
     if (!userDataDir) throw new Error("userDataDir is required");
     this.userDataDir = userDataDir;
@@ -293,7 +294,10 @@ class CodexAppServerService extends EventEmitter {
     this.spawnImpl = spawnImpl;
     this.openExternal = openExternal;
     this.env = env;
+    this.homeDir = homeDir;
+    this.resourcesPath = resourcesPath;
     this.codexHomeDir = path.join(userDataDir, "codex-home");
+    this.sharedAuthPath = path.join(env.CODEX_HOME || path.join(homeDir, ".codex"), "auth.json");
     this.workspaceDir = path.join(userDataDir, "codex-workspace");
     this.preferencePath = path.join(userDataDir, "desktop-state.json");
     this.preferences = this.#readPreferences();
@@ -330,7 +334,8 @@ class CodexAppServerService extends EventEmitter {
     this.#setState({ status: this.restartAttempts ? "restarting" : "starting", lastError: null });
     fs.mkdirSync(this.codexHomeDir, { recursive: true, mode: 0o700 });
     fs.mkdirSync(this.workspaceDir, { recursive: true, mode: 0o700 });
-    const codexPath = resolveCodexExecutable({ env: this.env });
+    this.#seedExistingLogin();
+    const codexPath = resolveCodexExecutable({ env: this.env, home: this.homeDir, resourcesPath: this.resourcesPath });
     if (!codexPath) {
       this.#setState({ available: false, status: "unavailable", active: false, lastError: "Install the Codex CLI to use a ChatGPT plan locally." });
       return;
@@ -409,7 +414,7 @@ class CodexAppServerService extends EventEmitter {
       models,
       selectedModel,
       rateLimits,
-      active: account?.type === "chatgpt" && this.state.active,
+      active: account?.type === "chatgpt" && this.preferences.disabled !== true,
       lastError: null,
     });
     this.#persistPreferences();
@@ -420,6 +425,13 @@ class CodexAppServerService extends EventEmitter {
     if (!this.rpc) throw new Error(this.state.lastError || "Codex App Server is unavailable.");
     this.#setState({ status: "opening_browser", lastError: null });
     try {
+      this.preferences.ignoreSharedAuth = false;
+      this.preferences.disabled = false;
+      if (this.loginId) {
+        const staleLoginId = this.loginId;
+        this.loginId = null;
+        await this.rpc.request("account/login/cancel", { loginId: staleLoginId }).catch(() => {});
+      }
       const result = await this.rpc.request("account/login/start", {
         type: "chatgpt",
         useHostedLoginSuccessPage: true,
@@ -432,6 +444,11 @@ class CodexAppServerService extends EventEmitter {
       await this.openExternal(authUrl);
       this.#setState({ status: "waiting_for_login" });
     } catch (error) {
+      const failedLoginId = this.loginId;
+      this.loginId = null;
+      if (this.rpc && failedLoginId) {
+        await this.rpc.request("account/login/cancel", { loginId: failedLoginId }).catch(() => {});
+      }
       this.#setState({ status: "login_failed", lastError: safeError(error) });
       throw error;
     }
@@ -447,6 +464,8 @@ class CodexAppServerService extends EventEmitter {
     if (!this.rpc) return;
     await this.rpc.request("account/logout");
     this.preferences.active = false;
+    this.preferences.disabled = true;
+    this.preferences.ignoreSharedAuth = true;
     this.threads.clear();
     await this.refresh();
   }
@@ -455,6 +474,7 @@ class CodexAppServerService extends EventEmitter {
     const next = active === true;
     if (next && this.state.account?.type !== "chatgpt") throw new Error("Connect a ChatGPT account first.");
     this.preferences.active = next;
+    this.preferences.disabled = !next;
     this.#setState({ active: next });
     this.#persistPreferences();
     return this.getState();
@@ -538,7 +558,13 @@ class CodexAppServerService extends EventEmitter {
     const { method, params = {} } = message;
     if (method === "account/login/completed" && (!this.loginId || params.loginId === this.loginId)) {
       this.loginId = null;
-      if (params.success) this.refresh().catch((error) => this.#setState({ status: "login_failed", lastError: safeError(error) }));
+      if (params.success) {
+        this.preferences.active = true;
+        this.preferences.disabled = false;
+        this.preferences.ignoreSharedAuth = false;
+        this.#persistPreferences();
+        this.refresh().catch((error) => this.#setState({ status: "login_failed", lastError: safeError(error) }));
+      }
       else this.#setState({ status: "login_failed", lastError: safeError(params.error, "ChatGPT login did not complete.") });
       return;
     }
@@ -647,8 +673,45 @@ class CodexAppServerService extends EventEmitter {
   #persistPreferences() {
     fs.mkdirSync(this.userDataDir, { recursive: true, mode: 0o700 });
     const temporary = `${this.preferencePath}.${process.pid}.tmp`;
-    fs.writeFileSync(temporary, JSON.stringify({ active: this.state.active, selectedModel: this.state.selectedModel }), { mode: 0o600 });
+    fs.writeFileSync(temporary, JSON.stringify({
+      active: this.state.active,
+      disabled: this.preferences.disabled === true,
+      ignoreSharedAuth: this.preferences.ignoreSharedAuth === true,
+      selectedModel: this.state.selectedModel,
+    }), { mode: 0o600 });
     fs.renameSync(temporary, this.preferencePath);
+  }
+
+  /**
+   * Adopt an existing Codex login so the desktop app honours a ChatGPT plan the
+   * user already signed into, without giving the webpage access to the token.
+   *
+   * Deliberately one-shot: once the private copy exists we never overwrite it,
+   * so an in-app login is never clobbered by the shared file.
+   *
+   * Known trade-off: Codex rotates the refresh token when it renews a session.
+   * The private copy and ~/.codex/auth.json therefore drift apart after this
+   * import, and whichever side refreshes last can invalidate the other. Sharing
+   * one auth file instead would couple the app to the user's CLI config, which
+   * is exactly the isolation this service is built to keep.
+   */
+  #seedExistingLogin() {
+    if (this.preferences.ignoreSharedAuth === true) return;
+    const destination = path.join(this.codexHomeDir, "auth.json");
+    if (path.resolve(destination) === path.resolve(this.sharedAuthPath) || fs.existsSync(destination)) return;
+    try {
+      const source = fs.statSync(this.sharedAuthPath);
+      if (!source.isFile() || source.size <= 0 || source.size > 2_000_000) return;
+      fs.copyFileSync(this.sharedAuthPath, destination, fs.constants.COPYFILE_EXCL);
+      fs.chmodSync(destination, 0o600);
+      // Record only the intent to use the import. Whether the account is
+      // actually usable is decided by refresh(), which reads the live account.
+      this.preferences.disabled = false;
+      this.#persistPreferences();
+      this.#diagnose("shared_login_imported", new Error(`Imported ${source.size} bytes of existing Codex credentials.`));
+    } catch (error) {
+      if (error?.code !== "ENOENT") this.#diagnose("shared_login_skipped", error);
+    }
   }
 
   #diagnose(kind, error) {

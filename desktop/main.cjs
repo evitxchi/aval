@@ -1,5 +1,5 @@
 "use strict";
-/* eslint-disable @typescript-eslint/no-require-imports */
+ 
 
 const path = require("node:path");
 const { app, BrowserWindow, ipcMain, shell, session } = require("electron");
@@ -33,6 +33,9 @@ function createWindow() {
     minWidth: 980,
     minHeight: 680,
     title: "Aval",
+    titleBarStyle: "hiddenInset",
+    trafficLightPosition: { x: 18, y: 18 },
+    roundedCorners: true,
     backgroundColor: "#f4f4f1",
     show: false,
     webPreferences: {
@@ -63,10 +66,15 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
+  if (process.env.AVAL_DESKTOP_SMOKE_TEST === "1") {
+    app.quit();
+    return;
+  }
   session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
   service = new CodexAppServerService({
     userDataDir: app.getPath("userData"),
     version: app.getVersion(),
+    resourcesPath: process.resourcesPath,
     openExternal: (url) => shell.openExternal(url),
   });
   service.on("event", (payload) => {
@@ -84,6 +92,9 @@ app.whenReady().then(async () => {
   createWindow();
   await service.start();
   app.on("activate", () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
+}).catch((error) => {
+  console.error("Aval failed during startup.", error);
+  app.exit(1);
 });
 
 app.on("window-all-closed", () => {

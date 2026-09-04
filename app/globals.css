@@ -1,3 +1,27 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-background: var(--surface);
+  --color-foreground: var(--ink);
+  --color-card: var(--surface-raised);
+  --color-card-foreground: var(--ink);
+  --color-popover: var(--surface-raised);
+  --color-popover-foreground: var(--ink);
+  --color-primary: var(--ink);
+  --color-primary-foreground: var(--inverse-ink);
+  --color-secondary: var(--surface-soft);
+  --color-secondary-foreground: var(--ink);
+  --color-muted: var(--surface-soft);
+  --color-muted-foreground: var(--quiet);
+  --color-accent: var(--surface-sunken);
+  --color-accent-foreground: var(--ink);
+  --color-destructive: var(--viz-red);
+  --color-destructive-foreground: var(--inverse-ink);
+  --color-border: var(--line);
+  --color-input: var(--line-strong);
+  --color-ring: var(--ink);
+}
+
 :root {
   /* An off-white, neutral-grey palette matching macOS/Apple's own system
      colors (grouped-content background, label/secondary-label greys) —
@@ -66,6 +90,13 @@
 html, body { min-height: 100%; }
 html { scroll-behavior: smooth; }
 body { margin: 0; background: var(--canvas); color: var(--ink); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
+/* Titlebar drag strip. Must stay below the overlay layer (.dialog-overlay is
+   100) so dialogs and the notification drawer, which reaches y=15px, keep
+   their top edge clickable instead of being swallowed by the drag region. */
+html.aval-desktop-runtime body::before { content: ""; position: fixed; z-index: 10; inset: 0 0 auto; height: 36px; -webkit-app-region: drag; }
+html.aval-desktop-runtime .app-shell { padding-top: 36px; }
+html.aval-desktop-runtime .sidebar { top: 36px; height: calc(100vh - 44px); }
+html.aval-desktop-runtime .content-shell { min-height: calc(100vh - 44px); }
 /* Overflow safety net: a long unbroken string (a pasted key, a URL, an
    unusually long name with no spaces) can otherwise force a grid/flex
    track — and with it, a rounded pill/card container — wider than its
@@ -846,24 +877,12 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--ink); outli
 .hidden-check { opacity: 0; }
 .visible-check { opacity: 1; }
 
-.date-range-popover { width: auto; padding: 14px; }
-.date-preset-list { display: grid; gap: 2px; min-width: 190px; }
-.date-preset-list button.date-custom-trigger { justify-content: space-between; }
-.date-calendar { width: min(456px, calc(100vw - 60px)); }
-.date-calendar-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-.date-calendar-months { display: flex; gap: 18px; }
-.date-calendar-month { flex: 1 1 0; min-width: 0; }
-.date-calendar-month-label { margin: 0 0 8px; text-align: center; color: var(--ink); font-size: 10.5px; }
-.date-calendar-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); margin-bottom: 3px; }
-.date-calendar-weekdays span { text-align: center; color: var(--quiet); font-size: 8px; text-transform: uppercase; }
-.date-calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); row-gap: 2px; }
-.date-calendar-day { aspect-ratio: 1; display: grid; place-items: center; border: 0; border-radius: 8px; background: transparent; color: var(--ink); font-size: 9.5px; cursor: pointer; }
-.date-calendar-day:hover:not(:disabled) { background: var(--surface-soft); }
-.date-calendar-day.today { font-weight: 600; }
-.date-calendar-day.in-range { background: var(--surface-sunken); border-radius: 0; }
-.date-calendar-day.selected { background: var(--ink); color: var(--inverse-ink); border-radius: 50%; }
-.date-calendar-day:disabled { color: var(--quiet); opacity: .35; cursor: default; }
-.date-calendar-hint { margin: 10px 0 0; text-align: center; color: var(--quiet); font-size: 9px; }
+.date-range-popover { width: min(668px, calc(100vw - 60px)); padding: 8px; display: flex; align-items: stretch; gap: 8px; }
+.date-preset-list { width: 154px; flex: 0 0 auto; padding: 5px 8px 5px 2px; display: flex; flex-direction: column; gap: 2px; border-right: 1px solid var(--line); overflow-y: auto; }
+.date-preset-list button { font-size: 10px; }
+.date-calendar-wrap { min-width: 0; flex: 1; }
+.date-calendar { width: 100%; padding: 8px; border: 0; border-radius: 12px; background: transparent; box-shadow: none; }
+.date-calendar-hint { margin: 2px 0 5px; text-align: center; color: var(--quiet); font-size: 9px; }
 @keyframes menu-in { from { opacity: 0; transform: translateY(-8px) scale(.95); } }
 
 .workspace-card { width: calc(100% - 16px); color: var(--ink); text-align: left; cursor: pointer; }
@@ -996,8 +1015,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--ink); outli
 @media (max-width: 560px) {
   .readiness-grid { grid-template-columns: 1fr; }
   .toast-stack { bottom: 85px; }
-  .date-calendar { width: min(280px, calc(100vw - 40px)); }
-  .date-calendar-months { flex-direction: column; gap: 16px; }
+  .date-range-popover { width: min(350px, calc(100vw - 24px)); max-height: min(620px, calc(100vh - 120px)); flex-direction: column; overflow-y: auto; }
+  .date-preset-list { width: 100%; max-height: 132px; padding: 2px 2px 8px; border-right: 0; border-bottom: 1px solid var(--line); }
 }
 @media (prefers-reduced-motion: reduce) {
   [data-reveal] { opacity: 1; transform: none; }

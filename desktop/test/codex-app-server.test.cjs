@@ -1,5 +1,5 @@
 "use strict";
-/* eslint-disable @typescript-eslint/no-require-imports */
+ 
 
 const assert = require("node:assert/strict");
 const { EventEmitter } = require("node:events");
@@ -89,6 +89,7 @@ test("service isolates Codex, opens only the validated login URL, and returns st
   t.after(() => fs.rmSync(temporary, { recursive: true, force: true }));
   let spawnOptions;
   let openedUrl = null;
+  const requests = [];
   const child = new EventEmitter();
   child.stdin = new PassThrough();
   child.stdout = new PassThrough();
@@ -106,6 +107,7 @@ test("service isolates Codex, opens only the validated login URL, and returns st
       if (!line) continue;
       const message = JSON.parse(line);
       if (!message.id) continue;
+      requests.push(message);
       let result = {};
       if (message.method === "initialize") result = { userAgent: "fake" };
       if (message.method === "account/read") result = { account: { type: "chatgpt", email: "owner@example.com", planType: "plus", accessToken: "hidden" }, requiresOpenaiAuth: true };
@@ -141,9 +143,111 @@ test("service isolates Codex, opens only the validated login URL, and returns st
   assert.deepEqual(service.getState().account, { type: "chatgpt", email: "owner@example.com", planType: "plus" });
   await service.connect();
   assert.equal(openedUrl, "https://auth.openai.com/oauth/authorize");
+  assert.deepEqual(requests.find((message) => message.method === "account/login/start")?.params, {
+    type: "chatgpt",
+    useHostedLoginSuccessPage: true,
+    appBrand: "chatgpt",
+  });
   assert.equal(JSON.stringify(service.getState()).includes("oauth/authorize"), false);
-  await service.setActive(true);
+  const activated = new Promise((resolve) => {
+    const onEvent = (event) => {
+      if (event.type === "state" && event.state.active) {
+        service.off("event", onEvent);
+        resolve();
+      }
+    };
+    service.on("event", onEvent);
+  });
+  child.stdout.write(`${JSON.stringify({ method: "account/login/completed", params: { loginId: "login-1", success: true, error: null } })}\n`);
+  await activated;
+  assert.equal(service.getState().active, true);
   const answer = await service.ask({ conversationId: "test", question: "What changed?", locale: "en", context: { facts: { occupancy: 94 } } });
   assert.equal(answer.headline, "Verified");
   service.stop();
+});
+
+// Seeding runs at the top of startup, before any RPC. A stub whose stdout is
+// already closed makes initialize reject, which start() handles as a normal
+// startup failure -- so the import is exercised without a real Codex process.
+function startWithoutCodex(temporary, sharedHome, preferences) {
+  if (preferences) {
+    fs.writeFileSync(path.join(temporary, "desktop-state.json"), JSON.stringify(preferences));
+  }
+  const service = new CodexAppServerService({
+    userDataDir: temporary,
+    env: { PATH: path.join(temporary, "no-such-bin"), CODEX_HOME: sharedHome },
+    spawnImpl() {
+      const child = new EventEmitter();
+      child.stdin = new PassThrough();
+      child.stdout = new PassThrough();
+      child.stderr = new PassThrough();
+      child.killed = false;
+      child.kill = () => { child.killed = true; };
+      child.stdout.end();
+      return child;
+    },
+  });
+  service.env.AVAL_CODEX_PATH = process.execPath;
+  return service;
+}
+
+function makeSharedLogin(root, body) {
+  const sharedHome = path.join(root, "shared-codex");
+  fs.mkdirSync(sharedHome, { recursive: true });
+  fs.writeFileSync(path.join(sharedHome, "auth.json"), body, { mode: 0o600 });
+  return sharedHome;
+}
+
+test("an existing Codex login is adopted into the isolated home", async (t) => {
+  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "aval-seed-test-"));
+  t.after(() => fs.rmSync(temporary, { recursive: true, force: true }));
+  const sharedHome = makeSharedLogin(temporary, '{"tokens":{"refresh_token":"shared"}}');
+
+  const service = startWithoutCodex(temporary, sharedHome);
+  await service.start();
+
+  const imported = path.join(temporary, "codex-home", "auth.json");
+  assert.equal(fs.readFileSync(imported, "utf8"), '{"tokens":{"refresh_token":"shared"}}');
+  assert.equal(fs.statSync(imported).mode & 0o777, 0o600);
+  assert.ok(service.diagnostics.some((entry) => entry.kind === "shared_login_imported"));
+  // Credentials must never reach the renderer-visible state.
+  assert.equal(JSON.stringify(service.getState()).includes("shared"), false);
+});
+
+test("an in-app login is never overwritten by the shared Codex file", async (t) => {
+  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "aval-seed-keep-test-"));
+  t.after(() => fs.rmSync(temporary, { recursive: true, force: true }));
+  const sharedHome = makeSharedLogin(temporary, '{"tokens":{"refresh_token":"shared"}}');
+  fs.mkdirSync(path.join(temporary, "codex-home"), { recursive: true });
+  fs.writeFileSync(path.join(temporary, "codex-home", "auth.json"), '{"tokens":{"refresh_token":"in-app"}}');
+
+  const service = startWithoutCodex(temporary, sharedHome);
+  await service.start();
+
+  assert.equal(
+    fs.readFileSync(path.join(temporary, "codex-home", "auth.json"), "utf8"),
+    '{"tokens":{"refresh_token":"in-app"}}',
+  );
+});
+
+test("signing out opts out of re-adopting the shared Codex login", async (t) => {
+  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "aval-seed-optout-test-"));
+  t.after(() => fs.rmSync(temporary, { recursive: true, force: true }));
+  const sharedHome = makeSharedLogin(temporary, '{"tokens":{"refresh_token":"shared"}}');
+
+  const service = startWithoutCodex(temporary, sharedHome, { ignoreSharedAuth: true, disabled: true });
+  await service.start();
+
+  assert.equal(fs.existsSync(path.join(temporary, "codex-home", "auth.json")), false);
+});
+
+test("a missing shared login is not reported as a failure", async (t) => {
+  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "aval-seed-absent-test-"));
+  t.after(() => fs.rmSync(temporary, { recursive: true, force: true }));
+
+  const service = startWithoutCodex(temporary, path.join(temporary, "absent-codex"));
+  await service.start();
+
+  assert.equal(fs.existsSync(path.join(temporary, "codex-home", "auth.json")), false);
+  assert.equal(service.diagnostics.some((entry) => entry.kind === "shared_login_skipped"), false);
 });
