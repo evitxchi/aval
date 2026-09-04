@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
 import { readFileSync, readdirSync } from "node:fs";
+import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
+import { financialReservationStatement, type FinancialReservationRow } from "../lib/agents/financial-reservation-sql.ts";
 import { LEASE_MS } from "../lib/agents/task-state.ts";
 
 /**
@@ -16,6 +18,9 @@ import { LEASE_MS } from "../lib/agents/task-state.ts";
  *
  * Deliberately raw SQL: drizzle's D1 driver cannot run here, and hand-writing
  * the statements is what lets this file test the schema rather than the ORM.
+ * The one exception is the financial reservation, which is *rendered from the
+ * shipped builder* — a statement that must be exactly right is not tested by
+ * a second copy of it agreeing with the first.
  */
 
 function migratedDatabase(): DatabaseSync {
@@ -292,38 +297,55 @@ test("the financial ledger independently rejects duplicate keys and provider ids
   db.close();
 });
 
-test("the rolling spend cap is arbitrated inside the reservation write", () => {
+/**
+ * Renders the statement `reserveFinancialOperation` actually issues and runs it
+ * against the real migrations. Re-typing the SQL here would only prove that two
+ * copies of one idea agree with each other.
+ */
+test("the rolling spend cap is arbitrated inside the shipped reservation write", () => {
   const db = migratedDatabase();
   seedTask(db);
   insertFinancialOperation(db, { amount_cents: 60_000, status: "reserved", external_transaction_id: null });
 
-  // Mirrors reserveFinancialOperation's INSERT ... SELECT predicate. The
-  // second writer sees the first committed reservation because SQLite
+  const reserve = (id: string, idempotencyKey: string, amountCents: number) =>
+    Number(runReservation(db, reservationRow({ id, idempotencyKey, amountCents }), 100_000).changes);
+
+  // The second writer sees the first committed reservation because SQLite
   // serializes writes; there is no separate read/check window to race.
-  const reserve = db.prepare(`
-    INSERT INTO agent_financial_operations (
-      id, organization_id, task_id, approval_id, step_index, tool_name,
-      idempotency_key, amount_cents, currency, account_fingerprint, status,
-      reconciliation_status, reconcile_attempts, next_reconcile_at, created_at, updated_at
-    )
-    SELECT ?, 'org_1', 'task_1', NULL, 5, 'issue_payment', ?, ?, 'USD',
-      'sha256-account-2', 'reserved', 'pending', 0, ?, ?, ?
-    WHERE (
-      SELECT COALESCE(SUM(amount_cents), 0)
-      FROM agent_financial_operations
-      WHERE organization_id = 'org_1'
-        AND created_at > ?
-        AND status IN ('reserved', 'submitted', 'settled', 'unknown')
-    ) + ? <= ?
-  `);
-  const denied = reserve.run("operation_2", "key_2", 50_000, NOW, NOW, NOW, NOW - 86_400_000, 50_000, 100_000);
-  assert.equal(Number(denied.changes), 0);
-  const accepted = reserve.run("operation_3", "key_3", 40_000, NOW, NOW, NOW, NOW - 86_400_000, 40_000, 100_000);
-  assert.equal(Number(accepted.changes), 1);
+  assert.equal(reserve("operation_2", "key_2", 50_000), 0);
+  assert.equal(reserve("operation_3", "key_3", 40_000), 1);
   const [{ total }] = db.prepare("SELECT SUM(amount_cents) AS total FROM agent_financial_operations WHERE organization_id = 'org_1'").all() as { total: number }[];
   assert.equal(total, 100_000);
   db.close();
 });
+
+test("the shipped reservation still lands on the ledger's own uniqueness constraint", () => {
+  const db = migratedDatabase();
+  seedTask(db);
+  assert.equal(Number(runReservation(db, reservationRow({}), 1_000_000).changes), 1);
+  assert.throws(() => runReservation(db, reservationRow({ id: "operation_dup" }), 1_000_000), /UNIQUE|constraint/i);
+  db.close();
+});
+
+function runReservation(db: DatabaseSync, row: FinancialReservationRow, dailyLimitCents: number) {
+  const statement = financialReservationStatement(row, { dailyLimitCents, since: new Date(NOW - 86_400_000) });
+  const { sql: text, params } = new SQLiteSyncDialect().sqlToQuery(statement);
+  return db.prepare(text).run(...(params as never[]));
+}
+
+function reservationRow(over: Partial<FinancialReservationRow>): FinancialReservationRow {
+  return {
+    id: "operation_2", organizationId: "org_1", taskId: "task_1", approvalId: null,
+    stepIndex: 5, toolName: "issue_payment", idempotencyKey: "issue_payment:task_1:step_5",
+    amountCents: 40_000, currency: "USD", accountFingerprint: "sha256-account-2",
+    status: "reserved", reconciliationStatus: "pending", externalTransactionId: null,
+    resultDigest: null, discrepancyCode: null, reconcileAttempts: 0,
+    nextReconcileAt: new Date(NOW + 120_000), lastReconciledAt: null,
+    reconcileLeaseOwner: null, reconcileLeaseExpiresAt: null,
+    createdAt: new Date(NOW), updatedAt: new Date(NOW), settledAt: null,
+    ...over,
+  };
+}
 
 test("only one reconciler claims an operation and a crashed lease is recoverable", () => {
   const db = migratedDatabase();

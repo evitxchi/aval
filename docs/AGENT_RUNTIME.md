@@ -113,13 +113,16 @@ The repository currently passes:
 - `npm run i18n:check` — 1,028 English and Spanish keys in parity;
 - `npm run typecheck`;
 - `npm run lint` — zero errors (three pre-existing `<img>` warnings);
-- `npm test` — production build plus 409 tests;
+- `npm test` — production build plus 410 tests;
 - `npm --prefix desktop test` — 20 tests;
 - `plutil -lint` on both macOS entitlement files.
 
 The concurrency, recovery, uniqueness, foreign-key, approval, and financial
 journal properties execute against SQLite using every generated migration,
-not against mocked TypeScript objects.
+not against mocked TypeScript objects. The reservation statement is rendered
+from `lib/agents/financial-reservation-sql.ts` and executed, rather than
+re-typed in the test: a copy of a statement can only prove that the copy and
+the original were written by the same reasoning.
 
 ## API
 

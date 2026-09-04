@@ -289,10 +289,20 @@ test("callback suggestion scales linearly, not quadratically, with portfolio siz
     return performance.now() - started;
   };
 
+  // A single wall-clock sample each way is not a measurement when the machine
+  // is loaded — one unlucky GC pause inside the large run is enough to fake
+  // quadratic behaviour, which is how this test failed during a full `npm test`
+  // while the production build ran alongside it. The minimum of several runs is
+  // the robust estimator: it approximates the uncontended cost, and no amount
+  // of scheduling luck makes genuinely quadratic work cheap, so a regression
+  // still lands near 16x.
+  const bestOf = (count: number, samples = 5) =>
+    Math.min(...Array.from({ length: samples }, () => timeFor(count)));
+
   // Warm the JIT so the ratio measures the algorithm, not compilation.
   timeFor(2_000);
-  const small = Math.max(timeFor(5_000), 0.5);
-  const large = timeFor(20_000);
+  const small = Math.max(bestOf(5_000), 0.5);
+  const large = bestOf(20_000);
   const ratio = large / small;
 
   console.log(`      suggestCallbacks: 5k=${small.toFixed(1)}ms  20k=${large.toFixed(1)}ms  ratio=${ratio.toFixed(1)}x`);

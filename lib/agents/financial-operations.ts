@@ -5,6 +5,7 @@ import { getDb } from "@/db";
 import { agentFinancialEvents, agentFinancialOperations } from "@/db/schema";
 import { digestPayload } from "@/lib/audit/chain";
 import { fingerprintAccount } from "./execution-policy.ts";
+import { financialReservationStatement, type FinancialReservationRow } from "./financial-reservation-sql.ts";
 import {
   compareFinancialState,
   projectProviderReport,
@@ -29,7 +30,7 @@ export async function reserveFinancialOperation(input: {
 }): Promise<{ ok: true; operation: FinancialOperationRecord } | { ok: false; duplicate: boolean; reason: "duplicate" | "daily_limit" | "storage" }> {
   const now = new Date();
   const since = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-  const row = {
+  const row: FinancialReservationRow = {
     id: crypto.randomUUID(),
     organizationId: input.organizationId,
     taskId: input.taskId,
@@ -58,40 +59,10 @@ export async function reserveFinancialOperation(input: {
     settledAt: null,
   };
   try {
-    // The aggregate cap and reservation are one SQLite statement. A separate
-    // `SELECT sum(...)` followed by `INSERT` lets two concurrent approvals
-    // both observe the same remaining budget and overspend it. SQLite
-    // serializes these writes; the second statement sees the first row.
-    const inserted = await getDb().run(sql`
-      insert into ${agentFinancialOperations} (
-        ${agentFinancialOperations.id}, ${agentFinancialOperations.organizationId},
-        ${agentFinancialOperations.taskId}, ${agentFinancialOperations.approvalId},
-        ${agentFinancialOperations.stepIndex}, ${agentFinancialOperations.toolName},
-        ${agentFinancialOperations.idempotencyKey}, ${agentFinancialOperations.amountCents},
-        ${agentFinancialOperations.currency}, ${agentFinancialOperations.accountFingerprint},
-        ${agentFinancialOperations.status}, ${agentFinancialOperations.reconciliationStatus},
-        ${agentFinancialOperations.externalTransactionId}, ${agentFinancialOperations.resultDigest},
-        ${agentFinancialOperations.discrepancyCode}, ${agentFinancialOperations.reconcileAttempts},
-        ${agentFinancialOperations.nextReconcileAt}, ${agentFinancialOperations.lastReconciledAt},
-        ${agentFinancialOperations.reconcileLeaseOwner}, ${agentFinancialOperations.reconcileLeaseExpiresAt},
-        ${agentFinancialOperations.createdAt}, ${agentFinancialOperations.updatedAt},
-        ${agentFinancialOperations.settledAt}
-      )
-      select
-        ${row.id}, ${row.organizationId}, ${row.taskId}, ${row.approvalId},
-        ${row.stepIndex}, ${row.toolName}, ${row.idempotencyKey}, ${row.amountCents},
-        ${row.currency}, ${row.accountFingerprint}, ${row.status},
-        ${row.reconciliationStatus}, null, null, null, ${row.reconcileAttempts},
-        ${row.nextReconcileAt.getTime()}, null, null, null,
-        ${row.createdAt.getTime()}, ${row.updatedAt.getTime()}, null
-      where (
-        select coalesce(sum(${agentFinancialOperations.amountCents}), 0)
-        from ${agentFinancialOperations}
-        where ${agentFinancialOperations.organizationId} = ${input.organizationId}
-          and ${agentFinancialOperations.createdAt} > ${since.getTime()}
-          and ${agentFinancialOperations.status} in ('reserved', 'submitted', 'settled', 'unknown')
-      ) + ${input.amountCents} <= ${input.dailyLimitCents}
-    `);
+    // The aggregate cap and the reservation are one statement, so SQLite
+    // arbitrates the limit at write time. See `financial-reservation-sql.ts`
+    // for why it is built there and rendered by a test.
+    const inserted = await getDb().run(financialReservationStatement(row, { dailyLimitCents: input.dailyLimitCents, since }));
     if (affectedRows(inserted) !== 1) {
       return { ok: false, duplicate: false, reason: "daily_limit" };
     }
