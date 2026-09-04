@@ -113,7 +113,8 @@ The repository currently passes:
 - `npm run i18n:check` — 1,028 English and Spanish keys in parity;
 - `npm run typecheck`;
 - `npm run lint` — zero errors (three pre-existing `<img>` warnings);
-- `npm test` — production build plus 410 tests;
+- `npm test` — production build, 414 unit tests, and the runtime lane below;
+- `npm run test:runtime` — 11 integration tests that execute the control loop;
 - `npm --prefix desktop test` — 20 tests;
 - `plutil -lint` on both macOS entitlement files.
 
@@ -123,6 +124,32 @@ not against mocked TypeScript objects. The reservation statement is rendered
 from `lib/agents/financial-reservation-sql.ts` and executed, rather than
 re-typed in the test: a copy of a statement can only prove that the copy and
 the original were written by the same reasoning.
+
+## The runtime lane
+
+`tests/integration/` runs the control loop itself — claim, reason, authorize,
+execute, checkpoint, yield, resume, park, recover — against in-memory SQLite
+with a scripted model. `module-hooks.mjs` substitutes exactly three things:
+`cloudflare:workers`, `@/db`, and the model router. Everything else is the
+real module.
+
+It exists because three defects shipped green without it. A raw `sql` template
+is not checked by the compiler, and a test that re-types the query only proves
+that two copies of one idea agree:
+
+1. The reservation's `INSERT` named its columns table-qualified, which SQLite
+   rejects. Every financial reservation failed closed as a storage error.
+2. `resumableApprovalTasks` bound a `Date` straight to the driver, which no
+   SQLite driver accepts. The scheduled worker threw on every invocation, so
+   nothing was ever continued or recovered by the cron.
+3. The rolling cap was evaluated before the unique index could object, so a
+   retry of an already-reserved operation was reported as a limit breach —
+   an error that invites raising a cap that was never reached.
+
+A fourth was a change of odds rather than a defect: the worker advances a
+workspace's tasks concurrently, which turned the audit chain's tolerated
+sequence race into a routine one. A lost race is now retried onto the winner
+instead of conceded, so the chain no longer gains a hole per cron run.
 
 ## API
 

@@ -64,6 +64,14 @@ export async function reserveFinancialOperation(input: {
     // for why it is built there and rendered by a test.
     const inserted = await getDb().run(financialReservationStatement(row, { dailyLimitCents: input.dailyLimitCents, since }));
     if (affectedRows(inserted) !== 1) {
+      // The cap predicate is evaluated before the unique index can object, so a
+      // *retry* of an operation that is already reserved fails the cap on its
+      // own committed amount. Reporting that as a limit breach would be a lie
+      // in the dangerous direction: it invites an operator to raise a cap that
+      // was never reached, when the truth is that the work is already done.
+      if (await keyAlreadyReserved(input.idempotencyKey)) {
+        return { ok: false, duplicate: true, reason: "duplicate" };
+      }
       return { ok: false, duplicate: false, reason: "daily_limit" };
     }
     await appendFinancialEvent(row.id, input.organizationId, "reserved", await digestPayload({
@@ -76,12 +84,19 @@ export async function reserveFinancialOperation(input: {
     }));
     return { ok: true, operation: row };
   } catch (error) {
-    const [existing] = await getDb().select().from(agentFinancialOperations)
-      .where(eq(agentFinancialOperations.idempotencyKey, input.idempotencyKey)).limit(1);
-    if (existing) return { ok: false, duplicate: true, reason: "duplicate" };
+    if (await keyAlreadyReserved(input.idempotencyKey)) return { ok: false, duplicate: true, reason: "duplicate" };
     console.error("agent_financial_reservation_failed", { taskId: input.taskId, stepIndex: input.stepIndex, error });
     return { ok: false, duplicate: false, reason: "storage" };
   }
+}
+
+/** The unique index on the key is the authority on whether this already ran. */
+async function keyAlreadyReserved(idempotencyKey: string): Promise<boolean> {
+  const [existing] = await getDb().select({ id: agentFinancialOperations.id })
+    .from(agentFinancialOperations)
+    .where(eq(agentFinancialOperations.idempotencyKey, idempotencyKey))
+    .limit(1);
+  return existing !== undefined;
 }
 
 /**

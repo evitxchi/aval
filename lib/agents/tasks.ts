@@ -25,6 +25,7 @@
 import { and, asc, desc, eq, inArray, lt, lte, or, isNull, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { agentTasks, agentTaskSteps } from "@/db/schema";
+import { latestApprovalSettledPredicate } from "./task-sql.ts";
 import { canTransition, LEASE_MS, TERMINAL_STATES, type TaskState } from "./task-state.ts";
 import { DEFAULT_MAX_STEPS, DEFAULT_MAX_TOKENS } from "./task-state.ts";
 import { retryJitterMs, taskRetryDelayMs } from "./retry-policy.ts";
@@ -315,12 +316,7 @@ export async function resumableApprovalTasks(limit = 10): Promise<TaskRecord[]> 
   const rows = await getDb().select().from(agentTasks)
     .where(and(
       eq(agentTasks.status, "WAITING_FOR_APPROVAL"),
-      sql`exists (
-        select 1 from agent_approvals a
-        where a.task_id = ${agentTasks.id}
-          and a.step_index = (select max(a2.step_index) from agent_approvals a2 where a2.task_id = ${agentTasks.id})
-          and (a.status <> 'pending' or a.expires_at < ${now})
-      )`,
+      latestApprovalSettledPredicate(now),
     ))
     .orderBy(asc(agentTasks.updatedAt))
     .limit(limit);

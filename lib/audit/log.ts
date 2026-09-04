@@ -10,16 +10,24 @@
  *   are collected in memory and appended once when the answer resolves.
  *
  * - **Appending never fails the answer.** This is a bookkeeping trail, not the
- *   product. If the write fails — binding missing, a sequence race — the
- *   answer the user asked for still returns, and the failure is logged. A
- *   missing row is visible later as a sequence gap, which is the honest
- *   outcome: the chain reports that it can't vouch for that stretch rather
- *   than pretending it can.
+ *   product. If the write fails — binding missing, a sequence race that will
+ *   not settle — the answer the user asked for still returns, and the failure
+ *   is logged. A missing row is visible later as a sequence gap, which is the
+ *   honest outcome: the chain reports that it can't vouch for that stretch
+ *   rather than pretending it can.
+ *
+ * - **A lost sequence race is retried, not conceded.** Giving up was tolerable
+ *   when the only writers were concurrent requests in one workspace. The
+ *   scheduled worker now advances several of a workspace's tasks at once by
+ *   design, so the collision is routine rather than exceptional, and conceding
+ *   it would punch predictable holes in the chain. The loser re-reads the head
+ *   and re-chains onto the winner, which is what keeps the chain linear.
  */
 
 import { asc, eq, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { answerAuditLog } from "@/db/schema";
+import { isSequenceCollision } from "./append-rules";
 import { GENESIS_HASH, chainEvents, verifyChain, type AuditEntry, type AuditEvent, type ChainVerdict } from "./chain";
 
 /** Rows read back, newest last. */
@@ -61,31 +69,40 @@ async function readHead(organizationId: string): Promise<{ sequence: number; has
  */
 export async function appendAuditEvents(organizationId: string, events: AuditEvent[]): Promise<string | null> {
   if (events.length === 0) return null;
-  try {
-    const head = await readHead(organizationId);
-    const entries = await chainEvents(events, head.sequence + 1, head.hash);
-    const now = new Date();
-    await getDb().insert(answerAuditLog).values(entries.map((entry) => ({
-      id: crypto.randomUUID(),
-      organizationId,
-      sequence: entry.sequence,
-      kind: entry.kind,
-      label: entry.label,
-      payloadDigest: entry.payloadDigest,
-      count: entry.count,
-      previousHash: entry.previousHash,
-      entryHash: entry.entryHash,
-      createdAt: now,
-    })));
-    return entries[entries.length - 1].entryHash;
-  } catch (error) {
-    // A unique-index violation here means two runs raced for the same
-    // sequence. Losing the write is correct — better a visible gap than two
-    // divergent branches that each verify in isolation.
-    console.error("audit_append_failed", { organizationId, events: events.length, error });
-    return null;
+  let lastError: unknown = null;
+  for (let attempt = 1; attempt <= APPEND_ATTEMPTS; attempt++) {
+    try {
+      const head = await readHead(organizationId);
+      const entries = await chainEvents(events, head.sequence + 1, head.hash);
+      const now = new Date();
+      await getDb().insert(answerAuditLog).values(entries.map((entry) => ({
+        id: crypto.randomUUID(),
+        organizationId,
+        sequence: entry.sequence,
+        kind: entry.kind,
+        label: entry.label,
+        payloadDigest: entry.payloadDigest,
+        count: entry.count,
+        previousHash: entry.previousHash,
+        entryHash: entry.entryHash,
+        createdAt: now,
+      })));
+      return entries[entries.length - 1].entryHash;
+    } catch (error) {
+      lastError = error;
+      // Anything that is not a lost sequence race — a missing binding, a schema
+      // problem — will not improve by being retried, so it is reported at once.
+      if (!isSequenceCollision(error) || attempt === APPEND_ATTEMPTS) break;
+      // Jittered, so two writers that just collided do not re-collide in step.
+      await new Promise((resolve) => setTimeout(resolve, Math.floor(Math.random() * 25) + 5));
+    }
   }
+  console.error("audit_append_failed", { organizationId, events: events.length, attempts: APPEND_ATTEMPTS, error: lastError });
+  return null;
 }
+
+/** Bounded: a race this persistent is a symptom, not something to keep absorbing. */
+const APPEND_ATTEMPTS = 4;
 
 export interface ChainReport extends Record<string, unknown> {
   verdict: ChainVerdict;
