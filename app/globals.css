@@ -1489,3 +1489,128 @@ html.aval-module-picking .content-shell { cursor: crosshair; }
   .desktop-chatgpt-connected > div { width: 100%; margin-left: 0; justify-content: space-between; }
   .desktop-model-select-label select { min-width: 0; max-width: 190px; }
 }
+
+/* ── Agent execution trace ──────────────────────────────────────────────────
+ *
+ * The app shell is deliberately monochrome (see the palette comment at the top
+ * of this file), so state here is carried by the --viz-* tokens, which exist
+ * for exactly this: distinguishing meaning rather than decorating. A denial
+ * reads red because the policy engine refusing a call is the guarantee this
+ * view was built to make visible, not because red looks urgent.
+ */
+.agent-trace-card { padding: 16px; }
+
+.agent-goal-form { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.agent-goal-field { display: flex; align-items: center; gap: 7px; flex: 1; min-width: 0; padding: 0 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--quiet); }
+.agent-goal-field input { flex: 1; min-width: 0; padding: 9px 0; border: 0; background: none; color: var(--ink); font-family: inherit; font-size: 11.5px; outline: none; }
+.agent-goal-form select { padding: 9px 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink); font-family: inherit; font-size: 11px; }
+.agent-trace-notice { margin: 0 0 12px; padding: 8px 11px; border-radius: 10px; background: color-mix(in srgb, var(--viz-amber) 12%, var(--surface)); color: var(--viz-amber); font-size: 10.5px; }
+
+/* ── approvals: first, because they are the only thing needing a person ── */
+.agent-approvals { margin-bottom: 14px; }
+.agent-approvals .eyebrow { display: flex; align-items: center; gap: 5px; margin-bottom: 8px; color: var(--viz-amber); }
+.agent-approval-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 10px; }
+.agent-approval-card { display: flex; flex-direction: column; gap: 8px; padding: 13px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); box-shadow: 0 1px 4px rgba(15,15,15,.04); }
+/* A critical action is the one thing on this surface that gets a stripe: it
+   moves money, executes a contract, or changes access. */
+.agent-approval-card[data-risk="critical"] { border-left: 2px solid var(--viz-red); }
+.agent-approval-card[data-risk="high"] { border-left: 2px solid var(--viz-amber); }
+.agent-approval-top { display: flex; align-items: center; gap: 9px; }
+.agent-approval-head { display: flex; flex-direction: column; min-width: 0; }
+.agent-approval-head strong { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; font-weight: 500; color: var(--ink); overflow-wrap: anywhere; }
+.agent-approval-head span { color: var(--quiet); font-size: 9px; }
+.agent-approval-top .agent-risk-tag { margin-left: auto; flex-shrink: 0; }
+.agent-approval-amount { margin: 0; font-size: 19px; font-weight: 500; letter-spacing: -.4px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.agent-approval-reason { margin: 0; font-size: 10.5px; line-height: 1.5; color: var(--muted); }
+.agent-approval-goal { display: flex; flex-direction: column; gap: 2px; margin: 0; font-size: 10.5px; line-height: 1.45; color: var(--ink); }
+.agent-approval-goal span { color: var(--quiet); font-size: 8px; letter-spacing: .08em; text-transform: uppercase; }
+.agent-approval-args { display: grid; gap: 3px; margin: 0; padding: 9px 10px; border-radius: 10px; background: var(--surface-soft); }
+.agent-approval-args > div { display: flex; justify-content: space-between; gap: 12px; }
+.agent-approval-args dt { color: var(--quiet); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 9.5px; }
+.agent-approval-args dd { margin: 0; color: var(--ink); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 9.5px; text-align: right; overflow-wrap: anywhere; }
+.agent-approval-actions { display: flex; gap: 7px; }
+.agent-approval-actions button { flex: 1; justify-content: center; }
+.agent-approval-note { margin: 0; color: var(--quiet); font-size: 8.5px; line-height: 1.45; }
+
+/* ── task cards ───────────────────────────────────────────────────────────── */
+.agent-task-list { display: flex; flex-direction: column; gap: 8px; }
+.agent-task-card { overflow: hidden; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); box-shadow: 0 1px 4px rgba(15,15,15,.04); }
+.agent-task-summary { display: flex; align-items: center; gap: 9px; width: 100%; padding: 11px 13px; border: 0; background: none; color: inherit; font-family: inherit; text-align: left; cursor: pointer; }
+.agent-task-summary:hover { background: var(--surface-soft); }
+.agent-task-chevron { flex-shrink: 0; color: var(--quiet); }
+.agent-task-headline { display: flex; flex-direction: column; flex: 1; min-width: 0; gap: 1px; }
+.agent-task-headline strong { font-size: 11.5px; font-weight: 500; line-height: 1.35; color: var(--ink); overflow-wrap: anywhere; }
+.agent-task-headline span { color: var(--quiet); font-size: 9px; }
+.agent-task-steps { flex-shrink: 0; color: var(--muted); font-size: 9.5px; font-variant-numeric: tabular-nums; }
+
+.agent-status-pill { display: flex; align-items: center; gap: 5px; flex-shrink: 0; padding: 3px 8px; border-radius: 8px; background: var(--surface-sunken); color: var(--muted); font-size: 8.5px; font-weight: 500; letter-spacing: .04em; text-transform: uppercase; }
+.agent-status-pill.status-running { background: color-mix(in srgb, var(--viz-blue) 14%, var(--surface)); color: var(--viz-blue); }
+.agent-status-pill.status-waiting_for_approval { background: color-mix(in srgb, var(--viz-amber) 16%, var(--surface)); color: var(--viz-amber); }
+.agent-status-pill.status-completed { background: color-mix(in srgb, var(--viz-green) 14%, var(--surface)); color: var(--viz-green); }
+.agent-status-pill.status-failed { background: color-mix(in srgb, var(--viz-red) 13%, var(--surface)); color: var(--viz-red); }
+.agent-status-dot { width: 5px; height: 5px; border-radius: 999px; background: currentColor; animation: agent-pulse 1.4s ease-in-out infinite; }
+@keyframes agent-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
+
+.agent-task-progress { height: 2px; background: var(--line); }
+.agent-task-progress-bar { display: block; height: 100%; background: var(--ink); transition: width .3s ease; }
+.agent-task-card[data-status="completed"] .agent-task-progress-bar { background: var(--viz-green); }
+.agent-task-card[data-status="failed"] .agent-task-progress-bar { background: var(--viz-red); }
+.agent-task-card[data-status="waiting_for_approval"] .agent-task-progress-bar { background: var(--viz-amber); }
+
+/* ── the trace itself: steps group, rows hang off them ──────────────────── */
+.agent-task-detail { padding: 12px 13px 13px; border-top: 1px solid var(--line); background: var(--surface-soft); }
+.agent-trace-steps { display: flex; flex-direction: column; gap: 10px; }
+.agent-trace-step { display: grid; grid-template-columns: 46px 1fr; gap: 0 8px; }
+.agent-trace-step-label { padding-top: 3px; color: var(--quiet); font-size: 8px; letter-spacing: .07em; text-transform: uppercase; }
+.agent-trace-list { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0 0 0 11px; list-style: none; border-left: 1px solid var(--line); }
+.agent-trace-row { display: flex; align-items: flex-start; gap: 7px; padding: 3px 0; }
+.agent-trace-icon { display: flex; flex-shrink: 0; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 6px; background: var(--surface-sunken); color: var(--muted); }
+.agent-trace-body { display: flex; flex-direction: column; flex: 1; min-width: 0; gap: 2px; }
+.agent-trace-title { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 10.5px; line-height: 1.5; color: var(--ink); }
+.agent-trace-duration { flex-shrink: 0; padding-top: 2px; color: var(--quiet); font-size: 9px; font-variant-numeric: tabular-nums; }
+.agent-trace-code { align-self: flex-start; padding: 1px 5px; border-radius: 5px; background: color-mix(in srgb, var(--viz-red) 12%, var(--surface)); color: var(--viz-red); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 9px; }
+.agent-trace-error { color: var(--muted); font-size: 9.5px; line-height: 1.45; }
+.agent-trace-empty, .agent-trace-notice:empty { margin: 0; color: var(--quiet); font-size: 10px; }
+
+/* Tone drives the row's icon chip only, so the list stays scannable and a
+   denial is the one thing that breaks the monochrome. */
+.agent-trace-row[data-tone="denied"] .agent-trace-icon { background: color-mix(in srgb, var(--viz-red) 15%, var(--surface)); color: var(--viz-red); }
+.agent-trace-row[data-tone="failed"] .agent-trace-icon { background: color-mix(in srgb, var(--viz-orange) 15%, var(--surface)); color: var(--viz-orange); }
+.agent-trace-row[data-tone="held"] .agent-trace-icon,
+.agent-trace-row[data-tone="reserved"] .agent-trace-icon,
+.agent-trace-row[data-tone="retried"] .agent-trace-icon { background: color-mix(in srgb, var(--viz-amber) 16%, var(--surface)); color: var(--viz-amber); }
+.agent-trace-row[data-tone="decided"] .agent-trace-icon { background: color-mix(in srgb, var(--viz-green) 15%, var(--surface)); color: var(--viz-green); }
+.agent-trace-row[data-tone="thought"] .agent-trace-icon { background: color-mix(in srgb, var(--viz-indigo) 13%, var(--surface)); color: var(--viz-indigo); }
+
+.agent-risk-tag { padding: 1px 5px; border-radius: 5px; background: var(--surface-sunken); color: var(--muted); font-size: 8px; font-weight: 500; letter-spacing: .05em; text-transform: uppercase; }
+.agent-risk-tag.risk-medium { background: color-mix(in srgb, var(--viz-amber) 14%, var(--surface)); color: var(--viz-amber); }
+.agent-risk-tag.risk-high { background: color-mix(in srgb, var(--viz-orange) 14%, var(--surface)); color: var(--viz-orange); }
+.agent-risk-tag.risk-critical { background: color-mix(in srgb, var(--viz-red) 14%, var(--surface)); color: var(--viz-red); }
+.agent-attempt-tag { padding: 1px 5px; border-radius: 5px; background: color-mix(in srgb, var(--viz-amber) 13%, var(--surface)); color: var(--viz-amber); font-size: 8px; font-weight: 500; }
+
+.agent-task-result { margin-top: 12px; padding: 11px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); }
+.agent-task-result strong { display: block; margin-bottom: 4px; font-size: 11.5px; font-weight: 500; line-height: 1.35; color: var(--ink); }
+.agent-task-result p { margin: 0; color: var(--muted); font-size: 10.5px; line-height: 1.55; }
+.agent-task-failure { display: flex; align-items: flex-start; gap: 6px; margin: 12px 0 0; padding: 9px 11px; border-radius: 10px; background: color-mix(in srgb, var(--viz-red) 10%, var(--surface)); color: var(--viz-red); font-size: 10px; line-height: 1.45; }
+.agent-task-failure svg { flex-shrink: 0; margin-top: 1px; }
+
+.agent-task-meta { display: flex; align-items: center; gap: 14px; margin-top: 11px; padding-top: 9px; border-top: 1px solid var(--line); color: var(--quiet); font-size: 9px; }
+.agent-task-cancel { margin-left: auto; padding: 0; border: 0; background: none; color: var(--viz-red); font-family: inherit; font-size: 9px; cursor: pointer; }
+.agent-task-cancel:disabled { opacity: .5; cursor: default; }
+
+@media (max-width: 720px) {
+  .agent-goal-form { flex-wrap: wrap; }
+  .agent-goal-field { flex-basis: 100%; }
+  .agent-task-steps { display: none; }
+  .agent-trace-step { grid-template-columns: 1fr; gap: 4px; }
+  .agent-trace-list { padding-left: 9px; }
+}
+
+[data-theme="dark"] .agent-approval-card,
+[data-theme="dark"] .agent-task-card,
+[data-theme="dark"] .agent-goal-field,
+[data-theme="dark"] .agent-goal-form select,
+[data-theme="dark"] .agent-task-result { background: var(--surface-raised); box-shadow: none; }
+[data-theme="dark"] .agent-task-detail,
+[data-theme="dark"] .agent-approval-args,
+[data-theme="dark"] .agent-trace-card { background: var(--surface-soft); }
