@@ -7,7 +7,8 @@ PROJECT_DIR="${DESKTOP_DIR:h}"
 SOURCE_APP="${AVAL_ELECTRON_SOURCE_APP:-/Applications/Granola.app}"
 OUTPUT_DIR="${DESKTOP_DIR}/dist"
 APP_OUTPUT="${OUTPUT_DIR}/Aval.app"
-DMG_OUTPUT="${OUTPUT_DIR}/Aval-0.1.0-arm64.dmg"
+APP_VERSION="$(/usr/bin/plutil -extract version raw "${DESKTOP_DIR}/package.json")"
+DMG_OUTPUT="${OUTPUT_DIR}/Aval-${APP_VERSION}-arm64.dmg"
 WORK_DIR="$(/usr/bin/mktemp -d /private/tmp/aval-offline-package.XXXXXX)"
 STAGED_APP="${WORK_DIR}/Aval.app"
 
@@ -42,7 +43,7 @@ for ROLE in "" " (GPU)" " (Plugin)" " (Renderer)"; do
   /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Aval Helper${ROLE}" "${NEW_APP}/Contents/Info.plist"
   /usr/libexec/PlistBuddy -c "Set :CFBundleExecutable Aval Helper${ROLE}" "${NEW_APP}/Contents/Info.plist"
   /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.evalxnder.aval.helper${ROLE//[ ()]/}" "${NEW_APP}/Contents/Info.plist"
-  /usr/libexec/PlistBuddy -c "Set :CFBundleVersion 0.1.0" "${NEW_APP}/Contents/Info.plist"
+  /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${APP_VERSION}" "${NEW_APP}/Contents/Info.plist"
   /usr/libexec/PlistBuddy -c "Delete :ElectronAsarIntegrity" "${NEW_APP}/Contents/Info.plist" 2>/dev/null || true
 done
 
@@ -51,8 +52,8 @@ PLIST="${STAGED_APP}/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c 'Set :CFBundleExecutable Aval' "${PLIST}"
 /usr/libexec/PlistBuddy -c 'Set :CFBundleIdentifier com.evalxnder.aval' "${PLIST}"
 /usr/libexec/PlistBuddy -c 'Set :CFBundleName Aval' "${PLIST}"
-/usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 0.1.0' "${PLIST}"
-/usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 0.1.0' "${PLIST}"
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${APP_VERSION}" "${PLIST}"
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${APP_VERSION}" "${PLIST}"
 /usr/libexec/PlistBuddy -c 'Set :LSApplicationCategoryType public.app-category.business' "${PLIST}"
 /usr/libexec/PlistBuddy -c 'Set :NSHumanReadableCopyright Copyright © 2026 Aval' "${PLIST}"
 for KEY in CFBundleIconName CFBundleURLTypes ElectronAsarIntegrity GranolaManagedUpdateHandshakeVersion NSAppTransportSecurity NSAudioCaptureUsageDescription NSBluetoothAlwaysUsageDescription NSBluetoothPeripheralUsageDescription NSCalendarsUsageDescription NSCameraUsageDescription NSContactsUsageDescription NSDockTilePlugIn NSMicrophoneUsageDescription NSScreenCaptureUsageDescription NSSystemExtensionUsageDescription; do
@@ -95,13 +96,18 @@ DMG_ROOT="${WORK_DIR}/dmg"
 /bin/ln -s /Applications "${DMG_ROOT}/Applications"
 if ! /usr/bin/hdiutil create -volname Aval -srcfolder "${DMG_ROOT}" -format UDZO -ov "${DMG_OUTPUT}"; then
   # Managed shells can forbid hdiutil from attaching the temporary device it
-  # uses for UDZO creation. makehybrid writes HFS without that device step;
+  # uses for UDZO creation. makehybrid writes UDF without that device step;
   # convert can then wrap and compress the raw image as a checksummed UDIF.
   /bin/rm -f -- "${DMG_OUTPUT}"
-  RAW_IMAGE="${WORK_DIR}/Aval.raw.dmg"
-  /usr/bin/hdiutil makehybrid -hfs -hfs-volume-name Aval -o "${RAW_IMAGE}" "${DMG_ROOT}"
+  # DiscRecording's HFS hybrid generator attaches com.apple.FinderInfo to
+  # every copied file. That invalidates an already-signed app bundle when it
+  # is copied out of the DMG. UDF preserves the bundle without those xattrs.
+  RAW_IMAGE="${WORK_DIR}/Aval-udf.iso"
+  /usr/bin/hdiutil makehybrid -udf -udf-version 1.50 -udf-volume-name Aval -o "${RAW_IMAGE}" "${DMG_ROOT}"
   /usr/bin/hdiutil convert "${RAW_IMAGE}" -format UDZO -o "${DMG_OUTPUT}"
 fi
+
+/usr/bin/hdiutil verify "${DMG_OUTPUT}"
 
 print "Created ${DMG_OUTPUT}"
 print "Electron runtime ${RUNTIME_VERSION}; Apple silicon; ad-hoc signed development build."
