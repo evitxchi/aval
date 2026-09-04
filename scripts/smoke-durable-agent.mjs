@@ -37,10 +37,18 @@ while (Date.now() < deadline) {
   if (["COMPLETED", "FAILED", "CANCELLED"].includes(lastStatus)) {
     const trace = Array.isArray(observed.body?.trace) ? observed.body.trace : [];
     const kinds = new Set(trace.map((entry) => entry?.kind));
+    const routedModelCall = trace.find((entry) =>
+      entry?.kind === "model_call"
+      && typeof entry?.modelProvider === "string" && entry.modelProvider.length > 0
+      && typeof entry?.modelName === "string" && entry.modelName.length > 0
+    );
     if (lastStatus !== "COMPLETED") fail(`task ended ${lastStatus}`, observed.body);
     if (!observed.body?.result) fail("completed task has no persisted result", observed.body);
     if (!kinds.has("model_call") || !kinds.has("tool_call")) {
       fail("trace does not prove model and tool execution", { taskId, kinds: [...kinds], trace });
+    }
+    if (!routedModelCall) {
+      fail("model trace does not retain resolved provider/model provenance", { taskId, trace });
     }
     console.log(JSON.stringify({
       ok: true,
