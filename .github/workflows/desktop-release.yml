@@ -26,6 +26,10 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
+      # The root suite discovers desktop/test/ as well, and one case asserts the
+      # bundled Codex runtime is present, so the desktop dependencies have to be
+      # installed here too or `npm test` fails on a missing binary.
+      - run: npm ci --prefix desktop
       - run: npm run i18n:check
       - run: npm run typecheck
       - run: npm run lint
