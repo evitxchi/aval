@@ -239,3 +239,6 @@ cancellation propagation, one audit event per hop.
 
 **P6 — execution-trace UI.** Surface the steps that now persist, so the product
 shows execution rather than personality selection (§24).
+
+All seven were subsequently built. See `docs/AGENT_RUNTIME.md` for what is
+verified by executable tests and what remains unproven.

@@ -41,8 +41,8 @@ can widen what it may do.
 
 ## Verified by executable tests
 
-`node --test`, 92 tests across six files. Every claim below is asserted by code
-that runs in CI, not inferred from reading:
+`node --test`, 106 tests across seven agent-runtime files. Every claim below is
+asserted by code that runs in CI, not inferred from reading:
 
 | Claim | Where |
 |---|---|
@@ -68,6 +68,10 @@ that runs in CI, not inferred from reading:
 | Two people deciding one approval produce one decision | same |
 | Separation of duties and expiry on approvals | `tests/agent-approvals.test.ts` |
 | Delegation narrows permissions and cannot cycle or exceed depth | `tests/agent-delegation.test.ts` |
+| A refused call reads as a denial, not as the tool call it was proposed as | `tests/agent-trace-view.test.ts` |
+| A trace read back out of order still renders in the order things happened | same |
+| The view's terminal-state set cannot drift from the runtime's | same |
+| No task state can reach the UI as a raw enum | same |
 
 The bolded rows run against real SQLite (`node:sqlite`) using this project's
 own generated migrations. D1 is SQLite, so the constraint behaviour is
@@ -108,7 +112,8 @@ indication that more may remain:
 - **Progress is poll-driven.** `POST /api/agents/tasks` runs the first
   invocation; `GET /api/agents/tasks/:id` advances a yielded task. There is no
   scheduled worker on this stack, so a task nobody polls sits claimable — which
-  is safe, just not autonomous.
+  is safe, just not autonomous. The trace view polls every 2.5s while a run is
+  live, so a task is only stranded if nobody has the view open.
 
 ## Behaviour changes to existing surfaces
 
@@ -133,9 +138,15 @@ GET    /api/agents/approvals        pending actions with their evidence
 POST   /api/agents/approvals        { approvalId, decision, note? }
 ```
 
-The trace returned by `GET /api/agents/tasks/:id` is what §24's execution UI
-would render: per step, the tool, the policy verdict, the risk level, the
-attempt count and the duration. **No UI consumes it yet.**
+The trace returned by `GET /api/agents/tasks/:id` is what the execution UI
+renders (§24): per step, the tool, the policy verdict, the risk level, the
+attempt count and the duration. `app/components/agent-trace.tsx` consumes it,
+mounted in the Tasks view above the scripted automations.
+
+Progress is poll-driven, which the UI is built around rather than hiding: the
+detail read is what advances a task that yielded at an invocation boundary, and
+expanding a card passes `advance=0` so looking at a run never spends a step.
+Polling stops entirely once nothing is live.
 
 ## Migration
 
