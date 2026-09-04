@@ -41,7 +41,7 @@ can widen what it may do.
 
 ## Verified by executable tests
 
-`node --test`, 106 tests across seven agent-runtime files. Every claim below is
+`node --test`, 116 tests across nine agent-runtime files. Every claim below is
 asserted by code that runs in CI, not inferred from reading:
 
 | Claim | Where |
@@ -68,10 +68,13 @@ asserted by code that runs in CI, not inferred from reading:
 | Two people deciding one approval produce one decision | same |
 | Separation of duties and expiry on approvals | `tests/agent-approvals.test.ts` |
 | Delegation narrows permissions and cannot cycle or exceed depth | `tests/agent-delegation.test.ts` |
+| One approval authorizes one exact model proposal, not every call with the same tool name | `tests/agent-approval-binding.test.ts` |
+| A resumed run rebuilds numeric evidence from its durable transcript | `tests/agent-transcript-evidence.test.ts` |
 | A refused call reads as a denial, not as the tool call it was proposed as | `tests/agent-trace-view.test.ts` |
 | A trace read back out of order still renders in the order things happened | same |
 | The view's terminal-state set cannot drift from the runtime's | same |
 | No task state can reach the UI as a raw enum | same |
+| Polling advances work after a reload and does not starve runnable work behind an approval | same |
 
 The bolded rows run against real SQLite (`node:sqlite`) using this project's
 own generated migrations. D1 is SQLite, so the constraint behaviour is
@@ -85,7 +88,7 @@ full loop — model call, tool execution, persistence, resume — has not been
 exercised. `vinext start` cannot serve D1-backed routes locally, so this needs
 a deploy to verify. Treat the runtime as unproven until it has run once.
 
-Three bugs were found and fixed by reading rather than running, which is a fair
+Seven bugs were found and fixed by reading rather than running, which is a fair
 indication that more may remain:
 
 1. `messages.pop()` on parking discarded the proposal, so an approved action
@@ -95,6 +98,21 @@ indication that more may remain:
 3. The idempotency check was a read before the write, leaving the exact window
    §11 describes: a worker that pays and dies before recording leaves no key,
    so the retry pays twice. Now a single atomic reservation.
+4. A completed reason/action/observation step was not checkpointed until the
+   invocation ended, so a crash could resume from an older transcript. The
+   transcript and counters now persist before the next reasoning step.
+5. The numeric evidence set existed only in memory. A clean yield or crash
+   therefore made a valid final figure look fabricated. It is now rebuilt from
+   the persisted tool-result transcript on every invocation.
+6. Expired `RUNNING` leases and expired approvals were recoverable in the state
+   machine but unreachable through the polling endpoint. Both states now enter
+   the runtime through the real production poll path.
+7. An approval matched only on tool name, so two same-named calls in one model
+   message could share one human decision. It now binds to the exact tool-use
+   identifier and fails closed for legacy or malformed evidence.
+
+The runtime also stops if a trace row cannot be persisted. Continuing would
+turn a storage failure into an execution the audit falsely says never happened.
 
 ## Deliberate limits
 

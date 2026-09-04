@@ -51,7 +51,7 @@ import {
 } from "iconoir-react";
 import { AvalAgentAvatar } from "@/app/components/agent-avatar/AgentAvatar";
 import { PERSONA_PRESETS, DATA_SOURCE_NODES, type PersonaId } from "@/app/components/agent-avatar/personas";
-import { formatDuration, groupBySteps, toneFor, type RowTone } from "@/lib/agents/trace-view";
+import { formatDuration, groupBySteps, nextTaskToAdvance, toneFor, type RowTone } from "@/lib/agents/trace-view";
 
 /* ── shapes returned by app/api/agents/* ──────────────────────────────────── */
 
@@ -401,20 +401,29 @@ export function AgentTrace() {
   // Polling drives execution forward: a task that yielded at an invocation
   // boundary is advanced by the next read. It runs only while something is
   // actually live, so an idle workspace makes no requests at all.
-  const hasLive = tasks.some((task) => !SETTLED.has(task.status) && task.status !== "WAITING_FOR_APPROVAL");
+  const hasLive = tasks.some((task) => !SETTLED.has(task.status));
   useEffect(() => {
     if (!hasLive) return;
     const controller = new AbortController();
-    const timer = setInterval(async () => {
-      const open = expandedRef.current;
-      // Advancing through the open task's own endpoint keeps its trace in step
-      // with its progress; with nothing open, the list read is enough to show
-      // movement and the server advances on the next open.
-      if (open) await loadDetail(open, true, controller.signal);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let stopped = false;
+
+    // Schedule after completion rather than with setInterval: one advance may
+    // hold an HTTP request for a full invocation budget, and overlapping polls
+    // would create needless workers racing for the same lease.
+    const poll = async () => {
+      const target = nextTaskToAdvance(tasks, expandedRef.current);
+      if (target) await loadDetail(target, true, controller.signal);
       await loadTasks(controller.signal);
-    }, 2500);
-    return () => { controller.abort(); clearInterval(timer); };
-  }, [hasLive, loadDetail, loadTasks]);
+      if (!stopped) timer = setTimeout(poll, 2500);
+    };
+    timer = setTimeout(poll, 2500);
+    return () => {
+      stopped = true;
+      controller.abort();
+      if (timer) clearTimeout(timer);
+    };
+  }, [hasLive, loadDetail, loadTasks, tasks]);
 
   const toggle = async (id: string) => {
     if (expanded === id) { setExpanded(null); return; }

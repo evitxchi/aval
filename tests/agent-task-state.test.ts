@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { TASK_STATES, TERMINAL_STATES, TRANSITIONS, canTransition, type TaskState } from "../lib/agents/task-state.ts";
+import { ADVANCEABLE_STATES, TASK_STATES, TERMINAL_STATES, TRANSITIONS, canTransition, type TaskState } from "../lib/agents/task-state.ts";
 import { implementedTools, TOOL_REGISTRY } from "../lib/agents/registry.ts";
 
 test("a terminal task can never move again", () => {
@@ -22,6 +22,12 @@ test("every state can reach a terminal state, so no task can be stranded", () =>
     return TRANSITIONS[from].some((next) => reachesTerminal(next, seen));
   };
   for (const state of TASK_STATES) assert.equal(reachesTerminal(state), true, `${state} cannot reach a terminal state`);
+});
+
+test("the task endpoint can recover expired running and approval-parked work", () => {
+  assert.equal(ADVANCEABLE_STATES.has("RUNNING"), true);
+  assert.equal(ADVANCEABLE_STATES.has("WAITING_FOR_APPROVAL"), true);
+  for (const state of TERMINAL_STATES) assert.equal(ADVANCEABLE_STATES.has(state), false);
 });
 
 test("a run can yield without ending", () => {

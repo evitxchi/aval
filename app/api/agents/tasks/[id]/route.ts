@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 import { getApiIdentity } from "@/lib/integrations/session";
 import { ensureOrganization } from "@/lib/integrations/organizations";
 import { getTask, listSteps, requestCancel, TERMINAL_STATES, type TaskState } from "@/lib/agents/tasks";
+import { ADVANCEABLE_STATES } from "@/lib/agents/task-state";
 import { advanceTask, newWorkerId } from "@/lib/agents/runtime";
 import type { AskAvalEnv } from "@/lib/ask-aval/anthropic";
 
@@ -31,7 +32,10 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
 
   const url = new URL(request.url);
   const shouldAdvance = url.searchParams.get("advance") !== "0";
-  if (shouldAdvance && (task.status === "QUEUED" || task.status === "WAITING_FOR_TOOL")) {
+  // RUNNING is intentionally advanceable: after its lease expires, this poll
+  // is the recovery worker. Excluding it would make the database lock
+  // reclaimable in theory but leave no production path that actually reclaims it.
+  if (shouldAdvance && ADVANCEABLE_STATES.has(task.status)) {
     await advanceTask(env as unknown as AskAvalEnv, identity.organizationId, id, newWorkerId());
     task = (await getTask(identity.organizationId, id)) ?? task;
   }

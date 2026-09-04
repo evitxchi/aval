@@ -24,6 +24,13 @@ export type TaskState = (typeof TASK_STATES)[number];
 export const TERMINAL_STATES: ReadonlySet<TaskState> = new Set<TaskState>(["COMPLETED", "FAILED", "CANCELLED"]);
 
 /**
+ * States the task endpoint may hand to the runtime. A pending approval returns
+ * immediately; an expired or decided one resumes. RUNNING is included so an
+ * expired worker lease has a real recovery path.
+ */
+export const ADVANCEABLE_STATES: ReadonlySet<TaskState> = new Set<TaskState>(["QUEUED", "RUNNING", "WAITING_FOR_TOOL", "WAITING_FOR_APPROVAL"]);
+
+/**
  * Legal transitions. Written out rather than inferred so an illegal one is a
  * rejected write, not a state nobody noticed the system could reach — the case
  * this exists for is a late worker completing a task a user already cancelled.

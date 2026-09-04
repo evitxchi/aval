@@ -37,6 +37,8 @@ import { digestPayload, type AuditEvent } from "@/lib/audit/chain";
 import { executeApprovedTool, executeTool, redactArguments } from "./executor.ts";
 import { allowedToolNames } from "./policy.ts";
 import { requestApproval, latestApprovalForTask, type ApprovalRecord } from "./approvals.ts";
+import { approvalMatchesToolUse } from "./approval-binding.ts";
+import { evidenceNumbersFromTranscript } from "./transcript-evidence.ts";
 import {
   appendStep,
   claimTask,
@@ -146,7 +148,10 @@ export async function advanceTask(
 
   const system = buildSystem(persona.systemPromptAddition);
   const messages: Message[] = safeParseTranscript(task.transcriptJson, task.goal);
-  const seenNumbers = new Set<number>();
+  // Evidence must survive invocation boundaries just like the conversation.
+  // Rebuild it from persisted tool results before adding anything observed by
+  // this worker, otherwise a resumed conclusion would reject valid figures.
+  const seenNumbers = evidenceNumbersFromTranscript(messages);
   const audit: AuditEvent[] = [];
   let stepsRun = 0;
   let inputTokens = 0;
@@ -169,14 +174,37 @@ export async function advanceTask(
     return { taskId, status, stepsRun, approvalId: extra.approvalId, error: extra.error };
   };
 
+  /** Persist one complete reason/action/observation step before reasoning again. */
+  const checkpoint = async (): Promise<AdvanceOutcome | null> => {
+    const saved = await updateTask(task, workerId, {
+      transcriptJson: JSON.stringify(messages),
+      stepCount: task.stepCount + stepsRun,
+      tokensUsed: task.tokensUsed + inputTokens + outputTokens,
+    });
+    if (saved) return null;
+    const current = await getTask(organizationId, taskId);
+    return {
+      taskId,
+      status: current?.status ?? "RUNNING",
+      stepsRun,
+      error: "Lease lost before the completed step could be checkpointed.",
+    };
+  };
+
   try {
     // Answer the proposal the run parked on, before asking the model anything
     // else. Until this happens the transcript ends on an unanswered tool_use,
     // which no provider will accept as a valid conversation.
     if (decidedApproval) {
       await settleDecidedApproval({
-        organizationId, taskId, task, subject, messages, audit, approval: decidedApproval,
+        organizationId, taskId, task, subject, messages, seenNumbers, audit, approval: decidedApproval,
       });
+      // The approved side effect and its observation must become durable
+      // before another model call starts. If the worker dies after execution,
+      // the reservation prevents a duplicate; this checkpoint also preserves
+      // the actual result the resumed agent needs to reason from.
+      const lost = await checkpoint();
+      if (lost) return lost;
     }
 
     while (true) {
@@ -242,7 +270,7 @@ export async function advanceTask(
       outputTokens += res.usage.output_tokens;
       stepsRun++;
 
-      await appendStep({
+      await persistStep({
         taskId, organizationId, stepIndex, kind: "model_call",
         resultDigest: await digestPayload(res.content),
       });
@@ -266,6 +294,8 @@ export async function advanceTask(
       if (res.stop_reason !== "tool_use" || toolUses.length === 0) {
         messages.push({ role: "assistant", content: res.content });
         messages.push({ role: "user", content: "Continue working the goal. Call a tool, or call render_answer if you have enough to conclude." });
+        const lost = await checkpoint();
+        if (lost) return lost;
         continue;
       }
 
@@ -285,7 +315,7 @@ export async function advanceTask(
 
         if (result.status === "ok") {
           result.numbers.forEach((n) => seenNumbers.add(round2(n)));
-          await appendStep({
+          await persistStep({
             taskId, organizationId, stepIndex, kind: "tool_call", toolName: use.name,
             policyEffect: "allow", riskLevel: result.tool.riskLevel,
             argsDigest: await digestPayload(redactArguments(use.input)),
@@ -300,11 +330,14 @@ export async function advanceTask(
           const approval = await requestApproval({
             taskId, organizationId, stepIndex,
             tool: result.tool,
-            evidence: { goal: task.goal, agent: task.agentId, arguments: redactArguments(use.input), reason: result.reason },
+            // Bind the human decision to this exact model proposal. Tool name
+            // alone is insufficient because one assistant message may contain
+            // two calls to the same financial tool with different arguments.
+            evidence: { toolUseId: use.id, goal: task.goal, agent: task.agentId, arguments: redactArguments(use.input), reason: result.reason },
             amountCents: typeof use.input.amount_cents === "number" ? use.input.amount_cents : undefined,
             currency: typeof use.input.currency === "string" ? use.input.currency : undefined,
           });
-          await appendStep({
+          await persistStep({
             taskId, organizationId, stepIndex, kind: "approval_requested", toolName: use.name,
             policyEffect: "require_approval", riskLevel: result.tool.riskLevel,
             argsDigest: await digestPayload(redactArguments(use.input)),
@@ -325,7 +358,7 @@ export async function advanceTask(
           : result.status === "duplicate" ? "This operation already ran. It was not repeated."
           : `Tool failed after ${result.attempts} attempt(s): ${result.reason}. Do not guess the value.`;
 
-        await appendStep({
+        await persistStep({
           taskId, organizationId, stepIndex,
           kind: result.status === "denied" ? "policy_deny" : "error",
           toolName: use.name,
@@ -338,6 +371,8 @@ export async function advanceTask(
       }
 
       messages.push({ role: "user", content: results });
+      const lost = await checkpoint();
+      if (lost) return lost;
     }
   } catch (err) {
     const message = err instanceof AnthropicError ? err.message : "The agent runtime failed.";
@@ -390,10 +425,11 @@ async function settleDecidedApproval(input: {
   task: TaskRecord;
   subject: { organizationId: string; userId: string; isGuest: boolean };
   messages: Message[];
+  seenNumbers: Set<number>;
   audit: AuditEvent[];
   approval: ApprovalRecord;
 }): Promise<void> {
-  const { organizationId, taskId, task, subject, messages, audit, approval } = input;
+  const { organizationId, taskId, task, subject, messages, seenNumbers, audit, approval } = input;
   const last = messages[messages.length - 1];
   if (!last || last.role !== "assistant" || !Array.isArray(last.content)) return;
 
@@ -402,13 +438,13 @@ async function settleDecidedApproval(input: {
 
   const results: ContentBlock[] = [];
   for (const use of toolUses) {
-    const isGatedCall = use.name === approval.toolName;
+    const isGatedCall = approvalMatchesToolUse(approval.evidenceJson, use, approval.toolName);
 
     if (isGatedCall && approval.status !== "approved") {
       const refusal = approval.status === "rejected"
         ? `A person rejected this action${approval.decisionNote ? `: ${approval.decisionNote}` : ""}. It was not executed. Continue the goal without it and say plainly that it was refused.`
         : "The approval request expired before anyone decided it. It was not executed.";
-      await appendStep({
+      await persistStep({
         taskId, organizationId, stepIndex: approval.stepIndex, kind: "approval_decided",
         toolName: use.name, policyEffect: "require_approval", riskLevel: approval.riskLevel, error: refusal,
       });
@@ -435,7 +471,8 @@ async function settleDecidedApproval(input: {
     const result = outcome.result;
 
     if (result.status === "ok") {
-      await appendStep({
+      result.numbers.forEach((n) => seenNumbers.add(round2(n)));
+      await persistStep({
         taskId, organizationId, stepIndex: approval.stepIndex,
         kind: isGatedCall ? "approval_decided" : "tool_call", toolName: use.name,
         policyEffect: "allow", riskLevel: result.tool.riskLevel,
@@ -455,7 +492,7 @@ async function settleDecidedApproval(input: {
       : result.status === "duplicate" ? "This operation already ran. It was not repeated."
       : result.status === "needs_approval" ? "This action still requires approval and was not executed."
       : `Tool failed after ${result.attempts} attempt(s): ${result.reason}. Do not guess the value.`;
-    await appendStep({
+    await persistStep({
       taskId, organizationId, stepIndex: approval.stepIndex,
       kind: result.status === "denied" ? "policy_deny" : "error", toolName: use.name,
       denyCode: result.status === "denied" ? result.code : undefined, error: message,
@@ -502,6 +539,13 @@ function safeParseTranscript(json: string, goal: string): Message[] {
     if (Array.isArray(parsed) && parsed.length > 0) return parsed;
   } catch { /* fall through to a fresh transcript */ }
   return [{ role: "user", content: `Goal: ${goal}` }];
+}
+
+/** Trace loss is execution loss: stop rather than continue with a false audit. */
+async function persistStep(step: Parameters<typeof appendStep>[0]): Promise<void> {
+  if (!(await appendStep(step))) {
+    throw new Error(`Could not persist agent step ${step.stepIndex} (${step.kind}).`);
+  }
 }
 
 export { BASE_RULES as AGENT_BASE_RULES, GOAL_SYSTEM };

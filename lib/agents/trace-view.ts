@@ -16,6 +16,34 @@ export interface TraceEntryShape {
   policy: string | null;
 }
 
+interface TaskStatusShape {
+  id: string;
+  status: string;
+}
+
+const RUNNABLE_STATUS = new Set(["QUEUED", "RUNNING", "WAITING_FOR_TOOL"]);
+const APPROVAL_STATUS = "WAITING_FOR_APPROVAL";
+
+/**
+ * Picks one task for the next poll to advance. Prefer the open trace, but keep
+ * making progress after a reload when no card is expanded.
+ */
+export function nextTaskToAdvance(tasks: readonly TaskStatusShape[], preferredId: string | null): string | null {
+  if (preferredId) {
+    const preferred = tasks.find((task) => task.id === preferredId);
+    if (preferred && RUNNABLE_STATUS.has(preferred.status)) return preferred.id;
+  }
+  const runnable = tasks.find((task) => RUNNABLE_STATUS.has(task.status));
+  if (runnable) return runnable.id;
+  // Poll one parked task when no runnable work remains. This is what observes
+  // a decision or expiry and prevents WAITING_FOR_APPROVAL becoming permanent.
+  if (preferredId) {
+    const preferred = tasks.find((task) => task.id === preferredId);
+    if (preferred?.status === APPROVAL_STATUS) return preferred.id;
+  }
+  return tasks.find((task) => task.status === APPROVAL_STATUS)?.id ?? null;
+}
+
 /**
  * Row tones, in the order the classifier checks them.
  *
