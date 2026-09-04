@@ -18,7 +18,35 @@
  * keep the structure, drop the content.
  */
 
-export type AuditEntryKind = "tool_call" | "tool_error" | "verdict" | "answer";
+/**
+ * Event kinds the chain can carry.
+ *
+ * The first four are the original Ask Aval answer trail. The rest were added
+ * with the durable agent runtime (lib/agents/) to meet §15 of the production
+ * readiness guide, which wants the policy decision, the approval, the retry
+ * and the task lifecycle recorded, not only the tool calls.
+ *
+ * Adding a kind is safe for chains already written: `serializeEntry` below is
+ * unchanged, so every existing entry still hashes to the same value. Changing
+ * or reordering that function's fields would not be safe, and must not happen.
+ */
+export type AuditEntryKind =
+  // answer trail
+  | "tool_call"
+  | "tool_error"
+  | "verdict"
+  | "answer"
+  // agent runtime
+  | "task_created"
+  | "model_call"
+  | "policy_decision"
+  | "tool_retry"
+  | "approval_requested"
+  | "approval_decided"
+  | "delegation"
+  | "task_completed"
+  | "task_failed"
+  | "task_cancelled";
 
 /** One link, before it is chained. */
 export interface AuditEvent {

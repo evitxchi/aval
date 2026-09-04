@@ -52,6 +52,7 @@ export async function handleAskAval(
   locale: string,
   focusedModule?: { label: string; snapshot: string },
   personaId?: string,
+  isGuest = false,
 ): Promise<Response> {
   const question = rawQuestion.trim();
   if (!question) return json({ error: "A question is required" }, 400);
@@ -78,7 +79,23 @@ export async function handleAskAval(
   // preferenceContext is appended for every persona, specialized or not — a
   // standing instruction the workspace has taught applies to whichever agent
   // takes the turn, not only to the general one.
-  const response = await runAskAvalLoop(env, session, SYSTEM + persona.systemPromptAddition + preferenceContext + usagePatternContext, messages, personaTools(TOOLS, persona, "render_answer"));
+  // The persona is passed to the loop as *authority*, not framing: it resolves
+  // to a permission envelope the policy engine checks on every tool call
+  // (lib/agents/permissions.ts). `personaTools` below still narrows what the
+  // model is offered; the envelope is the ceiling neither it nor the model can
+  // raise. `isGuest` matters because every signed-out visitor shares one
+  // workspace, so a write by any of them is a write on behalf of all of them.
+  const response = await runAskAvalLoop(
+    env,
+    session,
+    SYSTEM + persona.systemPromptAddition + preferenceContext + usagePatternContext,
+    messages,
+    personaTools(TOOLS, persona, "render_answer"),
+    "render_answer",
+    2048,
+    undefined,
+    { personaId: persona.id, isGuest },
+  );
 
   // Tell the client which agent actually answered, so an auto-routed turn is
   // visible and correctable rather than silently reframed.

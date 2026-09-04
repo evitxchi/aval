@@ -60,6 +60,7 @@ export async function handleAskAvalDraft(
   locale: string,
   focusedModule?: { label: string; snapshot: string },
   personaId?: string,
+  isGuest = false,
 ): Promise<Response> {
   const title = input.title.trim().slice(0, MAX_TITLE_CHARS);
   const instructions = input.instructions.trim().slice(0, MAX_INSTRUCTIONS_CHARS);
@@ -94,5 +95,8 @@ export async function handleAskAvalDraft(
     "compose_document",
     4096,
     55_000,
+    // Same authority the chat path carries — a drafting turn reads the same
+    // tools and must be bounded by the same envelope.
+    { personaId: persona.id, isGuest },
   );
 }

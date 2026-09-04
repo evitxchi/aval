@@ -6,8 +6,9 @@
 
 import { AnthropicError, type AskAvalEnv, type Message, type ContentBlock, type ToolUseBlock, type ToolSchema } from "./anthropic";
 import { callModel } from "./model-router";
-import { TOOLS, runTool } from "./tools";
+import { TOOLS } from "./tools";
 import { checkUsageBlocked, recordUsage, type AskAvalSession } from "./usage";
+import { executeTool } from "@/lib/agents/executor";
 import { checkFaithfulness, withDerivedNumbers, round2 } from "./faithfulness";
 import { stripDashes } from "./style";
 import { appendAuditEvents } from "@/lib/audit/log";
@@ -16,6 +17,18 @@ import { digestPayload, type AuditEvent } from "@/lib/audit/chain";
 const MAX_ROUNDS = 4;
 
 export const json = (body: unknown, status = 200) => Response.json(body, { status, headers: { "cache-control": "no-store" } });
+
+/**
+ * Which agent is taking this turn, and on whose authority.
+ *
+ * Passed explicitly rather than inferred inside the loop: the loop must not be
+ * able to widen its own authority, and a caller that forgets to supply this
+ * gets the most restrictive envelope (`custom`, read-only), not the broadest.
+ */
+export interface LoopPolicyContext {
+  personaId?: string;
+  isGuest: boolean;
+}
 
 export async function runAskAvalLoop(
   env: AskAvalEnv,
@@ -26,6 +39,7 @@ export async function runAskAvalLoop(
   finalToolName = "render_answer",
   maxTokens = 2048,
   timeoutMs?: number,
+  policy: LoopPolicyContext = { isGuest: false },
 ): Promise<Response> {
   const blockReason = await checkUsageBlocked(env, session);
   if (blockReason === "token_balance") return json({ error: "Aval has run out of tokens for this billing period. Purchase more to continue.", code: "token_balance" }, 402);
@@ -90,19 +104,38 @@ export async function runAskAvalLoop(
       const results: ContentBlock[] = [];
       for (const use of toolUses) {
         toolsUsed.push(use.name);
-        try {
-          const out = await runTool(use.name, use.input, session.orgId);
-          out.numbers.forEach((n) => seenNumbers.add(round2(n)));
-          // The digest covers the tool's actual result, so a retained answer
-          // can later be checked against the data it was built from — without
-          // this table holding that data.
-          auditEvents.push({ kind: "tool_call", label: use.name, payloadDigest: await digestPayload(out.json), count: out.numbers.length });
-          results.push({ type: "tool_result", tool_use_id: use.id, content: JSON.stringify(out.json) });
-        } catch (err) {
-          console.error("ask_aval_tool_error", use.name, err);
-          auditEvents.push({ kind: "tool_error", label: use.name, payloadDigest: await digestPayload(String(err)), count: 0 });
-          results.push({ type: "tool_result", tool_use_id: use.id, content: JSON.stringify({ error: "Tool failed. Do not guess the value." }), is_error: true });
+        // Every call goes through the executor, which consults the policy
+        // engine first (lib/agents/policy.ts). Before this, the only thing
+        // stopping an agent from running a tool outside its subset was that
+        // the tool had not been *offered* to it — the model enforcing its own
+        // permissions. Now the schema list is framing and this is authority:
+        // a tool_use block naming an ungranted tool is denied here, whatever
+        // produced it and whatever a document it just read asked for.
+        const outcome = await executeTool({
+          toolName: use.name,
+          args: use.input,
+          subject: { organizationId: session.orgId, userId: session.userId, isGuest: policy.isGuest },
+          context: { personaId: policy.personaId },
+        });
+        auditEvents.push(...outcome.audit);
+        const result = outcome.result;
+
+        if (result.status === "ok") {
+          result.numbers.forEach((n) => seenNumbers.add(round2(n)));
+          results.push({ type: "tool_result", tool_use_id: use.id, content: JSON.stringify(result.json) });
+          continue;
         }
+
+        // Everything else is reported back to the model as a tool error, so it
+        // can adapt — pick a different tool, or say plainly that it cannot
+        // answer. A denial is a fact about the world, not a crash.
+        const message =
+          result.status === "denied" ? `Denied: ${result.reason}`
+          : result.status === "duplicate" ? "This operation already ran. It was not repeated."
+          : result.status === "needs_approval" ? `Held for human approval: ${result.reason} Nothing was executed.`
+          : `Tool failed after ${result.attempts} attempt(s). Do not guess the value.`;
+        if (result.status !== "denied") console.error("ask_aval_tool_unavailable", use.name, message);
+        results.push({ type: "tool_result", tool_use_id: use.id, content: JSON.stringify({ error: message }), is_error: true });
       }
       messages.push({ role: "user", content: results });
     }

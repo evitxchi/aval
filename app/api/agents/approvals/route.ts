@@ -1,0 +1,103 @@
+import { env } from "cloudflare:workers";
+import { getApiIdentity, isGuestIdentity } from "@/lib/integrations/session";
+import { ensureOrganization } from "@/lib/integrations/organizations";
+import { decideApproval, expireStaleApprovals, getApproval, listPendingApprovals } from "@/lib/agents/approvals";
+import { getTask } from "@/lib/agents/tasks";
+import { advanceTask, newWorkerId } from "@/lib/agents/runtime";
+import { appendAuditEvents } from "@/lib/audit/log";
+import { digestPayload } from "@/lib/audit/chain";
+import type { AskAvalEnv } from "@/lib/ask-aval/anthropic";
+
+/**
+ * The human half of §12: actions an agent prepared and is not allowed to take.
+ *
+ * GET lists what is waiting, with the evidence the agent assembled, so the
+ * approver sees what they are deciding rather than a tool name. POST records
+ * the decision and un-parks the task either way — an approval lets the action
+ * run, a rejection lets the agent continue and report that it was refused.
+ *
+ * Guests cannot decide anything. Every signed-out visitor is the same subject,
+ * so "a person approved this" would be a claim about nobody.
+ */
+
+export async function GET(request: Request) {
+  const identity = await getApiIdentity(request);
+  if (!identity) return Response.json({ error: "Authentication required" }, { status: 401 });
+  await ensureOrganization(identity);
+
+  // Swept here rather than on a timer: this stack has no scheduled worker, and
+  // the listing is the one place staleness is actually observable. Same idiom
+  // as lib/security/rate-limit.ts.
+  await expireStaleApprovals(identity.organizationId);
+
+  const pending = await listPendingApprovals(identity.organizationId);
+  return Response.json({
+    approvals: pending.map((approval) => ({
+      id: approval.id,
+      taskId: approval.taskId,
+      tool: approval.toolName,
+      risk: approval.riskLevel,
+      tier: approval.tier,
+      amountCents: approval.amountCents,
+      currency: approval.currency,
+      evidence: safeParse(approval.evidenceJson),
+      requestedAt: approval.requestedAt,
+      expiresAt: approval.expiresAt,
+    })),
+  }, { headers: { "cache-control": "no-store" } });
+}
+
+export async function POST(request: Request) {
+  const identity = await getApiIdentity(request);
+  if (!identity) return Response.json({ error: "Authentication required" }, { status: 401 });
+  await ensureOrganization(identity);
+  if (isGuestIdentity(identity)) {
+    return Response.json({ error: "Sign in to approve or reject an agent action." }, { status: 403 });
+  }
+
+  const body = (await request.json().catch(() => ({}))) as { approvalId?: string; decision?: string; note?: string };
+  const approvalId = typeof body.approvalId === "string" ? body.approvalId : "";
+  const decision = body.decision === "approved" || body.decision === "rejected" ? body.decision : null;
+  if (!approvalId || !decision) return Response.json({ error: "approvalId and decision ('approved' | 'rejected') are required" }, { status: 400 });
+
+  const approval = await getApproval(identity.organizationId, approvalId);
+  if (!approval) return Response.json({ error: "No such approval" }, { status: 404 });
+  const task = await getTask(identity.organizationId, approval.taskId);
+  if (!task) return Response.json({ error: "No such task" }, { status: 404 });
+
+  const outcome = await decideApproval(
+    identity.organizationId,
+    approvalId,
+    decision,
+    identity.userId,
+    // Separation of duties is checked against the user the task runs on
+    // behalf of, not against whoever happens to be calling.
+    task.userId,
+    typeof body.note === "string" ? body.note.slice(0, 400) : undefined,
+  );
+
+  if (!outcome.ok) {
+    const status = outcome.reason === "not_found" ? 404 : outcome.reason === "self_approval" ? 403 : 409;
+    return Response.json({ error: MESSAGES[outcome.reason] }, { status });
+  }
+
+  await appendAuditEvents(identity.organizationId, [
+    { kind: "approval_decided", label: `${approval.toolName}:${decision}`, payloadDigest: await digestPayload(approvalId), count: approval.stepIndex },
+  ]);
+
+  // Un-park the task so it can either run the approved action or record the
+  // refusal and conclude with what it has.
+  const advanced = await advanceTask(env as unknown as AskAvalEnv, identity.organizationId, task.id, newWorkerId());
+  return Response.json({ id: approvalId, decision, task: advanced }, { headers: { "cache-control": "no-store" } });
+}
+
+const MESSAGES = {
+  not_found: "No such approval",
+  already_decided: "This action was already decided.",
+  expired: "This approval request expired. The agent must propose the action again.",
+  self_approval: "A critical action cannot be approved by the person whose task proposed it.",
+} as const;
+
+function safeParse(json: string): unknown {
+  try { return JSON.parse(json); } catch { return {}; }
+}

@@ -929,3 +929,158 @@ export const operationsConflicts = sqliteTable(
     index("operations_conflicts_org_status_idx").on(table.organizationId, table.status),
   ],
 );
+
+/* ══ Agent runtime: durable task execution ══════════════════════════════════
+ *
+ * Before these tables, an agent run lived entirely in one HTTP request's
+ * memory (lib/ask-aval/loop.ts): a worker restart mid-analysis lost the run
+ * with no record it had started. These three tables are the durable half —
+ * the task, its steps, and the approvals a step is waiting on.
+ *
+ * Storage discipline matches answer_audit_log: **digests, not payloads.** A
+ * tool result can hold resident names and balances; a step table full of
+ * those would be a second copy of the most sensitive data in the system,
+ * retained for bookkeeping. Steps store a SHA-256 of the arguments and the
+ * result plus non-identifying facts, which is enough to prove what happened
+ * and to detect a replay, without the log becoming a liability of its own.
+ */
+
+// One agent run. `status` is the state machine from §13 of the production
+// readiness guide; `leaseOwner`/`leaseExpiresAt` are the distributed lock that
+// stops two workers executing the same task (§14).
+export const agentTasks = sqliteTable(
+  "agent_tasks",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id").notNull().references(() => organizations.id),
+    // The user whose authority the run carries. Every policy check re-reads
+    // this rather than trusting anything in the task's own message history.
+    userId: text("user_id").notNull(),
+    // Persona id — a built-in role or a custom persona row. Resolved to a
+    // permission envelope by lib/agents/permissions.ts on every step.
+    agentId: text("agent_id").notNull(),
+    goal: text("goal").notNull(),
+    // QUEUED | RUNNING | WAITING_FOR_TOOL | WAITING_FOR_APPROVAL | COMPLETED | FAILED | CANCELLED
+    status: text("status").notNull(),
+    // Conversation state, so a resumed run continues rather than restarting.
+    // Sized by maxSteps and the model's own max_tokens, not unbounded.
+    transcriptJson: text("transcript_json").notNull().default("[]"),
+    stepCount: integer("step_count").notNull().default(0),
+    maxSteps: integer("max_steps").notNull(),
+    tokensUsed: integer("tokens_used").notNull().default(0),
+    maxTokens: integer("max_tokens").notNull(),
+    // Delegation lineage (§19). Depth is capped in lib/agents/policy.ts.
+    parentTaskId: text("parent_task_id"),
+    delegationDepth: integer("delegation_depth").notNull().default(0),
+    // Cooperative cancellation: set by a request, observed by the worker at
+    // the top of each step. A running step is never killed mid-flight, so a
+    // cancelled task can never leave a half-executed mutating tool behind.
+    cancelRequested: integer("cancel_requested", { mode: "boolean" }).notNull().default(false),
+    // Worker lease. A task is claimable when its lease is absent or expired,
+    // which is what makes crash recovery automatic: a dead worker's lease
+    // simply times out and the next worker picks the task up mid-run.
+    leaseOwner: text("lease_owner"),
+    leaseExpiresAt: integer("lease_expires_at", { mode: "timestamp_ms" }),
+    // Terminal outcome. `resultJson` is the rendered answer, the one payload
+    // worth retaining because the user asked for it; `error` is a message,
+    // never a stack trace or a provider response body.
+    resultJson: text("result_json"),
+    error: text("error"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+    finishedAt: integer("finished_at", { mode: "timestamp_ms" }),
+  },
+  (table) => [
+    index("agent_tasks_org_created_idx").on(table.organizationId, table.createdAt),
+    // The claim query: find runnable work whose lease has expired.
+    index("agent_tasks_status_lease_idx").on(table.status, table.leaseExpiresAt),
+    index("agent_tasks_parent_idx").on(table.parentTaskId),
+  ],
+);
+
+// One row per executed step, appended as the run proceeds — this is what makes
+// a run resumable and what the execution-trace UI reads.
+export const agentTaskSteps = sqliteTable(
+  "agent_task_steps",
+  {
+    id: text("id").primaryKey(),
+    taskId: text("task_id").notNull().references(() => agentTasks.id),
+    organizationId: text("organization_id").notNull(),
+    // Position of this row in the task's trace. Unique with taskId, so the
+    // trace has one definite order and a racing writer loses loudly instead of
+    // interleaving. Assigned by appendStep under the task's lease.
+    sequence: integer("sequence").notNull(),
+    // Which reasoning step this row belongs to. Deliberately NOT unique: one
+    // step is a model call plus every tool call it proposed, so a step maps to
+    // several rows. Duplicate *execution* is prevented by idempotencyKey
+    // below, which is the guarantee that actually matters.
+    stepIndex: integer("step_index").notNull(),
+    // model_call | tool_call | policy_deny | approval_requested | approval_decided | delegation | error | completion
+    kind: text("kind").notNull(),
+    toolName: text("tool_name"),
+    // allow | deny | require_approval — the policy engine's verdict, recorded
+    // whether or not the tool then ran.
+    policyEffect: text("policy_effect"),
+    denyCode: text("deny_code"),
+    riskLevel: text("risk_level"),
+    // SHA-256 of the arguments and of the result. Never the values themselves.
+    argsDigest: text("args_digest"),
+    resultDigest: text("result_digest"),
+    // Which attempt this was, so a retry is visible as a retry rather than as
+    // two independent calls.
+    attempt: integer("attempt").notNull().default(1),
+    durationMs: integer("duration_ms"),
+    // Present only for mutating tools. Unique across the table: a second
+    // insert with the same key is rejected by the database, which is what
+    // makes duplicate execution impossible rather than merely unlikely.
+    idempotencyKey: text("idempotency_key"),
+    error: text("error"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("agent_task_steps_task_sequence_uq").on(table.taskId, table.sequence),
+    // Nullable and unique: SQLite lets NULLs coexist, so read-only steps are
+    // unconstrained while any two mutating steps sharing a key collide. This
+    // index *is* the duplicate-prevention mechanism — a retried worker that
+    // recomputes the same key cannot insert a second row, so the second
+    // execution never happens rather than merely being unlikely.
+    uniqueIndex("agent_task_steps_idempotency_uq").on(table.idempotencyKey),
+    index("agent_task_steps_task_idx").on(table.taskId, table.stepIndex),
+  ],
+);
+
+// A proposed action parked in WAITING_FOR_APPROVAL. The agent prepares it; a
+// person decides. Rows are never deleted — a rejection is as much a record as
+// an approval, and §15 wants both.
+export const agentApprovals = sqliteTable(
+  "agent_approvals",
+  {
+    id: text("id").primaryKey(),
+    taskId: text("task_id").notNull().references(() => agentTasks.id),
+    organizationId: text("organization_id").notNull().references(() => organizations.id),
+    stepIndex: integer("step_index").notNull(),
+    toolName: text("tool_name").notNull(),
+    riskLevel: text("risk_level").notNull(),
+    // automatic | single_approver | elevated_approver | refused (lib/agents/financial.ts)
+    tier: text("tier").notNull(),
+    amountCents: integer("amount_cents"),
+    currency: text("currency"),
+    // What the approver is shown: the action, its arguments in a redacted
+    // summary form, and the evidence the agent assembled. Retained because a
+    // person has to be able to see what they approved, later.
+    evidenceJson: text("evidence_json").notNull().default("{}"),
+    // pending | approved | rejected | expired
+    status: text("status").notNull(),
+    requestedAt: integer("requested_at", { mode: "timestamp_ms" }).notNull(),
+    // Approvals go stale: an amount that was right this morning may not be
+    // tonight, so an undecided request expires rather than waiting forever.
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+    decidedAt: integer("decided_at", { mode: "timestamp_ms" }),
+    decidedByUserId: text("decided_by_user_id"),
+    decisionNote: text("decision_note"),
+  },
+  (table) => [
+    index("agent_approvals_org_status_idx").on(table.organizationId, table.status),
+    uniqueIndex("agent_approvals_task_step_uq").on(table.taskId, table.stepIndex),
+  ],
+);

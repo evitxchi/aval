@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { automationRuns, automationSteps } from "@/db/schema";
-import { getApiIdentity } from "@/lib/integrations/session";
+import { getApiIdentity, isGuestIdentity } from "@/lib/integrations/session";
 import { ensureOrganization } from "@/lib/integrations/organizations";
 import { sampleData, type InsightCandidate } from "@/app/data/sample";
 import { handleAskAvalDraft } from "@/lib/ask-aval/draft";
@@ -176,6 +176,9 @@ export async function POST(request: Request) {
       env as unknown as AskAvalEnv,
       { orgId: identity.organizationId, userId: identity.userId },
       "en",
+      undefined,
+      undefined,
+      isGuestIdentity(identity),
     );
     const draftData = (await draftResponse.json().catch(() => ({}))) as { headline?: string; narrative?: string; error?: string };
 
