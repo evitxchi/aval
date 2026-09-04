@@ -6,10 +6,15 @@
  * writes. Same split as `metrics/` against the repositories, for the same
  * reason — the decisions stay testable without a D1 binding.
  *
- * **Idempotent by construction.** Every row is keyed on
- * `(organizationId, sourceProvider, externalId)`, so re-sending a batch
- * updates or skips rather than duplicating. A connector that re-sends the last
- * 30 days every night is the normal case, not an error, and an importer that
+ * **Idempotent, in two layers.** Every row is keyed on
+ * `(organizationId, sourceProvider, externalId)`. A unique index on that
+ * triple is the backstop that makes duplication impossible; the existence
+ * checks below (`loadIdMap` for entities other rows reference,
+ * `loadExistingEventIds` for the append-only ones) are what make a re-send
+ * report cleanly as `unchanged` instead of as a wall of index violations.
+ * Both layers are needed: the index alone left a nightly re-send reporting
+ * every row as a failure, which is how this was found. A connector re-sending
+ * its last 30 days is the normal case, not an error, and an importer that
  * doubled a portfolio's rent roll on the second run would be worse than one
  * that never ran.
  *
@@ -24,8 +29,10 @@ import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
   glAccounts,
+  glTransactions,
   leases,
   leasingLeads,
+  ledgerEntries,
   properties,
   residents,
   syncRuns,
@@ -140,6 +147,35 @@ async function loadIdMap(organizationId: string, sourceProvider: string) {
 }
 
 /**
+ * External ids already present for the three append-only entities.
+ *
+ * These carry no internal id anything else references, so unlike `loadIdMap`
+ * only their presence matters. They still need loading: without it a re-sent
+ * batch reaches the insert, the
+ * `(organization_id, source_provider, external_id)` unique index rejects it,
+ * and the row surfaces as a failure. The index does its job — nothing is
+ * duplicated — but a nightly connector re-sending its last 30 days would
+ * report hundreds of spurious failures and mark every run
+ * `completed_with_errors`, which is exactly the normal case this endpoint
+ * exists to serve. Found by re-sending a batch against production.
+ */
+async function loadExistingEventIds(organizationId: string, sourceProvider: string) {
+  const db = getDb();
+  const scoped = <T extends { organizationId: never; sourceProvider: never }>(table: T) =>
+    and(eq(table.organizationId, organizationId), eq(table.sourceProvider, sourceProvider));
+  const setOf = (rows: { externalId: string | null }[]) =>
+    new Set(rows.map((row) => row.externalId).filter((id): id is string => id !== null));
+
+  const [ledgerRows, transactionRows, leadRows] = await Promise.all([
+    db.select({ externalId: ledgerEntries.externalId }).from(ledgerEntries).where(scoped(ledgerEntries as never)),
+    db.select({ externalId: glTransactions.externalId }).from(glTransactions).where(scoped(glTransactions as never)),
+    db.select({ externalId: leasingLeads.externalId }).from(leasingLeads).where(scoped(leasingLeads as never)),
+  ]);
+
+  return { ledgerEntries: setOf(ledgerRows), glTransactions: setOf(transactionRows), leads: setOf(leadRows) };
+}
+
+/**
  * Plans and applies a batch.
  *
  * `syncRunId`, when given, has its `countsJson` and status updated from the
@@ -155,6 +191,7 @@ export async function applyImport(
   const known = await loadKnownExternalIds(organizationId, source.sourceProvider);
   const plan = planImport(batch, known);
   const ids = await loadIdMap(organizationId, source.sourceProvider);
+  const existingEvents = await loadExistingEventIds(organizationId, source.sourceProvider);
 
   const applied = Object.fromEntries(IMPORT_ORDER.map((entity) => [entity, 0])) as Record<ImportEntity, number>;
   const unchanged = Object.fromEntries(IMPORT_ORDER.map((entity) => [entity, 0])) as Record<ImportEntity, number>;
@@ -288,6 +325,7 @@ export async function applyImport(
           }
 
           case "ledgerEntries": {
+            if (existingEvents.ledgerEntries.has(externalId)) { unchanged.ledgerEntries += 1; break; }
             const input = row as ImportLedgerEntry;
             const leaseId = ids.leases.get(input.leaseExternalId);
             if (!leaseId) throw new Error(`lease "${input.leaseExternalId}" resolved in planning but not at apply time`);
@@ -359,6 +397,7 @@ export async function applyImport(
           }
 
           case "glTransactions": {
+            if (existingEvents.glTransactions.has(externalId)) { unchanged.glTransactions += 1; break; }
             const input = row as ImportGlTransaction;
             const accountId = ids.glAccounts.get(input.accountExternalId);
             if (!accountId) throw new Error(`GL account "${input.accountExternalId}" resolved in planning but not at apply time`);
@@ -378,6 +417,7 @@ export async function applyImport(
           }
 
           case "leads": {
+            if (existingEvents.leads.has(externalId)) { unchanged.leads += 1; break; }
             const input = row as ImportLead;
             const created = await createLead(
               organizationId,

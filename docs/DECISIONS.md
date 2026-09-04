@@ -2134,9 +2134,84 @@ worse than not offering it.
 **Verification.** 18 planner tests; 130 tests passing across the operations and gate suites.
 typecheck and lint clean for these files, build clean, `/api/operations/import` registered.
 
-**Not verified: `applyImport` has not been exercised end-to-end.** It needs a Worker with the D1
-binding, and the only way to get one is to deploy — which would also ship another session's
-in-flight `lib/agents/` work that is not mine to release. The planner is covered thoroughly and the
-applier is mechanical mapping over it, but that is an argument, not a test. The probe pattern from
-the 2026-09-03 entry (write a batch, read it back, check the figures) is the right next step the
-moment a deploy is appropriate.
+**Verified end-to-end against production — see the next entry.** The gap noted here (no Worker,
+so no D1 binding, so no way to exercise `applyImport`) was closed once the other session's work
+landed and a deploy became appropriate. The verification found a real idempotency defect.
+
+## 2026-09-04 — `applyImport` verified end-to-end against production; found the idempotency defect
+
+**Context.** The previous entry recorded `applyImport` as unverified: exercising it needs a Worker
+with the D1 binding, which needs a deploy, which would have shipped another session's in-flight
+`lib/agents/` work. That session committed (`fe1665c`), the tree went clean, and the deploy became
+appropriate.
+
+**Deploy sequence, in this order for a reason.** Their migration `0016` (three agent tables, purely
+additive) was applied to production D1 *before* the code deploy. Deploying code that reads tables
+which do not exist yet leaves a window of runtime failures on their routes; the reverse order has no
+such window, and the migration is additive so it cannot disturb anything already there. Combined
+tree first: 343 tests, typecheck, lint (0 errors), i18n parity (951 keys), build — all clean.
+
+**Probe design.** A throwaway account on the live deployment (not the shared demo workspace, which
+any signed-out visitor can see), then a 35-row batch whose expected figures were hand-derived in an
+earlier local run, so every number had a known-correct answer to be checked against. Three rows were
+deliberately broken — a reference to a nonexistent property, a duplicate external id, an
+unrecognized status — to prove the refusal paths run in production rather than only in tests.
+
+**Dry run first.** 32 planned, 3 refused, one of each refusal reason, and 32 + 3 = 35 input rows.
+The accounting identity the planner is fuzzed against holds against a live Worker.
+
+**27 of 27 computed figures matched.** Aging put $500 in 90+ and $2,000 in 31–60, which is the
+oldest-first credit rule surviving the round trip: the $1,500 payment cleared three-quarters of the
+95-day charge rather than the recent one. Collection rate 37.5% with the deposit excluded from both
+sides; deposits held $2,000; NOI $7,250 with the $9,000 capital item and $2,000 trust movement both
+excluded; OER 27.5%; one emergency open past its stated 4-hour target; vendor billing +40% over
+estimate; the deliberate unit-count mismatch surfaced as a *data* finding rather than a vacancy one.
+
+**The two figures that were the actual point.** `medianHoursToComplete: 24` and
+`medianDaysToLease: 5` are the proof that the applier's bypass of this app's own state transitions
+works. Had the work order gone through `completeWorkOrder()` or the leads through `advanceLead()`,
+both would have been stamped "now" — reading ~72 and ~20 — and every duration the SLA and funnel
+metrics exist to measure would have been silently destroyed while still looking like plausible data.
+That is the failure this verification was worth running for, and it did not occur.
+
+**Leasing initially read null, and that was correct.** The probe's leads are dated 20 days back,
+outside the default month-to-date window, so `summarizeLeasing` reported no leasing data rather than
+a funnel of zeroes — the intended behavior. Re-queried at `period=last_90_days`: 8 of 8 leasing
+figures matched, including the `toured → applied` bottleneck at 12.5%.
+
+**The defect: idempotency was broken for the three append-only entities.** Re-sending the identical
+batch returned **19 failures** — 4 ledger entries + 5 GL transactions + 10 leads, exactly. Those
+three had no existence check: the applier went straight to the insert, and the
+`(organization_id, source_provider, external_id)` unique index rejected each one.
+
+Worth being precise about severity. **No data was duplicated** — the index did exactly its job, and
+the figures after four imports were byte-identical to the figures after one. But the module's own
+header claimed "re-sending a batch updates or skips rather than duplicating", and that claim was
+false for three of ten entities. A nightly connector re-sending its last 30 days — the case this
+endpoint exists to serve, and the case the header names — would have reported hundreds of spurious
+failures and marked every single run `completed_with_errors`. Unusable for its primary purpose, and
+invisible to every test, because the bug lives in the D1-bound half.
+
+**Fixed with `loadExistingEventIds`**, mirroring `loadIdMap` for entities nothing references. The
+header now states that idempotency is two layers — the index as backstop, the existence checks as
+what makes a re-send *report* cleanly — rather than implying the index alone was sufficient. After
+redeploying, two consecutive re-sends both returned 32 unchanged / 0 applied / 0 failed.
+
+**Pinned structurally, since a behavioral test would need a Worker.** Two tests assert against the
+source that every entity in `IMPORT_ORDER` has an existence guard (or goes through an
+`upsert*FromSource` that does its own match-then-merge), and that both loaders actually query for
+what they claim to cover — so adding a guard without the query cannot pass. Same technique as the
+"no operations module imports a model provider" test.
+
+**Cross-source conflict detection also verified live**, the last untested path. A second source
+(`probe_pms`) reported $1,890 market rent for a unit stored at $2,200 from `probe_export`, matched
+by property name and unit number. Result: conflict recorded with both values and both sources, the
+**stored value unchanged**, and a `data_conflict_open` insight reading "Aval kept the stored value
+in each case and changed nothing." The behavior the whole provenance layer exists for, working
+against real rows from two named sources.
+
+**Cleanup.** All 31 probe rows, the probe org, the probe user and its rate-limit hits were deleted
+and the deletion confirmed at zero. Production holds 21 organizations and 20 users, untouched.
+
+**Verification.** 20 planner tests (up from 18). Deployed twice — version `493f05f2` for the probe,
+`4b725013` with the idempotency fix. `applyImport` is no longer an argument; it is a tested path.
