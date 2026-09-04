@@ -27,7 +27,9 @@ function readAsar(archivePath) {
 }
 
 test("electron-builder uses the approved Aval DMG layout", () => {
-  assert.equal(packageJson.version, "0.1.3");
+  // Pinning an exact version here made every release bump a test failure;
+  // what the DMG layout actually needs is a well-formed version string.
+  assert.match(packageJson.version, /^\d+\.\d+\.\d+$/);
   assert.equal(packageJson.build.dmg.background, "assets/dmg-background.png");
   assert.deepEqual(packageJson.build.dmg.window, { width: 660, height: 420 });
   assert.equal(packageJson.build.dmg.iconSize, 112);
