@@ -44,7 +44,7 @@
       "components": [],
       "drafts": {
         "6219d265-26ef-447c-bfb4-cd21c5542183": {
-          "title": "Aval Intelligence — ChatGPT Unavailable",
+          "title": "Aval Intelligence \u2014 ChatGPT Unavailable",
           "visualDirection": "compact monochrome unavailable-state popover with two valid exits",
           "currentVersion": 3
         }
@@ -96,6 +96,43 @@
         }
       },
       "updatedAt": "2026-09-03T21:40:08Z"
+    },
+    "settings:appearance": {
+      "targetKind": "new-ui",
+      "projectId": "96dad8c2-8767-4920-94c9-83b1758c4df4",
+      "activeDraftId": "4b493fd2-d785-4d17-a1e9-c30be185acd5",
+      "designSystemPath": ".superdesign/design-system.md",
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        "app/components/settings-module.tsx",
+        "app/components/appearance-settings.tsx",
+        "app/settings.css"
+      ],
+      "referenceIds": [
+        "public-brand-aval-mark.png"
+      ],
+      "brandAssets": {
+        "logo": {
+          "assetKey": "public-brand-aval-mark.png",
+          "url": "https://vgbujcuwptvheqijyjbe.supabase.co/storage/v1/object/public/hmac-uploads/projects/96dad8c2-8767-4920-94c9-83b1758c4df4/brand-assets/public-brand-aval-mark.png/aval-mark.png",
+          "sourcePath": "public/brand/aval-mark.png"
+        }
+      },
+      "fingerprints": {
+        ".superdesign/design-system.md": "e60a15f8786052d50752cd0845a4ec75425e4266c0bef8afbb94294a042c9b23",
+        "app/components/settings-module.tsx": "abc7b3f1c999fbc1c90c82d19920a4ae3b7fb77142c4c089bf913ef77e50d503",
+        "app/components/appearance-settings.tsx": "df3a20d742f38b921dbe439090365e99150c6686bfc0907a5ae42b8f673153ac",
+        "app/settings.css": "74148d330d8b314589bb96bf39887134f0658a04941ed5d33bcb3ff00009b17b"
+      },
+      "components": [],
+      "drafts": {
+        "4b493fd2-d785-4d17-a1e9-c30be185acd5": {
+          "title": "Aval Appearance Workspace",
+          "visualDirection": "Grouped settings navigation, one content surface, shared portrait and animated character library, live preview and save controls",
+          "currentVersion": 1
+        }
+      },
+      "updatedAt": "2026-09-05T07:18:02.552322+00:00"
     }
   }
 }

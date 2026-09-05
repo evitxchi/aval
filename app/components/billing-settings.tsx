@@ -21,6 +21,7 @@ interface UsageData {
 export function BillingSettings() {
   const t = useTranslations();
   const [data, setData] = useState<UsageData | null>(null);
+  const [loading, setLoading] = useState(true);
   const [redirecting, setRedirecting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -28,10 +29,13 @@ export function BillingSettings() {
     (async () => {
       try {
         const response = await fetch("/api/billing/usage");
+        if (!response.ok) throw new Error("Usage unavailable");
         const json = (await response.json()) as UsageData;
         setData(json);
       } catch {
         setData(null);
+      } finally {
+        setLoading(false);
       }
     })();
   }, []);
@@ -58,7 +62,7 @@ export function BillingSettings() {
     }
   };
 
-  if (!data) return null;
+  if (!data) return <p className="settings-muted" role="status">{t(loading ? "SettingsModule.loading" : "SettingsModule.unavailable")}</p>;
 
   const usagePct = data.tokensGranted > 0 ? Math.min(100, Math.round((data.tokensConsumed / data.tokensGranted) * 100)) : 0;
   // Consumption can exceed the grant (a long turn finishing past the line), so

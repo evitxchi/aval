@@ -30,6 +30,7 @@ export function FinancialAgentControls() {
   const t = useTranslations();
   const [policy, setPolicy] = useState<PolicyView | null>(null);
   const [available, setAvailable] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [singleMax, setSingleMax] = useState("");
   const [hardCeiling, setHardCeiling] = useState("");
   const [dailyLimit, setDailyLimit] = useState("");
@@ -49,7 +50,7 @@ export function FinancialAgentControls() {
       setHardCeiling(centsToDollars(next.hardCeilingCents));
       setDailyLimit(centsToDollars(next.dailyLimitCents));
       setCurrencies(next.allowedCurrencies.join(", "));
-    });
+    }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
   const activate = async (event: FormEvent) => {
@@ -108,7 +109,7 @@ export function FinancialAgentControls() {
     }
   };
 
-  if (!available || !policy) return null;
+  if (!available || !policy) return <p className="settings-muted" role="status">{t(loading ? "SettingsModule.loading" : "SettingsModule.unavailable")}</p>;
   const active = policy.status === "approved";
 
   return (

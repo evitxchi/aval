@@ -4,8 +4,12 @@ import { useId } from "react";
 import { SHAPES, type ShapeId } from "./shapes";
 import { THEMES, type ThemeId } from "./themes";
 import { renderShapeLayer } from "./render-shape";
+import { useOptionalAppearance } from "../appearance-provider";
+import { CharacterAvatar } from "../character-avatar";
+import { CHARACTER_IDS, type AvatarSelection } from "@/lib/appearance";
 
 export interface AvalAgentAvatarProps {
+  personaId?: string;
   shape: ShapeId;
   theme: ThemeId;
   /** Pixel size of the square container. The brief's tested range is 24-64. */
@@ -47,10 +51,19 @@ export interface AvalAgentAvatarProps {
  * Every id is instance-scoped via useId() so multiple avatars in one
  * page never collide on <mask>/<gradient> references.
  */
-export function AvalAgentAvatar({ shape, theme: themeId, size = 40, selected = false, interactive = false, label, className, icon }: AvalAgentAvatarProps) {
+export function AvalAgentAvatar({ shape, theme: themeId, size = 40, selected = false, interactive = false, label, className, icon, personaId }: AvalAgentAvatarProps) {
   const uid = useId().replace(/[^a-zA-Z0-9]/g, "");
+  const preferences = useOptionalAppearance();
+  const customAvatar = personaId ? preferences?.appearance.agents[personaId] : undefined;
   const geometry = SHAPES[shape];
   const theme = THEMES[themeId];
+
+  if (customAvatar) return <CharacterAvatar avatar={customAvatar} size={size} label={label} className={className}/>;
+  const originalId = icon?.match(/^\/personas\/([a-z-]+)\.webp$/)?.[1];
+  if (originalId && (CHARACTER_IDS as readonly string[]).includes(originalId)) {
+    const avatar: AvatarSelection = { kind: "character", id: originalId, background: "paper" };
+    return <CharacterAvatar avatar={avatar} size={size} label={label} className={className}/>;
+  }
 
   const iconContainerClassName = ["aval-agent-avatar", "aval-agent-avatar-icon", interactive && "aval-agent-avatar-interactive", selected && "aval-agent-avatar-selected", className].filter(Boolean).join(" ");
   if (icon) {

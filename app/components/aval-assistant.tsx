@@ -533,7 +533,7 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
               {personaId === "general" ? (
                 <span className="aval-assistant-mark" aria-hidden="true" />
               ) : (
-                <AvalAgentAvatar shape={activePersona.shape} theme={activePersona.theme} icon={activePersona.icon} size={38} label={activePersona.label} />
+                <AvalAgentAvatar personaId={personaId} shape={activePersona.shape} theme={activePersona.theme} icon={activePersona.icon} size={38} label={activePersona.label} />
               )}
               <span><strong>{activePersona.label}</strong><small><i />{t("AvalAssistant.liveDashboardContext")}</small></span>
             </div>
@@ -550,7 +550,7 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
                 <Page width={15} height={15} />{t("AvalAssistant.draftDocument")}
               </button>
               <button className={`aval-module-picker ${pickingPersona ? "active" : ""}`} type="button" onClick={() => setPickingPersona((current) => !current)} aria-pressed={pickingPersona}>
-                <AvalAgentAvatar shape={activePersona.shape} theme={activePersona.theme} icon={activePersona.icon} size={17} />
+                <AvalAgentAvatar personaId={personaId} shape={activePersona.shape} theme={activePersona.theme} icon={activePersona.icon} size={17} />
                 {personaId === "general" ? t("AvalAssistant.selectAgent") : activePersona.label}
               </button>
             </div>
@@ -561,7 +561,7 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
                   const preset = PERSONA_PRESETS[id];
                   return (
                     <button key={id} type="button" className="aval-agent-picker-item" aria-pressed={personaId === id} onClick={() => { setPersonaId(id); setPickingPersona(false); }}>
-                      <AvalAgentAvatar shape={preset.shape} theme={preset.theme} icon={preset.icon} size={40} selected={personaId === id} interactive />
+                      <AvalAgentAvatar personaId={id} shape={preset.shape} theme={preset.theme} icon={preset.icon} size={40} selected={personaId === id} interactive />
                       <span>{t(preset.labelKey)}</span>
                     </button>
                   );
@@ -569,7 +569,7 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
                 {customPersonas.map((persona) => (
                   <div key={persona.id} className="aval-agent-picker-item">
                     <button type="button" className="aval-agent-picker-item-select" aria-pressed={personaId === persona.id} onClick={() => { setPersonaId(persona.id); setPickingPersona(false); }}>
-                      <AvalAgentAvatar shape={persona.shape} theme={persona.theme} size={40} selected={personaId === persona.id} interactive />
+                      <AvalAgentAvatar personaId={persona.id} shape={persona.shape} theme={persona.theme} size={40} selected={personaId === persona.id} interactive />
                       <span>{persona.label}</span>
                     </button>
                     <button type="button" className="aval-agent-picker-item-delete" aria-label={t("AvalAssistant.deleteAgent")} onClick={(event) => deleteAgent(persona.id, event)}>
@@ -703,7 +703,7 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
             ))}
             {thinking && (
               <div className="aval-chat-thinking" aria-label={t(thinkingPhraseKey)}>
-                <AvalAgentAvatar shape={activePersona.shape} theme={activePersona.theme} icon={activePersona.icon} size={20} />
+                <AvalAgentAvatar personaId={personaId} shape={activePersona.shape} theme={activePersona.theme} icon={activePersona.icon} size={20} />
                 <i className="aval-chat-thinking-ring" />
                 {/* The label above carries the full phrase for assistive tech,
                     so the typed reveal stays decorative. */}

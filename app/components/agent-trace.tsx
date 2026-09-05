@@ -224,7 +224,7 @@ function ApprovalCard({ approval, busy, onDecide, locale }: {
   return (
     <article className="agent-approval-card" data-risk={approval.risk}>
       <div className="agent-approval-top">
-        <AvalAgentAvatar shape={persona.shape} theme={persona.theme} icon={persona.icon} size={28}/>
+        <AvalAgentAvatar personaId={approval.evidence.agent ?? "general"} shape={persona.shape} theme={persona.theme} icon={persona.icon} size={28}/>
         <div className="agent-approval-head">
           <strong>{approval.tool}</strong>
           <span>{t("AgentTrace.proposedBy", { agent: t(persona.labelKey) })}</span>
@@ -289,7 +289,7 @@ function TaskCard({ task, detail, expanded, busy, onToggle, onCancel }: {
     <article className="agent-task-card" data-status={task.status.toLowerCase()}>
       <button type="button" className="agent-task-summary" onClick={onToggle} aria-expanded={expanded}>
         <Chevron className="agent-task-chevron" width={15} height={15}/>
-        <AvalAgentAvatar shape={persona.shape} theme={persona.theme} icon={persona.icon} size={30}/>
+        <AvalAgentAvatar personaId={task.agentId} shape={persona.shape} theme={persona.theme} icon={persona.icon} size={30}/>
         <span className="agent-task-headline">
           <strong>{task.goal}</strong>
           <span>{t(persona.labelKey)}</span>

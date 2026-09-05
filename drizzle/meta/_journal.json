@@ -148,6 +148,13 @@
       "when": 1788583096698,
       "tag": "0020_living_zaran",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1788591931070,
+      "tag": "0021_orange_shiver_man",
+      "breakpoints": true
     }
   ]
 }

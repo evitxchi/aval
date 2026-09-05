@@ -10,15 +10,19 @@ import { listMembers, removeMembership, roleFor, upsertMembership } from "@/lib/
 import { isWorkspaceRole, removalRefusal } from "@/lib/organizations/roles";
 import { appendAuditEvents } from "@/lib/audit/log";
 import { digestPayload } from "@/lib/audit/chain";
+import { memberProfileAvatars } from "@/lib/appearance-storage";
 
 export async function GET(request: Request) {
   const identity = await getApiIdentity(request);
   if (!identity) return Response.json({ error: "Authentication required" }, { status: 401 });
   if (isGuestIdentity(identity)) return Response.json({ error: "Sign in to see who is in a workspace." }, { status: 403 });
   await ensureOrganization(identity);
+  const members = await listMembers(identity.organizationId);
+  // Appearance is optional: the team stays available during a storage outage.
+  const avatars = await memberProfileAvatars(members.map((member) => member.userId)).catch(() => new Map());
   return Response.json({
     role: identity.role,
-    members: await listMembers(identity.organizationId),
+    members: members.map((member) => ({ ...member, profileAvatar: avatars.get(member.userId) ?? null })),
   }, { headers: { "cache-control": "no-store" } });
 }
 

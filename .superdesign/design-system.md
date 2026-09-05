@@ -18,7 +18,7 @@ The Settings → Intelligence surface lets an operator choose which provider pow
 ## Layout and component rules
 
 - Preserve the 244px sticky sidebar and rounded white content shell.
-- Settings is a two-column grid; Intelligence spans both columns.
+- Settings uses grouped Personal / Workspace navigation and one content surface with section dividers. Appearance shares a 24-portrait and 9-character library between profile pictures and agent overrides; choices include background and system/animated/still motion. Use readable 14–16px settings controls and preserve account-backed saves. Navigation becomes a select on narrow screens.
 - Keep provider selection and model selection legible as one sentence: provider / model.
 - Popovers are anchored to their trigger, no wider than needed, and must stay within the viewport.
 - Search is shown only when there are genuinely searchable choices.

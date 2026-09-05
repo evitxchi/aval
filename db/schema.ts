@@ -1,5 +1,13 @@
 import { index, integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
+// Supports both password accounts and platform identities, which need not
+// have a row in users. The API always derives user_id from the session.
+export const userAppearance = sqliteTable("user_appearance", {
+  userId: text("user_id").primaryKey(),
+  preferences: text("preferences").notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+});
+
 // Real customer accounts for deployments outside ChatGPT Sites, where there
 // is no platform-injected identity header — email/password, hashed with
 // PBKDF2 (lib/auth/password.ts), never stored or logged in plain text.

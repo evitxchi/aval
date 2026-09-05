@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Copy, Lock, User, Xmark } from "iconoir-react";
+import type { AvatarSelection } from "@/lib/appearance";
+import { CharacterAvatar } from "./character-avatar";
+import { useOptionalAppearance } from "./appearance-provider";
 
 interface MemberView {
   userId: string;
@@ -10,6 +13,7 @@ interface MemberView {
   displayName: string;
   role: "owner" | "approver" | "member";
   isOwner: boolean;
+  profileAvatar?: AvatarSelection | null;
 }
 
 interface InvitationView {
@@ -34,12 +38,14 @@ interface WorkspaceView {
  */
 export function WorkspaceMembers() {
   const t = useTranslations();
+  const appearance = useOptionalAppearance();
   const [role, setRole] = useState<MemberView["role"]>("member");
   const [members, setMembers] = useState<MemberView[]>([]);
   const [invitations, setInvitations] = useState<InvitationView[]>([]);
   const [workspaces, setWorkspaces] = useState<WorkspaceView[]>([]);
   const [active, setActive] = useState("");
   const [available, setAvailable] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [inviteRole, setInviteRole] = useState<"approver" | "member">("member");
   const [issuedCode, setIssuedCode] = useState("");
   const [redeemCode, setRedeemCode] = useState("");
@@ -83,10 +89,14 @@ export function WorkspaceMembers() {
     // Defined inside the effect so the state writes are unambiguously
     // asynchronous: they happen after the first fetch resolves, never during
     // the render pass that scheduled this.
-    const run = async () => { await load(() => live); };
+    const run = async () => {
+      try { await load(() => live); }
+      catch { if (live) setError(t("SettingsModule.unavailable")); }
+      finally { if (live) setLoading(false); }
+    };
     void run();
     return () => { live = false; };
-  }, [load]);
+  }, [load, t, appearance?.saved.profile]);
 
   const act = async (run: () => Promise<Response>, success: string) => {
     setWorking(true);
@@ -106,7 +116,7 @@ export function WorkspaceMembers() {
     }
   };
 
-  if (!available) return null;
+  if (!available) return <p className="settings-muted" role="status">{t(loading ? "SettingsModule.loading" : "SettingsModule.unavailable")}</p>;
   const isOwner = role === "owner";
 
   return (
@@ -155,7 +165,7 @@ export function WorkspaceMembers() {
       <ul className="workspace-roster">
         {members.map((member) => (
           <li key={member.userId}>
-            <span className="workspace-avatar" aria-hidden="true"><User width={15} height={15}/></span>
+            {member.profileAvatar ? <CharacterAvatar avatar={member.profileAvatar} size={34} label={member.displayName}/> : <span className="workspace-avatar" aria-hidden="true"><User width={15} height={15}/></span>}
             <div className="workspace-identity">
               <strong>{member.displayName}</strong>
               <small>{member.email}</small>
