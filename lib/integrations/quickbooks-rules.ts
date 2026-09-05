@@ -73,3 +73,113 @@ export function signedAmountCents(
   const isCredit = postingType === "Credit";
   return naturallyCredit === isCredit ? cents : -cents;
 }
+
+import type { ImportBatch, ImportGlAccount, ImportGlTransaction } from "../operations/import-plan.ts";
+
+export interface QboAccount {
+  Id: string;
+  Name: string;
+  AcctNum?: string;
+  AccountType: string;
+  Active?: boolean;
+}
+
+export interface QboJournalLine {
+  Id?: string;
+  Amount?: number;
+  DetailType?: string;
+  JournalEntryLineDetail?: { PostingType?: string; AccountRef?: { value?: string } };
+}
+
+export interface QboJournalEntry {
+  Id: string;
+  TxnDate?: string;
+  Line?: QboJournalLine[];
+}
+
+export interface NormalizedQbo {
+  batch: ImportBatch;
+  /** Rows that could not be trusted, each with why. Never silently dropped. */
+  rejected: Array<{ entity: string; externalId: string; reason: string }>;
+}
+
+/**
+ * QuickBooks entities to Aval's import vocabulary.
+ *
+ * A rejected row never becomes a guessed row. The importer already reports
+ * what it skipped and why, and this keeps that contract intact one layer up:
+ * an operator reading a sync result sees a row that did not land, rather than
+ * a figure that quietly moved.
+ */
+export function normalizeQuickbooks(input: {
+  accounts: QboAccount[];
+  journalEntries: QboJournalEntry[];
+}): NormalizedQbo {
+  const rejected: NormalizedQbo["rejected"] = [];
+  const glAccounts: ImportGlAccount[] = [];
+  const typeById = new Map<string, GlAccountType>();
+
+  for (const account of input.accounts) {
+    const accountType = mapAccountType(account.AccountType);
+    if (!accountType) {
+      rejected.push({
+        entity: "glAccounts",
+        externalId: account.Id,
+        reason: `Unrecognized QuickBooks account type "${account.AccountType}".`,
+      });
+      continue;
+    }
+    typeById.set(account.Id, accountType);
+    glAccounts.push({
+      externalId: account.Id,
+      // The schema requires a code and QuickBooks does not require an account
+      // number, so the id stands in — stable, and unique within the company.
+      code: account.AcctNum ?? account.Id,
+      name: account.Name,
+      accountType,
+      // QuickBooks does not flag trust accounts and a name heuristic would be
+      // guessing about client money. Safe by construction: profitAndLoss sums
+      // only income and expense types, and a deposit account maps to liability.
+      isTrustAccount: false,
+    });
+  }
+
+  const glTransactions: ImportGlTransaction[] = [];
+
+  for (const entry of input.journalEntries) {
+    if (!entry.TxnDate) {
+      rejected.push({ entity: "glTransactions", externalId: entry.Id, reason: "Journal entry has no transaction date." });
+      continue;
+    }
+    for (const [index, line] of (entry.Line ?? []).entries()) {
+      // Line ids are stable within an entry; the index is a fallback so a line
+      // without one still gets a deterministic id rather than a random one.
+      const externalId = `${entry.Id}:${line.Id ?? index}`;
+      const accountId = line.JournalEntryLineDetail?.AccountRef?.value;
+      const accountType = accountId ? typeById.get(accountId) : undefined;
+      if (!accountId || !accountType) {
+        rejected.push({ entity: "glTransactions", externalId, reason: "Line posts to an account this batch does not contain." });
+        continue;
+      }
+      const amountCents = signedAmountCents(
+        accountType,
+        line.JournalEntryLineDetail?.PostingType ?? "",
+        line.Amount ?? Number.NaN,
+      );
+      if (amountCents === null) {
+        rejected.push({ entity: "glTransactions", externalId, reason: "Line amount or posting type could not be trusted." });
+        continue;
+      }
+      glTransactions.push({
+        externalId,
+        accountExternalId: accountId,
+        // QuickBooks has no concept of Aval's properties, so nothing to bind.
+        propertyExternalId: null,
+        amountCents,
+        postedAt: entry.TxnDate,
+      });
+    }
+  }
+
+  return { batch: { glAccounts, glTransactions }, rejected };
+}

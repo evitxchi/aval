@@ -83,3 +83,96 @@ test("an unrecognized posting type is rejected", () => {
   assert.equal(signedAmountCents("income", "credit", 10), null);
   assert.equal(signedAmountCents("income", "", 10), null);
 });
+
+import { normalizeQuickbooks } from "../lib/integrations/quickbooks-rules.ts";
+
+const ACCOUNT = { Id: "7", Name: "Rental Income", AcctNum: "4000", AccountType: "Income", Active: true };
+
+const ENTRY = {
+  Id: "154",
+  TxnDate: "2026-08-15",
+  Line: [
+    { Id: "0", Amount: 2400, DetailType: "JournalEntryLineDetail",
+      JournalEntryLineDetail: { PostingType: "Credit", AccountRef: { value: "7" } } },
+    { Id: "1", Amount: 2400, DetailType: "JournalEntryLineDetail",
+      JournalEntryLineDetail: { PostingType: "Debit", AccountRef: { value: "9" } } },
+  ],
+};
+
+const BANK = { Id: "9", Name: "Operating Checking", AcctNum: "1000", AccountType: "Bank" };
+
+test("an account becomes an import row keyed on its QuickBooks id", () => {
+  const { batch } = normalizeQuickbooks({ accounts: [ACCOUNT], journalEntries: [] });
+  assert.deepEqual(batch.glAccounts, [
+    { externalId: "7", code: "4000", name: "Rental Income", accountType: "income", isTrustAccount: false },
+  ]);
+});
+
+test("an account with no number falls back to its id, which the schema requires", () => {
+  const { batch } = normalizeQuickbooks({ accounts: [{ ...ACCOUNT, AcctNum: undefined }], journalEntries: [] });
+  assert.equal(batch.glAccounts?.[0].code, "7");
+});
+
+test("an inactive account is still imported, because its history still counts", () => {
+  const { batch } = normalizeQuickbooks({ accounts: [{ ...ACCOUNT, Active: false }], journalEntries: [] });
+  assert.equal(batch.glAccounts?.length, 1);
+});
+
+test("an account with an unmappable type is rejected with a reason", () => {
+  const { batch, rejected } = normalizeQuickbooks({
+    accounts: [{ ...ACCOUNT, AccountType: "Inventory Asset" }],
+    journalEntries: [],
+  });
+  assert.equal(batch.glAccounts?.length ?? 0, 0);
+  assert.equal(rejected.length, 1);
+  assert.equal(rejected[0].externalId, "7");
+  assert.match(rejected[0].reason, /account type/i);
+});
+
+test("one journal entry with two lines becomes two transactions with distinct ids", () => {
+  // The import layer is idempotent on external id, so a re-fetched entry must
+  // produce the same ids or it duplicates the portfolio's activity.
+  const { batch } = normalizeQuickbooks({ accounts: [ACCOUNT, BANK], journalEntries: [ENTRY] });
+  assert.equal(batch.glTransactions?.length, 2);
+  assert.deepEqual(batch.glTransactions?.map((row) => row.externalId), ["154:0", "154:1"]);
+});
+
+test("each line takes its direction from the account it posts to", () => {
+  const { batch } = normalizeQuickbooks({ accounts: [ACCOUNT, BANK], journalEntries: [ENTRY] });
+  const [income, bank] = batch.glTransactions ?? [];
+  assert.equal(income.accountExternalId, "7");
+  assert.equal(income.amountCents, 240000, "a credit to income is positive revenue");
+  assert.equal(bank.accountExternalId, "9");
+  assert.equal(bank.amountCents, 240000, "a debit to an asset is a positive balance");
+});
+
+test("a line posting to an account not in the batch is rejected, not guessed", () => {
+  const { batch, rejected } = normalizeQuickbooks({ accounts: [ACCOUNT], journalEntries: [ENTRY] });
+  assert.equal(batch.glTransactions?.length, 1);
+  assert.equal(rejected.length, 1);
+  assert.equal(rejected[0].externalId, "154:1");
+  assert.match(rejected[0].reason, /account/i);
+});
+
+test("a line with an unusable amount is rejected and its siblings still import", () => {
+  const entry = { ...ENTRY, Line: [ENTRY.Line[0], { ...ENTRY.Line[1], Amount: 1.005 }] };
+  const { batch, rejected } = normalizeQuickbooks({ accounts: [ACCOUNT, BANK], journalEntries: [entry] });
+  assert.equal(batch.glTransactions?.length, 1, "one bad line does not discard the entry");
+  assert.equal(rejected.length, 1);
+});
+
+test("a journal entry with no date is rejected, since a transaction needs one", () => {
+  const { batch, rejected } = normalizeQuickbooks({
+    accounts: [ACCOUNT, BANK],
+    journalEntries: [{ ...ENTRY, TxnDate: undefined }],
+  });
+  assert.equal(batch.glTransactions?.length ?? 0, 0);
+  assert.equal(rejected.length, 1);
+  assert.match(rejected[0].reason, /date/i);
+});
+
+test("an empty payload produces an empty batch rather than throwing", () => {
+  const { batch, rejected } = normalizeQuickbooks({ accounts: [], journalEntries: [] });
+  assert.deepEqual(batch, { glAccounts: [], glTransactions: [] });
+  assert.deepEqual(rejected, []);
+});
