@@ -75,7 +75,7 @@ test("a flood of problems is capped", () => {
   const verdict = validateToolArguments(wide, args);
   assert.equal(verdict.ok, false);
   assert.ok(verdict.problems.length <= 7, `reported ${verdict.problems.length} problems`);
-  assert.match(verdict.problems.at(-1), /more/);
+  assert.match(verdict.problems.at(-1) ?? "", /more/);
 });
 
 /* ── output bounds ───────────────────────────────────────────────────────── */
@@ -91,16 +91,18 @@ test("an oversized document is bounded and says so", () => {
   const bounded = boundToolResult({ title: "Master Lease", text: "A".repeat(2_000_000) });
   assert.equal(bounded.truncated, true);
   assert.ok(JSON.stringify(bounded.json).length <= MAX_TOOL_RESULT_CHARS, "result must fit the ceiling");
-  assert.match(bounded.json.text, /truncated: .* characters withheld/);
-  assert.match(bounded.json.text, /incomplete/, "the model must be told, or it will conclude from a partial document");
-  assert.equal(bounded.json.title, "Master Lease", "structure and short fields survive");
+  const json = bounded.json as { title: string; text: string };
+  assert.match(json.text, /truncated: .* characters withheld/);
+  assert.match(json.text, /incomplete/, "the model must be told, or it will conclude from a partial document");
+  assert.equal(json.title, "Master Lease", "structure and short fields survive");
 });
 
 test("bounding trims the largest field, not the whole structure", () => {
   const bounded = boundToolResult({ id: "doc_1", kind: "lease", body: "B".repeat(2_000_000), as_of: "2026-09-04" });
-  assert.equal(bounded.json.id, "doc_1");
-  assert.equal(bounded.json.kind, "lease");
-  assert.equal(bounded.json.as_of, "2026-09-04", "sibling fields the caller reads must survive intact");
+  const json = bounded.json as { id: string; kind: string; as_of: string };
+  assert.equal(json.id, "doc_1");
+  assert.equal(json.kind, "lease");
+  assert.equal(json.as_of, "2026-09-04", "sibling fields the caller reads must survive intact");
 });
 
 test("bounding does not mutate the caller's object", () => {
