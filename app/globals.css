@@ -384,7 +384,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--ink); outli
 .setup-agent-card:active:not(:disabled) { transform: scale(.985); }
 .setup-agent-card:disabled { cursor: default; opacity: .55; }
 .setup-agent-card.is-selected { border-color: var(--ink); background: var(--surface); }
-.setup-agent-card > span { flex: 1 1 auto; min-width: 0; display: grid; gap: 2px; }
+/* Only the text grows; character avatars also render as spans. */
+.setup-agent-card > .setup-agent-copy { flex: 1 1 auto; min-width: 0; display: grid; gap: 2px; }
 .setup-agent-card strong { font-size: 11px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .setup-agent-card small { font-size: 9px; color: var(--quiet); }
 .setup-agent-card > svg { flex-shrink: 0; }

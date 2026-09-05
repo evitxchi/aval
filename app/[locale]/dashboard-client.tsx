@@ -1595,7 +1595,7 @@ function SetupView({ dataMode, openConnections }: { dataMode: DataMode; openConn
           const isSelected = id === selected;
           return <button type="button" className={`setup-agent-card${isSelected ? " is-selected" : ""}`} key={id} onClick={() => choose(id)} disabled={saving || !loaded} aria-pressed={isSelected}>
             <AvalAgentAvatar personaId={option.id} shape={option.shape} theme={option.theme} icon={option.icon} size={38} selected={isSelected} interactive/>
-            <span>
+            <span className="setup-agent-copy">
               <strong>{t(option.labelKey)}</strong>
               <small>{optionAccess === null ? t("SetupView.allSources") : t("SetupView.sourcesOfTotal", { count: optionAccess.length, total: DATA_SOURCE_NODES.length })}</small>
             </span>
