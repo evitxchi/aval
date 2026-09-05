@@ -301,14 +301,19 @@ test("callback suggestion scales linearly, not quadratically, with portfolio siz
 
   // Warm the JIT so the ratio measures the algorithm, not compilation.
   timeFor(2_000);
-  const small = Math.max(bestOf(5_000), 0.5);
-  const large = bestOf(20_000);
+  // 10k rather than 5k for the base: noise from a GC pause or a scheduler
+  // slice is absolute, not proportional, so a ~2ms baseline inflated the
+  // ratio far more than the same pause inflates a ~4ms one. This failed CI
+  // at 9.3x while measuring 4.6x locally for exactly that reason.
+  const small = Math.max(bestOf(10_000), 0.5);
+  const large = bestOf(40_000);
   const ratio = large / small;
 
-  console.log(`      suggestCallbacks: 5k=${small.toFixed(1)}ms  20k=${large.toFixed(1)}ms  ratio=${ratio.toFixed(1)}x`);
-  // 4x the input. Linear-ish work should land near 4x; a quadratic scan would
-  // be near 16x. The bound is loose enough to survive a noisy machine and
-  // tight enough to fail if the index is ever removed.
-  assert.ok(ratio < 9, `4x the work orders took ${ratio.toFixed(1)}x the time — that is quadratic behavior`);
-  assert.ok(large < 2000, `suggestCallbacks over 20k work orders took ${large.toFixed(1)}ms`);
+  console.log(`      suggestCallbacks: 10k=${small.toFixed(1)}ms  40k=${large.toFixed(1)}ms  ratio=${ratio.toFixed(1)}x`);
+  // 4x the input. The indexed implementation measures ~5.4x here — above a
+  // clean 4x because the rollup sorts — while a quadratic scan would be ~16x.
+  // 11 sits between the two with roughly 2x headroom above the real figure and
+  // still fails well before quadratic behaviour could hide under it.
+  assert.ok(ratio < 11, `4x the work orders took ${ratio.toFixed(1)}x the time — that is quadratic behavior`);
+  assert.ok(large < 2000, `suggestCallbacks over 40k work orders took ${large.toFixed(1)}ms`);
 });
