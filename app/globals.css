@@ -639,22 +639,14 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--ink); outli
 .brand-mark { width: 43px; height: 43px; flex: 0 0 auto; display: grid; place-items: center; border: 1px solid rgba(15,15,15,.09); border-radius: 13px; background: white; box-shadow: 0 1px 3px rgba(15,15,15,.05); overflow: hidden; }
 .brand-mark svg { width: 23px; height: 23px; }
 .brand-mark img { width: 23px; height: 23px; border-radius: 6px; object-fit: cover; }
+/* Vendor marks are contained rather than cropped: some ship as full-bleed
+   tiles and others as transparent glyphs, and `cover` would cut the latter. */
+.brand-mark img.provider-logo { object-fit: contain; }
 .brand-mark.small { width: 33px; height: 33px; border-radius: 10px; }
 .brand-mark.small svg { width: 18px; height: 18px; }
 .brand-mark.small img { width: 18px; height: 18px; border-radius: 5px; }
 .wordmark { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 8px; color: white; font-size: 20px; line-height: 1; }
-.appfolio-mark { background: #0a79bf; font-weight: 400; }
-.buildium-mark { background: #1f54a4; font-size: 16px; }
-.granola-mark { background: #6f5845; font-family: Georgia, serif; }
-.contpaqi-mark { background: #009688; font-weight: 600; }
-.alegra-mark { background: #6c3ce0; font-weight: 600; }
 .yardi-mark { background: #0f8a6b; font-weight: 600; }
-.realpage-mark { background: #1f5fb8; font-weight: 600; }
-.entrata-mark { background: #6b3fa0; font-weight: 600; }
-.rentmanager-mark { background: #22406b; font-size: 13px; font-weight: 600; }
-.doorloop-mark { background: #12a89d; font-weight: 600; }
-.zai-mark { background: #4f46e5; font-weight: 600; }
-.siliconflow-mark { background: #7c3aed; font-size: 12px; font-weight: 600; }
 
 .task-toolbar { padding: 15px 0; display: grid; grid-template-columns: minmax(240px, 430px) auto auto; justify-content: end; gap: 8px; }
 .search-field { height: 42px; display: flex; align-items: center; gap: 9px; padding: 0 12px; border: 1px solid var(--line); border-radius: 13px; background: white; color: var(--quiet); }
