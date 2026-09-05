@@ -1,4 +1,5 @@
 "use client";
+import { WorkspaceModeControl } from "./workspace-mode-control";
 
 import { useEffect, useState, type ReactNode } from "react";
 import * as Tabs from "@radix-ui/react-tabs";
@@ -41,6 +42,7 @@ export function SettingsModule({ header, openConnections, displayName, email }: 
   const workspaceContent = (children: ReactNode) => isGuest ? <div className="settings-empty"><h3>{t("SettingsModule.signInTitle")}</h3><p>{t("SettingsModule.signInDescription")}</p><a className="primary-button" href="?signin=1">{t("DesktopApp.signIn")}</a></div> : children;
 
   return <div className="view-wrap settings-view">{header}
+    <WorkspaceModeControl/>
     <Tabs.Root className="settings-layout" value={section} onValueChange={changeSection} orientation="vertical" activationMode="automatic">
       <aside className="settings-navigation">
         <label className="settings-mobile-nav">{t("SettingsModule.navigate")}<select value={section} onChange={(event) => changeSection(event.target.value)}>{GROUPS.map((group) => <optgroup key={group.id} label={t(`SettingsModule.${group.id}`)}>{group.sections.map(({ id }) => <option key={id} value={id}>{t(`SettingsModule.sections.${id}`)}</option>)}</optgroup>)}</select></label>

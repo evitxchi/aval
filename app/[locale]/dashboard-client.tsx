@@ -1,17 +1,17 @@
 "use client";
 /* eslint-disable jsx-a11y/no-autofocus */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ComponentType, FormEvent, ReactNode } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import * as Dialog from "@radix-ui/react-dialog";
 import type { DateRange } from "react-day-picker";
 import { enUS, es } from "date-fns/locale";
 import {
-  Archive, Attachment, Bell, Calendar, ChatLines, Check, CheckCircle, ClipboardCheck, Clock,
+  Archive, Bell, Calendar, ChatLines, Check, CheckCircle, ClipboardCheck,
   Coins, CoinsSwap, Dashboard, Database, Flash, Globe, HalfMoon, HomeSimpleDoor, Key,
   Language, LogOut, NetworkLeft, NavArrowDown, NavArrowRight, Page,
-  Phone, Plus, ScaleFrameEnlarge, ScaleFrameReduce, Search, SendDiagonal, Settings, ShieldCheck,
+  Plus, ScaleFrameEnlarge, ScaleFrameReduce, Settings, ShieldCheck,
   Refresh, SoundHigh, SoundOff, StatsUpSquare, SunLight, TaskList, Tools, User, WarningTriangle,
   ViewColumns3, Xmark, XmarkCircle,
 } from "iconoir-react";
@@ -22,6 +22,9 @@ import type { AuthMode } from "@/app/components/auth-gate";
 import { AskAvalTasksSection, useDraftJobs, type CreateDraftInput, type DraftJob } from "@/app/components/ask-aval-tasks";
 import { AppearanceProvider } from "@/app/components/appearance-provider";
 import { ProfileAvatar } from "@/app/components/character-avatar";
+import { DemoWorkspace } from "@/app/components/demo-workspace";
+import { ConnectedInbox } from "@/app/components/connected-inbox";
+import type { WorkspaceMode } from "@/lib/workspace-mode";
 import { SettingsModule } from "@/app/components/settings-module";
 import { BrandMark } from "@/app/components/brand-mark";
 import { DesktopServiceBar } from "@/app/components/desktop-codex";
@@ -49,9 +52,9 @@ const navGroups: { labelKey: string; items: { id: View; labelKey: string; icon: 
   { labelKey: "Nav.agent", items: [
     { id: "overview", labelKey: "Nav.portfolioOverview", icon: Dashboard },
     { id: "setup", labelKey: "Nav.setup", icon: NetworkLeft },
-    { id: "tasks", labelKey: "Nav.avalTasks", icon: TaskList, count: 4 },
+    { id: "tasks", labelKey: "Nav.avalTasks", icon: TaskList },
     { id: "reviewCenter", labelKey: "Nav.reviewCenter", icon: ClipboardCheck },
-    { id: "inbox", labelKey: "Nav.sharedInbox", icon: ChatLines, count: 7 },
+    { id: "inbox", labelKey: "Nav.sharedInbox", icon: ChatLines },
   ]},
   { labelKey: "Nav.operations", items: [
     { id: "properties", labelKey: "Nav.properties", icon: HomeSimpleDoor },
@@ -155,14 +158,6 @@ function draftText(insight: InsightCandidate, t: T, money: (amount: number) => s
   if (insight.id === "noi-variance") return t(insight.draftKey, { delta: `+${derivedSample.noiDeltaPct.toFixed(1)}%` });
   return t(insight.draftKey);
 }
-
-const REVIEW_STATUS_ICON: Record<ReviewStatus, IconComponent> = {
-  pending: Clock, approved: CheckCircle, sent: CheckCircle, denied: XmarkCircle,
-};
-const REVIEW_STATUS_LABEL_KEY: Record<ReviewStatus, string> = {
-  pending: "ReviewCenter.statusPending", approved: "ReviewCenter.statusApproved",
-  sent: "ReviewCenter.statusSent", denied: "ReviewCenter.statusDenied",
-};
 
 /**
  * The drafted-review dialog: NOI waterfall or evidence rows, the drafted
@@ -307,21 +302,23 @@ function formatDateRange(start: Date, end: Date, locale: string): string {
 // Real property-management calendar shapes, not arbitrary day counts: a
 // billing week, the same six-week window the leasing trend chart shows,
 // month-to-date, quarter-to-date, and year-to-date.
-const DATE_PRESETS: { labelKey: string; range: [Date, Date] }[] = [
-  { labelKey: "Overview.periodThisWeek", range: [addDays(SAMPLE_TODAY, -6), SAMPLE_TODAY] },
-  { labelKey: "Overview.periodLast6Weeks", range: [addDays(SAMPLE_TODAY, -41), SAMPLE_TODAY] },
-  { labelKey: "Overview.periodThisMonth", range: [new Date(SAMPLE_TODAY.getFullYear(), SAMPLE_TODAY.getMonth(), 1), SAMPLE_TODAY] },
-  { labelKey: "Overview.periodThisQuarter", range: [startOfQuarter(SAMPLE_TODAY), SAMPLE_TODAY] },
-  { labelKey: "Overview.periodYearToDate", range: [new Date(SAMPLE_TODAY.getFullYear(), 0, 1), SAMPLE_TODAY] },
+const datePresets = (today: Date): { labelKey: string; range: [Date, Date] }[] => [
+  { labelKey: "Overview.periodThisWeek", range: [addDays(today, -6), today] },
+  { labelKey: "Overview.periodLast6Weeks", range: [addDays(today, -41), today] },
+  { labelKey: "Overview.periodThisMonth", range: [new Date(today.getFullYear(), today.getMonth(), 1), today] },
+  { labelKey: "Overview.periodThisQuarter", range: [startOfQuarter(today), today] },
+  { labelKey: "Overview.periodYearToDate", range: [new Date(today.getFullYear(), 0, 1), today] },
 ];
 
 /** A reusable shadcn/DayPicker range calendar with operational presets. */
 function DateRangePicker({ period, onChange, t, locale }: { period: string; onChange: (label: string) => void; t: T; locale: string }) {
+  const [today] = useState(() => new Date());
+  const presets = datePresets(today);
   const [open, setOpen] = useState(false);
-  const [month, setMonth] = useState(() => new Date(SAMPLE_TODAY.getFullYear(), SAMPLE_TODAY.getMonth() - 1, 1));
-  const [date, setDate] = useState<DateRange | undefined>({ from: addDays(SAMPLE_TODAY, -6), to: SAMPLE_TODAY });
+  const [month, setMonth] = useState(() => new Date(today.getFullYear(), today.getMonth() - 1, 1));
+  const [date, setDate] = useState<DateRange | undefined>({ from: addDays(today, -6), to: today });
 
-  const applyPreset = (preset: (typeof DATE_PRESETS)[number]) => {
+  const applyPreset = (preset: (typeof presets)[number]) => {
     setDate({ from: preset.range[0], to: preset.range[1] });
     setMonth(preset.range[0]);
     onChange(formatDateRange(preset.range[0], preset.range[1], locale));
@@ -340,7 +337,7 @@ function DateRangePicker({ period, onChange, t, locale }: { period: string; onCh
       <summary className="soft-button"><Calendar width={18} height={18}/>{period}<NavArrowDown width={16} height={16}/></summary>
       <div className="menu-popover date-range-popover">
         <aside className="date-preset-list" aria-label={t("Overview.periodCustomRange")}>
-          {DATE_PRESETS.map((preset) => <button type="button" key={preset.labelKey} onClick={() => applyPreset(preset)}>{t(preset.labelKey)}</button>)}
+          {presets.map((preset) => <button type="button" key={preset.labelKey} onClick={() => applyPreset(preset)}>{t(preset.labelKey)}</button>)}
         </aside>
         <div className="date-calendar-wrap">
           <RangeCalendar
@@ -355,8 +352,8 @@ function DateRangePicker({ period, onChange, t, locale }: { period: string; onCh
               labelPrevious: () => t("Overview.previousMonth"),
               labelNext: () => t("Overview.nextMonth"),
             }}
-            disabled={{ after: SAMPLE_TODAY }}
-            endMonth={SAMPLE_TODAY}
+            disabled={{ after: today }}
+            endMonth={today}
             fixedWeeks
             className="date-calendar"
           />
@@ -426,7 +423,7 @@ export function daysSince(createdAt: Date, now: Date): number {
  * The dashboard's opening block: who's here, how long they've been here, and
  * a typed line, over the year-of-activity heatmap.
  */
-function OverviewHero({ displayName, t, locale }: { displayName: string; t: T; locale: string }) {
+function OverviewHero({ displayName, t, locale, sample }: { displayName: string; t: T; locale: string; sample: boolean }) {
   const phrases = useMemo(() => HERO_PHRASE_KEYS.map((key) => t(key)), [t]);
   const { text, typing } = useTypewriter(phrases);
   const firstName = displayName.trim().split(/\s+/)[0] || displayName;
@@ -463,7 +460,7 @@ function OverviewHero({ displayName, t, locale }: { displayName: string; t: T; l
           depending on the animation's current frame. */}
       <span className="visually-hidden">{phrases.join(". ")}</span>
     </div>
-    <ActivityHeatmap t={t} locale={locale} compact/>
+    {sample && <ActivityHeatmap t={t} locale={locale} compact/>}
   </section>;
 }
 
@@ -532,7 +529,7 @@ function Overview({ displayName, openConnections, dataMode, providers, pendingTa
   const currentLocale = useLocale();
   const currencyPrefix = market === "latam" ? "MX$" : "$";
   const accountingProvider = market === "latam" ? "contpaqi" : "quickbooks";
-  const [period, setPeriod] = useState("Aug 12–18");
+  const [period, setPeriod] = useState(() => formatDateRange(addDays(new Date(), -6), new Date(), currentLocale));
   const [historyOpen, setHistoryOpen] = useState(false);
   const [draftExpanded, setDraftExpanded] = useState(false);
   const isSample = dataMode === "sample";
@@ -602,7 +599,7 @@ function Overview({ displayName, openConnections, dataMode, providers, pendingTa
   };
 
   return <div className="view-wrap">
-    <OverviewHero displayName={displayName} t={t} locale={currentLocale}/>
+    <OverviewHero displayName={displayName} t={t} locale={currentLocale} sample={isSample}/>
     <AppHeader
       title={t("Overview.portfolioOverview")}
       subtitle={dataMode === "live"
@@ -772,166 +769,11 @@ function Overview({ displayName, openConnections, dataMode, providers, pendingTa
   </div>;
 }
 
-const REVIEW_STATUS_ORDER: ReviewStatus[] = ["pending", "approved", "sent", "denied"];
-
-/**
- * Every drafted review and reminder batch in one place — pending, approved,
- * sent, or denied — with the same drafts, evidence, recipients, and sent
- * messages the Overview queue shows, just uncapped and filterable instead
- * of limited to the top 5 by money × urgency.
- */
-function ReviewCenterView({ reviewStatuses, sentReceipts, onApprove, onDeny, onSendReminders }: {
-  reviewStatuses: Record<string, ReviewStatus>; sentReceipts: Record<string, InsightRecipient[]>;
-  onApprove: (insight: InsightCandidate) => void; onDeny: (insight: InsightCandidate) => void;
-  onSendReminders: (insight: InsightCandidate, recipients: InsightRecipient[]) => void;
+function TasksView({ draftJobs, onCreateDraft, onPauseDraft, onResumeDraft, onRetryDraft, onSendDraft, onRemoveDrafts, loading }: {
+  draftJobs: DraftJob[]; onCreateDraft: (input: CreateDraftInput) => void; onPauseDraft: (id: string) => void; onResumeDraft: (id: string) => void; onRetryDraft: (id: string) => void; onSendDraft: (id: string, recipient: string) => void; onRemoveDrafts: (ids: string[]) => Promise<void>; loading: boolean;
 }) {
-  const { market } = useExperience();
   const t = useTranslations();
-  const currentLocale = useLocale();
-  const currencyPrefix = market === "latam" ? "MX$" : "$";
-  const money = (amount: number) => `${currencyPrefix}${Math.abs(amount).toLocaleString(currentLocale)}`;
-  const [activeFilter, setActiveFilter] = useState<"all" | ReviewStatus>("all");
-  const [draftExpanded, setDraftExpanded] = useState(false);
-  const [reviewDraft, setReviewDraft] = useState<InsightCandidate | null>(null);
-  const [receiptFor, setReceiptFor] = useState<InsightCandidate | null>(null);
-  const [reminderPreview, setReminderPreview] = useState<InsightCandidate | null>(null);
-  const [removedRecipients, setRemovedRecipients] = useState<Set<string>>(new Set());
-
-  const allReviewable = sampleData.insights.candidates.filter((candidate) => candidate.actionable && candidate.action !== null);
-  const statusCounts = REVIEW_STATUS_ORDER.reduce((counts, status) => ({ ...counts, [status]: allReviewable.filter((insight) => reviewStatuses[insight.id] === status).length }), {} as Record<ReviewStatus, number>);
-  const sorted = [...allReviewable].sort((a, b) => {
-    const aPending = reviewStatuses[a.id] === "pending";
-    const bPending = reviewStatuses[b.id] === "pending";
-    if (aPending !== bPending) return aPending ? -1 : 1;
-    return b.moneyAtStake * b.urgency - a.moneyAtStake * a.urgency;
-  });
-  const visible = activeFilter === "all" ? sorted : sorted.filter((insight) => reviewStatuses[insight.id] === activeFilter);
-
-  const openInsight = (insight: InsightCandidate) => {
-    const status = reviewStatuses[insight.id];
-    if (status === "sent") { setReceiptFor(insight); return; }
-    if (status === "pending" && insight.action?.type === "sendReminders") { setRemovedRecipients(new Set()); setReminderPreview(insight); return; }
-    setReviewDraft(insight);
-  };
-
-  return <div className="view-wrap">
-    <AppHeader title={t("Nav.reviewCenter")} subtitle={t("ReviewCenter.subtitle")}/>
-
-    <section className="metric-grid compact-metrics" data-reveal>
-      {REVIEW_STATUS_ORDER.map((status) => <article className="metric-card" key={status}>
-        <span>{t(REVIEW_STATUS_LABEL_KEY[status])}</span>
-        <strong><AnimatedNumber value={statusCounts[status]}/></strong>
-      </article>)}
-    </section>
-
-    <div className="segmented text review-filter" data-reveal>
-      <button className={activeFilter === "all" ? "active" : ""} onClick={() => setActiveFilter("all")}>{t("ReviewCenter.filterAll", { count: allReviewable.length })}</button>
-      {REVIEW_STATUS_ORDER.map((status) => <button className={activeFilter === status ? "active" : ""} onClick={() => setActiveFilter(status)} key={status}>{t(REVIEW_STATUS_LABEL_KEY[status])} · {statusCounts[status]}</button>)}
-    </div>
-
-    <section className="panel review-list-panel" data-reveal>
-      {visible.length === 0
-        ? <p className="empty-copy">{t("ReviewCenter.emptyFilter")}</p>
-        : <div className="review-list">{visible.map((insight) => {
-            const status = reviewStatuses[insight.id];
-            const StatusIcon = REVIEW_STATUS_ICON[status];
-            const sentCount = status === "sent" && insight.action?.type === "sendReminders" ? (sentReceipts[insight.id] ?? insight.action.recipients).length : null;
-            return <article className="review-row" key={insight.id}>
-              <span className={`review-status-icon status-${status}`}><StatusIcon width={18} height={18}/></span>
-              <div className="review-row-body">
-                <div className="review-row-top"><h3>{t(insight.titleKey)}</h3><span className="review-status-label">{t(REVIEW_STATUS_LABEL_KEY[status])}</span></div>
-                <p>{t(insight.detailKey)}</p>
-                <div className="review-row-meta">
-                  <span className="insight-stake"><Coins width={13} height={13}/>{t("Overview.moneyAtStake")}<b>{money(insight.moneyAtStake)}</b></span>
-                  {sentCount !== null && <span>{t("ReviewCenter.sentToCount", { count: sentCount })}</span>}
-                </div>
-              </div>
-              <button className="soft-button" onClick={() => openInsight(insight)}>{t("ReviewCenter.viewDetails")}<NavArrowRight width={16} height={16}/></button>
-            </article>;
-          })}</div>}
-    </section>
-
-    <ReminderPreviewDialog
-      insight={reminderPreview}
-      removedRecipients={removedRecipients}
-      onRemoveRecipient={(name) => setRemovedRecipients((current) => new Set(current).add(name))}
-      onOpenChange={(open) => !open && setReminderPreview(null)}
-      onSend={(recipients) => { onSendReminders(reminderPreview!, recipients); setReminderPreview(null); }}
-      onDeny={() => { onDeny(reminderPreview!); setReminderPreview(null); }}
-      t={t} money={money}
-    />
-
-    <ReviewDraftDialog
-      insight={reviewDraft}
-      status={reviewDraft ? reviewStatuses[reviewDraft.id] : undefined}
-      expanded={draftExpanded}
-      onToggleExpand={() => setDraftExpanded((current) => !current)}
-      onOpenChange={(open) => { if (!open) { setReviewDraft(null); setDraftExpanded(false); } }}
-      onApprove={() => { onApprove(reviewDraft!); setReviewDraft(null); }}
-      onDeny={() => { onDeny(reviewDraft!); setReviewDraft(null); }}
-      t={t} money={money}
-    />
-
-    <ReviewReceiptDialog
-      insight={receiptFor}
-      recipients={receiptFor ? sentReceipts[receiptFor.id] ?? [] : []}
-      onOpenChange={(open) => !open && setReceiptFor(null)}
-      t={t} money={money}
-    />
-  </div>;
-}
-
-function TasksView({ isGuest, draftJobs, onCreateDraft, onPauseDraft, onResumeDraft, onRetryDraft, onSendDraft }: {
-  isGuest: boolean; draftJobs: DraftJob[]; onCreateDraft: (input: CreateDraftInput) => void; onPauseDraft: (id: string) => void; onResumeDraft: (id: string) => void; onRetryDraft: (id: string) => void; onSendDraft: (id: string, recipient: string) => void;
-}) {
-  return <PlanningWorkspace view="tasks" isGuest={isGuest} activity={<><AskAvalTasksSection jobs={draftJobs} onCreate={onCreateDraft} onPause={onPauseDraft} onResume={onResumeDraft} onRetry={onRetryDraft} onSend={onSendDraft}/><AgentTrace/><AutomationTimeline/></>}/>;
-}
-
-const inboxItems = [
-  { name: "Marcus Lee", unit: "Franklin House · 4B", text: "Tomorrow at three works perfectly.", provider: "apple_messages", time: "2m", unread: 2 },
-  { name: "Diana Ortiz", unit: "Monroe Court · 2A", text: "Could we split this month's balance?", provider: "whatsapp", time: "11m", unread: 1 },
-  { name: "Alvarez Plumbing", unit: "Vendor · Maintenance", text: "Estimate attached for the boiler.", provider: "outlook", time: "24m", unread: 0 },
-  { name: "Portfolio team", unit: "Slack · #operations", text: "Approved. Go ahead and send it.", provider: "slack", time: "41m", unread: 0 },
-];
-interface RealConversationMessage { id: string; direction: string; body: string; createdAt: number }
-interface RealConversation { id: string; channel: string; contactDisplayName: string; lastMessageAt: number; draftReply: string | null; draftReplyStatus: string | null; messages: RealConversationMessage[] }
-
-// Real threads (from a connected provider's inbound traffic, via
-// app/api/webhooks/[provider]/route.ts) sit above the sample list, each
-// carrying a reply Ask Aval already drafted the moment the message arrived
-// — pre-filled in the composer, still one click from actually sending.
-// Empty and invisible until a real provider is connected and sends real
-// traffic, so the sample experience below is unchanged until then.
-function InboxView({ pendingTarget, targetToken }: { pendingTarget: NotificationTarget | null; targetToken: number }) {
-  const { notify } = useExperience();
-  const t = useTranslations(); const currentLocale = useLocale(); const [active, setActive] = useState(0); const [selectedRealId, setSelectedRealId] = useState<string | null>(null); const [realConversations, setRealConversations] = useState<RealConversation[]>([]); const current = inboxItems[active]; const selectedReal = selectedRealId ? realConversations.find((conversation) => conversation.id === selectedRealId) ?? null : null; const [reply, setReply] = useState(""); const [sent, setSent] = useState<string[]>([]); const [sending, setSending] = useState(false); const input = useRef<HTMLInputElement>(null); const file = useRef<HTMLInputElement>(null);
-  useEffect(() => { (async () => { try { const response = await fetch("/api/conversations"); const data = await response.json() as { conversations?: RealConversation[] }; setRealConversations(data.conversations ?? []); } catch { /* real conversations stay empty until a provider is connected */ } })(); }, []);
-  // Deliberately not a useEffect — see the matching comment in Overview.
-  const [handledTargetToken, setHandledTargetToken] = useState(0);
-  if (pendingTarget && pendingTarget.kind === "inboxThread" && targetToken !== handledTargetToken) {
-    setHandledTargetToken(targetToken);
-    const index = inboxItems.findIndex((item) => item.name === pendingTarget.contactName);
-    if (index >= 0) { setActive(index); setSelectedRealId(null); setSent([]); setReply(""); }
-  }
-  const selectSample = (index: number) => { setActive(index); setSelectedRealId(null); setSent([]); setReply(""); };
-  const selectReal = (conversation: RealConversation) => { setSelectedRealId(conversation.id); setSent([]); setReply(conversation.draftReply ?? ""); };
-  const send = async () => {
-    if (!reply.trim()) return;
-    const text = reply.trim();
-    if (selectedReal) {
-      setSending(true);
-      try {
-        await fetch("/api/conversations", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ conversationId: selectedReal.id, body: text }) });
-        setRealConversations((current) => current.map((conversation) => conversation.id === selectedReal.id ? { ...conversation, draftReply: null, draftReplyStatus: null, messages: [...conversation.messages, { id: `local-${Date.now()}`, direction: "outbound", body: text, createdAt: Date.now() }] } : conversation));
-      } finally { setSending(false); }
-      notify(t("InboxView.messageSent"), `${t("InboxView.via")} ${selectedReal.channel.replace("_", " ")}`);
-    } else {
-      setSent((messages) => [...messages, text]);
-      notify(t("InboxView.messageSent"), `${t("InboxView.via")} ${current.provider.replace("_", " ")}`);
-    }
-    setReply("");
-  };
-  return <div className="view-wrap"><AppHeader title={t("InboxView.sharedInbox")} subtitle={t("InboxView.oneResidentTimelineAcrossEveryConnected")} actions={<button className="primary-button" onClick={() => input.current?.focus()}><Plus width={18} height={18}/>{t("InboxView.newMessage")}</button>}/><div className="inbox-window" data-reveal><aside className="conversation-list"><label className="search-field"><Search width={18} height={18}/><input placeholder={t("InboxView.searchConversations")}/></label>{realConversations.map((conversation) => { const lastMessage = conversation.messages[conversation.messages.length - 1]; return <button className={`conversation-row ${selectedRealId === conversation.id ? "active" : ""}`} onClick={() => selectReal(conversation)} key={conversation.id}><BrandMark provider={conversation.channel} small/><span><strong>{conversation.contactDisplayName}</strong><small className="live-badge">{t("InboxView.liveBadge")}</small><em>{lastMessage?.body ?? ""}</em></span>{conversation.draftReplyStatus === "ready" && <i className="draft-ready-dot" aria-label={t("InboxView.draftReady")}/>}</button>; })}{inboxItems.map((item, index) => <button className={`conversation-row ${!selectedReal && active === index ? "active" : ""}`} onClick={() => selectSample(index)} key={item.name}><BrandMark provider={item.provider} small/><span><strong>{item.name}</strong><small>{item.unit}</small><em>{item.text}</em></span><i>{item.time}</i>{item.unread > 0 && <b>{item.unread}</b>}</button>)}</aside>{selectedReal ? <section className="message-thread"><header><div><BrandMark provider={selectedReal.channel} small/><div><strong>{selectedReal.contactDisplayName}</strong><span>{t("InboxView.liveBadge")}</span></div></div></header><div className="message-canvas">{selectedReal.messages.map((message) => <div className={`message ${message.direction === "inbound" ? "received" : "sent"}`} key={message.id}><p>{message.body}</p><span>{new Date(message.createdAt).toLocaleTimeString(currentLocale, { hour: "2-digit", minute: "2-digit" })}</span></div>)}{selectedReal.draftReply && <div className="message sent draft-pending"><p>{selectedReal.draftReply}</p><span>{t("InboxView.draftReadyToSend")}</span></div>}</div><footer className="composer"><input ref={input} value={reply} onChange={(event) => setReply(event.target.value)} onKeyDown={(event) => event.key === "Enter" && send()} placeholder={t("InboxView.writeAReplyOrAskAval")}/><button className="primary-button" onClick={send} disabled={sending}><SendDiagonal width={17} height={17}/>{t("InboxView.send")}</button></footer></section> : <section className="message-thread"><header><div><BrandMark provider={current.provider} small/><div><strong>{current.name}</strong><span>{current.unit}</span></div></div><button className="icon-button" onClick={() => notify(t("InboxView.calling"), `${current.name} · Twilio`)} aria-label={t("InboxView.call")}><Phone width={20} height={20}/></button></header><div className="message-canvas"><div className="date-divider">{t("InboxView.today")}</div><div className="message received"><p>{t("InboxView.mockQuestionAboutNextStep")}</p><span>14:18</span></div><div className="message sent"><p>{t("InboxView.mockViewingHeld")}</p><span>14:19 · {t("InboxView.mockDraftApproved")}</span></div><div className="message received"><p>{current.text}</p><span>14:21</span></div>{sent.map((message, index) => <div className="message sent" key={`${message}-${index}`}><p>{message}</p><span>{t("InboxView.nowDelivered")}</span></div>)}</div><footer className="composer"><input ref={file} type="file" hidden onChange={() => notify(t("InboxView.attachmentReady"), file.current?.files?.[0]?.name)}/><button className="icon-button" onClick={() => file.current?.click()} aria-label={t("InboxView.attach")}><Attachment width={19} height={19}/></button><input ref={input} value={reply} onChange={(event) => setReply(event.target.value)} onKeyDown={(event) => event.key === "Enter" && send()} placeholder={t("InboxView.writeAReplyOrAskAval")}/><button className="primary-button" onClick={send}><SendDiagonal width={17} height={17}/>{t("InboxView.send")}</button></footer></section>}<aside className="contact-panel">{selectedReal ? <><p className="eyebrow">{t("InboxView.residentContext")}</p><div className="profile-block"><span className="initials">{selectedReal.contactDisplayName.split(" ").map((part) => part[0]).join("")}</span><h3>{selectedReal.contactDisplayName}</h3><p>{t("InboxView.liveBadge")}</p></div><dl><div><dt>{t("InboxView.source")}</dt><dd>{selectedReal.channel.replace("_", " ")}</dd></div></dl></> : <><p className="eyebrow">{t("InboxView.residentContext")}</p><div className="profile-block"><span className="initials">{current.name.split(" ").map((part) => part[0]).join("")}</span><h3>{current.name}</h3><p>{current.unit}</p></div><dl><div><dt>{t("InboxView.stage")}</dt><dd>{t("InboxView.viewingBooked")}</dd></div><div><dt>{t("InboxView.source")}</dt><dd>{current.provider.replace("_", " ")}</dd></div><div><dt>{t("InboxView.owner")}</dt><dd>{t("InboxView.leasingTeam")}</dd></div></dl><button className="wide-button" onClick={() => notify(t("InboxView.residentRecordOpened"), current.name)}>{t("InboxView.openResidentRecord")}<NavArrowRight width={17} height={17}/></button></>}</aside></div></div>;
+  return <div className="view-wrap"><AppHeader title={t("Nav.avalTasks")} subtitle={t("AskAvalTasks.sectionSubtitle")}/><AskAvalTasksSection jobs={draftJobs} onCreate={onCreateDraft} onPause={onPauseDraft} onResume={onResumeDraft} onRetry={onRetryDraft} onSend={onSendDraft} onRemove={onRemoveDrafts} loading={loading}/><AgentTrace/><AutomationTimeline/></div>;
 }
 
 function ConnectionsView({ providers, loading, onOpen }: { providers: Provider[]; loading: boolean; onOpen: (id: string) => void }) {
@@ -1338,12 +1180,12 @@ const PREFERENCE_TOPIC_LABEL_KEY: Record<string, string> = {
  *     system prompt by getPreferenceContext(). Teaching here writes the same
  *     rows the assistant learns from mid-conversation corrections.
  */
-function SetupView({ dataMode, openConnections }: { dataMode: DataMode; openConnections: () => void }) {
+function SetupView({ dataMode, openConnections, demo = false }: { dataMode: DataMode; openConnections: () => void; demo?: boolean }) {
   const t = useTranslations();
   const { notify } = useExperience();
   const [selected, setSelected] = useState<PersonaId>("general");
   const [saving, setSaving] = useState(false);
-  const [loaded, setLoaded] = useState(false);
+  const [loaded, setLoaded] = useState(demo);
   const [taught, setTaught] = useState<TaughtPreference[]>([]);
   const [options, setOptions] = useState<PreferenceOption[]>([]);
   const [teaching, setTeaching] = useState<string | null>(null);
@@ -1354,6 +1196,7 @@ function SetupView({ dataMode, openConnections }: { dataMode: DataMode; openConn
   const [suggestionSeed, setSuggestionSeed] = useState(0);
 
   useEffect(() => {
+    if (demo) return;
     let cancelled = false;
     Promise.all([
       fetch("/api/agents/default").then((r) => (r.ok ? r.json() as Promise<{ defaultPersonaId?: string | null }> : null)).catch(() => null),
@@ -1366,7 +1209,7 @@ function SetupView({ dataMode, openConnections }: { dataMode: DataMode; openConn
       setLoaded(true);
     });
     return () => { cancelled = true; };
-  }, []);
+  }, [demo]);
 
   const preset = PERSONA_PRESETS[selected];
   const access = PERSONA_TOOL_ACCESS[selected];
@@ -1375,6 +1218,7 @@ function SetupView({ dataMode, openConnections }: { dataMode: DataMode; openConn
   const taughtByTopic = useMemo(() => new Map(taught.map((row) => [row.topic, row])), [taught]);
 
   async function choose(next: PersonaId) {
+    if (demo) { setSelected(next); return; }
     if (next === selected) return;
     const previous = selected;
     setSelected(next);
@@ -1499,6 +1343,29 @@ function SetupView({ dataMode, openConnections }: { dataMode: DataMode; openConn
 
     <section className="panel" data-reveal>
       <div className="panel-heading">
+        <div><p className="eyebrow">{t("SetupView.swapAgent")}</p><h2>{t("SetupView.chooseTheCenterAgent")}</h2></div>
+        {saving && <span className="quiet-label">{t("SetupView.saving")}</span>}
+      </div>
+      <div className="setup-agent-grid">
+        {PERSONA_IDS.map((id) => {
+          const option = PERSONA_PRESETS[id];
+          const optionAccess = PERSONA_TOOL_ACCESS[id];
+          const isSelected = id === selected;
+          return <button type="button" className={`setup-agent-card${isSelected ? " is-selected" : ""}`} key={id} onClick={() => choose(id)} disabled={saving || !loaded} aria-pressed={isSelected}>
+            <AvalAgentAvatar personaId={option.id} shape={option.shape} theme={option.theme} icon={option.icon} size={38} selected={isSelected} interactive/>
+            <span className="setup-agent-copy">
+              <strong>{t(option.labelKey)}</strong>
+              <small>{optionAccess === null ? t("SetupView.allSources") : t("SetupView.sourcesOfTotal", { count: optionAccess.length, total: DATA_SOURCE_NODES.length })}</small>
+            </span>
+            {isSelected && <Check width={16} height={16}/>}
+          </button>;
+        })}
+      </div>
+      <p className="empty-copy">{t("SetupView.swapExplainer")}</p>
+    </section>
+
+    {!demo && (<section className="panel" data-reveal>
+      <div className="panel-heading">
         <div><p className="eyebrow">{t("SetupView.memory")}</p><h2>{t("SetupView.whatAvalRemembers")}</h2></div>
         <span className="quiet-label">{t("SetupView.appliesEverywhere")}</span>
       </div>
@@ -1581,30 +1448,9 @@ function SetupView({ dataMode, openConnections }: { dataMode: DataMode; openConn
       </div>
 
       <p className="empty-copy">{t("SetupView.memoryExplainer")}</p>
-    </section>
+    </section>)}
 
-    <section className="panel" data-reveal>
-      <div className="panel-heading">
-        <div><p className="eyebrow">{t("SetupView.swapAgent")}</p><h2>{t("SetupView.chooseTheCenterAgent")}</h2></div>
-        {saving && <span className="quiet-label">{t("SetupView.saving")}</span>}
-      </div>
-      <div className="setup-agent-grid">
-        {PERSONA_IDS.map((id) => {
-          const option = PERSONA_PRESETS[id];
-          const optionAccess = PERSONA_TOOL_ACCESS[id];
-          const isSelected = id === selected;
-          return <button type="button" className={`setup-agent-card${isSelected ? " is-selected" : ""}`} key={id} onClick={() => choose(id)} disabled={saving || !loaded} aria-pressed={isSelected}>
-            <AvalAgentAvatar personaId={option.id} shape={option.shape} theme={option.theme} icon={option.icon} size={38} selected={isSelected} interactive/>
-            <span className="setup-agent-copy">
-              <strong>{t(option.labelKey)}</strong>
-              <small>{optionAccess === null ? t("SetupView.allSources") : t("SetupView.sourcesOfTotal", { count: optionAccess.length, total: DATA_SOURCE_NODES.length })}</small>
-            </span>
-            {isSelected && <Check width={16} height={16}/>}
-          </button>;
-        })}
-      </div>
-      <p className="empty-copy">{t("SetupView.swapExplainer")}</p>
-    </section>
+
   </div>;
 }
 
@@ -1746,28 +1592,20 @@ function AddMeterDialog({ onClose }: { onClose: () => void }) {
   );
 }
 
-function DesktopApp({ authMode, displayName, email }: { authMode: AuthMode; displayName: string; email: string }) {
+function DesktopApp({ authMode, displayName, email, initialView }: { authMode: AuthMode; displayName: string; email: string; initialView: View }) {
   // Everyone signed out shares one workspace, so anything saved here is
   // visible to the next visitor. Surfaces that store content say so.
   const isGuest = authMode === "guest";
   const { market, setMarket, theme, setTheme, sounds, setSounds, celebrate, notify } = useExperience();
   const t = useTranslations();
   const currentLocale = useLocale();
-  const { jobs: draftJobs, createJob: createDraftJob, pauseJob: pauseDraftJob, resumeJob: resumeDraftJob, retryJob: retryDraftJob, sendJob: sendDraftJob } = useDraftJobs(currentLocale);
+  const { jobs: draftJobs, createJob: createDraftJob, pauseJob: pauseDraftJob, resumeJob: resumeDraftJob, retryJob: retryDraftJob, sendJob: sendDraftJob, removeJobs: removeDraftJobs, loading: draftsLoading } = useDraftJobs(currentLocale);
   const router = useRouter();
   const pathname = usePathname();
-  const switchLocale = (nextLocale: "en" | "es-mx") => router.replace(pathname, { locale: nextLocale }); const [view, setView] = useState<View>(() => { if (typeof window === "undefined") return "overview"; const requested = new URLSearchParams(window.location.search).get("view") as View | null; return requested && navGroups.some((group) => group.items.some((item) => item.id === requested)) ? requested : "overview"; }); const [dataMode] = useState<DataMode>(() => { if (typeof window === "undefined") return isGuest ? "sample" : "live"; const requested = new URLSearchParams(window.location.search).get("data"); return requested === "empty" || requested === "live" || requested === "sample" ? requested : isGuest ? "sample" : "live"; }); const [providers, setProviders] = useState<Provider[]>(fallbackProviders); const [loading, setLoading] = useState(true); const [selectedProvider, setSelectedProvider] = useState<Provider | null>(null); const [addMeterOpen, setAddMeterOpen] = useState(false); const [collapsed, setCollapsed] = useState(false); const [profile, setProfile] = useState(false); const [notifications, setNotifications] = useState(false); const [notificationItems, setNotificationItems] = useState<NotificationItem[]>(sampleData.notifications.items); const [pendingTarget, setPendingTarget] = useState<NotificationTarget | null>(null); const [targetToken, setTargetToken] = useState(0); const unreadCount = notificationItems.filter((item) => !item.read).length; const accountingProviderId = market === "latam" ? "contpaqi" : "quickbooks";
-  const [reviewStatuses, setReviewStatuses] = useState<Record<string, ReviewStatus>>(() => Object.fromEntries(sampleData.insights.candidates.map((candidate) => [candidate.id, candidate.initialStatus ?? "pending"])));
-  const [sentReceipts, setSentReceipts] = useState<Record<string, InsightRecipient[]>>(() => {
-    const receipts: Record<string, InsightRecipient[]> = {};
-    for (const candidate of sampleData.insights.candidates) {
-      if (candidate.initialStatus === "sent" && candidate.action?.type === "sendReminders") {
-        receipts[candidate.id] = candidate.action.recipients;
-      }
-    }
-    return receipts;
-  });
-  const pendingReviewCount = sampleData.insights.candidates.filter((insight) => insight.actionable && insight.action !== null && reviewStatuses[insight.id] === "pending").length;
+  const switchLocale = (nextLocale: "en" | "es-mx") => router.replace(pathname, { locale: nextLocale }); const [view, setView] = useState<View>(initialView); const dataMode: DataMode = "live"; const [providers, setProviders] = useState<Provider[]>(fallbackProviders); const [loading, setLoading] = useState(true); const [selectedProvider, setSelectedProvider] = useState<Provider | null>(null); const [addMeterOpen, setAddMeterOpen] = useState(false); const [collapsed, setCollapsed] = useState(false); const [profile, setProfile] = useState(false); const [notifications, setNotifications] = useState(false); const [notificationItems, setNotificationItems] = useState<NotificationItem[]>([]); const [pendingTarget, setPendingTarget] = useState<NotificationTarget | null>(null); const [targetToken, setTargetToken] = useState(0); const unreadCount = notificationItems.filter((item) => !item.read).length; const accountingProviderId = market === "latam" ? "contpaqi" : "quickbooks";
+  const [reviewStatuses, setReviewStatuses] = useState<Record<string, ReviewStatus>>({});
+  const [sentReceipts, setSentReceipts] = useState<Record<string, InsightRecipient[]>>({});
+  const pendingReviewCount = 0;
   const listFormatter = useMemo(() => new Intl.ListFormat(currentLocale, { style: "long", type: "conjunction" }), [currentLocale]);
   const providerTitle = (id: string) => providers.find((provider) => provider.id === id)?.title ?? id;
   const loadProviders = async () => { try { const response = await fetch("/api/integrations"); const data = await response.json() as { providers?: Provider[] }; if (data.providers?.length) setProviders(data.providers); } catch { /* local preview stays usable */ } setLoading(false); };
@@ -1836,12 +1674,17 @@ function DesktopApp({ authMode, displayName, email }: { authMode: AuthMode; disp
   };
   const navCounts: Partial<Record<View, number>> = { reviewCenter: pendingReviewCount };
   const signOutOfPasswordAccount = () => { fetch("/api/auth/logout", { method: "POST" }).finally(() => { window.location.href = "/"; }); };
-  return <main className={`app-shell ${collapsed ? "sidebar-is-collapsed" : ""}`}><aside className="sidebar"><div className="brand-lockup"><span className="brand-symbol">a</span><div><strong>aval</strong><small>{t("DesktopApp.propertyOperations")}</small></div><button className="icon-button sidebar-collapse" onClick={() => setCollapsed(!collapsed)} aria-label={t(collapsed ? "DesktopApp.expandSidebar" : "DesktopApp.collapseSidebar")} aria-expanded={!collapsed}><ViewColumns3 width={18} height={18}/></button></div><nav>{navGroups.map((group) => <div className="nav-group" key={group.labelKey}><p>{t(group.labelKey)}</p>{group.items.map((item) => { const Icon = item.icon; const count = navCounts[item.id] ?? item.count; return <button className={view === item.id ? "active" : ""} onClick={() => setActiveView(item.id)} key={item.id} title={t(item.labelKey)}><Icon width={20} height={20}/><span>{t(item.labelKey)}</span>{Boolean(count) && <b>{count}</b>}{view === item.id && <NavArrowRight className="nav-chevron" width={16} height={16}/>}</button>; })}</div>)}</nav><button className="workspace-card" aria-expanded={profile} onClick={() => { setCollapsed(false); setProfile(!profile); }}><ProfileAvatar name={displayName} size={36}/><span><strong>{displayName}</strong><small>{email}</small></span><span className="icon-button"><NavArrowDown width={16} height={16}/></span></button>{profile && <div className="profile-menu"><div><ProfileAvatar name={displayName} size={36}/><span><strong>{displayName}</strong><small>{email}</small></span></div><button onClick={() => setActiveView("settings")}><Settings width={17} height={17}/>{t("DesktopApp.profileSettings")}</button><button onClick={() => switchLocale(currentLocale === "en" ? "es-mx" : "en")}><Language width={17} height={17}/>{currentLocale === "en" ? "Español (México)" : "English"}</button><button onClick={() => setMarket(market === "us" ? "latam" : "us")}><Globe width={17} height={17}/>{market === "us" ? t("DesktopApp.marketUnitedStates") : t("DesktopApp.marketLatam")}</button><button onClick={() => setTheme(theme === "light" ? "dark" : "light")}>{theme === "light" ? <HalfMoon width={17} height={17}/> : <SunLight width={17} height={17}/>} {theme === "light" ? t("DesktopApp.darkMode") : t("DesktopApp.lightMode")}</button><button onClick={() => setSounds(!sounds)}>{sounds ? <SoundHigh width={17} height={17}/> : <SoundOff width={17} height={17}/>} {sounds ? t("DesktopApp.soundsOn") : t("DesktopApp.soundsOff")}</button>{isGuest && <a href="?signin=1" className="profile-menu-signin"><Key width={17} height={17}/>{t("DesktopApp.signIn")}</a>}
+  return <main data-workspace-mode="live" className={`app-shell ${collapsed ? "sidebar-is-collapsed" : ""}`}><aside className="sidebar"><div className="brand-lockup"><span className="brand-symbol">a</span><div><strong>aval</strong><small>{t("DesktopApp.propertyOperations")}</small></div><button className="icon-button sidebar-collapse" onClick={() => setCollapsed(!collapsed)} aria-label={t(collapsed ? "DesktopApp.expandSidebar" : "DesktopApp.collapseSidebar")} aria-expanded={!collapsed}><ViewColumns3 width={18} height={18}/></button></div><nav>{navGroups.map((group) => <div className="nav-group" key={group.labelKey}><p>{t(group.labelKey)}</p>{group.items.map((item) => { const Icon = item.icon; const count = navCounts[item.id] ?? item.count; return <button className={view === item.id ? "active" : ""} onClick={() => setActiveView(item.id)} key={item.id} title={t(item.labelKey)}><Icon width={20} height={20}/><span>{t(item.labelKey)}</span>{Boolean(count) && <b>{count}</b>}{view === item.id && <NavArrowRight className="nav-chevron" width={16} height={16}/>}</button>; })}</div>)}</nav><button className="workspace-card" aria-expanded={profile} onClick={() => { setCollapsed(false); setProfile(!profile); }}><ProfileAvatar name={displayName} size={36}/><span><strong>{displayName}</strong><small>{email}</small></span><span className="icon-button"><NavArrowDown width={16} height={16}/></span></button>{profile && <div className="profile-menu"><div><ProfileAvatar name={displayName} size={36}/><span><strong>{displayName}</strong><small>{email}</small></span></div><button onClick={() => setActiveView("settings")}><Settings width={17} height={17}/>{t("DesktopApp.profileSettings")}</button><button onClick={() => switchLocale(currentLocale === "en" ? "es-mx" : "en")}><Language width={17} height={17}/>{currentLocale === "en" ? "Español (México)" : "English"}</button><button onClick={() => setMarket(market === "us" ? "latam" : "us")}><Globe width={17} height={17}/>{market === "us" ? t("DesktopApp.marketUnitedStates") : t("DesktopApp.marketLatam")}</button><button onClick={() => setTheme(theme === "light" ? "dark" : "light")}>{theme === "light" ? <HalfMoon width={17} height={17}/> : <SunLight width={17} height={17}/>} {theme === "light" ? t("DesktopApp.darkMode") : t("DesktopApp.lightMode")}</button><button onClick={() => setSounds(!sounds)}>{sounds ? <SoundHigh width={17} height={17}/> : <SoundOff width={17} height={17}/>} {sounds ? t("DesktopApp.soundsOn") : t("DesktopApp.soundsOff")}</button>{isGuest && <a href="?signin=1" className="profile-menu-signin"><Key width={17} height={17}/>{t("DesktopApp.signIn")}</a>}
       {authMode === "password"
         ? <button type="button" onClick={signOutOfPasswordAccount}><LogOut width={17} height={17}/>{t("DesktopApp.signOut")}</button>
         // eslint-disable-next-line @next/next/no-html-link-for-pages -- external platform sign-out route, not part of this app router
         : <a href="/signout-with-chatgpt?return_to=/"><LogOut width={17} height={17}/>{t("DesktopApp.signOut")}</a>}
-      </div>}</aside><section className="content-shell" aria-label={t(titleKey)}><DesktopServiceBar/>{(view === "calendar" || view === "projects" || view === "teams") && <PlanningWorkspace key={view} view={view} isGuest={isGuest}/>} {view === "overview" && <Overview displayName={displayName} openConnections={openConnections} dataMode={dataMode} providers={providers} pendingTarget={pendingTarget} targetToken={targetToken} reviewStatuses={reviewStatuses} sentReceipts={sentReceipts} onApprove={approveInsight} onDeny={denyInsight} onSendReminders={sendReminderBatch} onCreateDraft={createDraftJob}/>} {view === "tasks" && <TasksView isGuest={isGuest} draftJobs={draftJobs} onCreateDraft={createDraftJob} onPauseDraft={pauseDraftJob} onResumeDraft={resumeDraftJob} onRetryDraft={retryDraftJob} onSendDraft={sendDraftJob}/>} {view === "reviewCenter" && <ReviewCenterView reviewStatuses={reviewStatuses} sentReceipts={sentReceipts} onApprove={approveInsight} onDeny={denyInsight} onSendReminders={sendReminderBatch}/>} {view === "inbox" && <InboxView pendingTarget={pendingTarget} targetToken={targetToken}/>} {view === "connections" && <ConnectionsView providers={providers} loading={loading} onOpen={openProvider}/>} {view === "settings" && <SettingsView openConnections={openConnections} displayName={displayName} email={email}/>} {view === "infrastructure" && <InfrastructureView dataMode={dataMode} onAddMeter={() => setAddMeterOpen(true)}/>} {view === "setup" && <SetupView dataMode={dataMode} openConnections={openConnections}/>} {view === "documents" && <DocumentsView isGuest={isGuest}/>} {(["properties", "leasing", "maintenance", "accounting"] as View[]).includes(view) && <OperationsView view={view} openConnections={openConnections} dataMode={dataMode} providers={providers}/>}</section>{selectedProvider && <ConnectionDialog provider={selectedProvider} onClose={() => setSelectedProvider(null)} onRefresh={loadProviders}/>}{addMeterOpen && <AddMeterDialog onClose={() => setAddMeterOpen(false)}/>}<Dialog.Root open={notifications} onOpenChange={setNotifications}><Dialog.Portal><Dialog.Overlay className="dialog-overlay subtle"/><Dialog.Content className="notification-drawer"><div className="drawer-heading"><div><p className="eyebrow">{t("DesktopApp.liveWorkspace")}</p><Dialog.Title>{t("DesktopApp.notifications")}</Dialog.Title></div><Dialog.Close className="icon-button" aria-label={t("Overview.close")}><Xmark width={20} height={20}/></Dialog.Close></div><div className="notification-list">{notificationItems.map((item) => <button key={item.id} className={item.read ? "" : "unread"} onClick={() => openNotification(item)}><BrandMark provider={resolveNotificationProvider(item)} small/><span><strong>{t(item.titleKey)}</strong><small>{t(item.detailKey, item.detailParams)}</small></span><span className="notif-trailing">{!item.read && <i className="unread-dot"/>}<time>{formatMinutesAgo(item.minutesAgo, currentLocale)}</time></span></button>)}</div><button className="wide-button" onClick={() => setNotificationItems((current) => current.map((item) => ({ ...item, read: true })))}><Check width={17} height={17}/>{unreadCount ? t("DesktopApp.markAllAsRead") : t("DesktopApp.allCaughtUp")}</button></Dialog.Content></Dialog.Portal></Dialog.Root><AvalAssistant view={view} onCreateDraft={createDraftJob}/></main>;
+      </div>}</aside><section className="content-shell" aria-label={t(titleKey)}><DesktopServiceBar/>{(view === "calendar" || view === "projects" || view === "teams") && <PlanningWorkspace key={view} view={view} isGuest={isGuest}/>} {view === "overview" && <Overview displayName={displayName} openConnections={openConnections} dataMode={dataMode} providers={providers} pendingTarget={pendingTarget} targetToken={targetToken} reviewStatuses={reviewStatuses} sentReceipts={sentReceipts} onApprove={approveInsight} onDeny={denyInsight} onSendReminders={sendReminderBatch} onCreateDraft={createDraftJob}/>} {view === "tasks" && <TasksView onRemoveDrafts={removeDraftJobs} loading={draftsLoading} draftJobs={draftJobs} onCreateDraft={createDraftJob} onPauseDraft={pauseDraftJob} onResumeDraft={resumeDraftJob} onRetryDraft={retryDraftJob} onSendDraft={sendDraftJob}/>} {view === "reviewCenter" && <div className="view-wrap"><AppHeader title={t("Nav.reviewCenter")} subtitle={t("DemoMode.realDataOnly")}/><AgentTrace/></div>} {view === "inbox" && <ConnectedInbox/>} {view === "connections" && <ConnectionsView providers={providers} loading={loading} onOpen={openProvider}/>} {view === "settings" && <SettingsView openConnections={openConnections} displayName={displayName} email={email}/>} {view === "infrastructure" && <InfrastructureView dataMode={dataMode} onAddMeter={() => setAddMeterOpen(true)}/>} {view === "setup" && <SetupView dataMode={dataMode} openConnections={openConnections}/>} {view === "documents" && <DocumentsView isGuest={isGuest}/>} {(["properties", "leasing", "maintenance", "accounting"] as View[]).includes(view) && <OperationsView view={view} openConnections={openConnections} dataMode={dataMode} providers={providers}/>}</section>{selectedProvider && <ConnectionDialog provider={selectedProvider} onClose={() => setSelectedProvider(null)} onRefresh={loadProviders}/>}{addMeterOpen && <AddMeterDialog onClose={() => setAddMeterOpen(false)}/>}<Dialog.Root open={notifications} onOpenChange={setNotifications}><Dialog.Portal><Dialog.Overlay className="dialog-overlay subtle"/><Dialog.Content className="notification-drawer"><div className="drawer-heading"><div><p className="eyebrow">{t("DesktopApp.liveWorkspace")}</p><Dialog.Title>{t("DesktopApp.notifications")}</Dialog.Title></div><Dialog.Close className="icon-button" aria-label={t("Overview.close")}><Xmark width={20} height={20}/></Dialog.Close></div><div className="notification-list">{notificationItems.map((item) => <button key={item.id} className={item.read ? "" : "unread"} onClick={() => openNotification(item)}><BrandMark provider={resolveNotificationProvider(item)} small/><span><strong>{t(item.titleKey)}</strong><small>{t(item.detailKey, item.detailParams)}</small></span><span className="notif-trailing">{!item.read && <i className="unread-dot"/>}<time>{formatMinutesAgo(item.minutesAgo, currentLocale)}</time></span></button>)}</div><button className="wide-button" onClick={() => setNotificationItems((current) => current.map((item) => ({ ...item, read: true })))}><Check width={17} height={17}/>{unreadCount ? t("DesktopApp.markAllAsRead") : t("DesktopApp.allCaughtUp")}</button></Dialog.Content></Dialog.Portal></Dialog.Root><AvalAssistant view={view} onCreateDraft={createDraftJob}/></main>;
 }
 
-export function AvalDashboard({ authMode, displayName, email }: { authMode: AuthMode; displayName: string; email: string }) { return <ExperienceProvider><AppearanceProvider key={`${authMode}:${email}`} isGuest={authMode === "guest"}><DesktopApp authMode={authMode} displayName={displayName} email={email}/></AppearanceProvider></ExperienceProvider>; }
+export function AvalDashboard({ authMode, displayName, email, mode = "live", requestedView }: { authMode: AuthMode; displayName: string; email: string; mode?: WorkspaceMode; requestedView?: string }) {
+  const initialView = navGroups.some((g) => g.items.some((item) => item.id === requestedView)) ? requestedView as View : "overview";
+  return <ExperienceProvider><AppearanceProvider key={`${mode}:${authMode}:${email}`} isGuest={mode === "demo" || authMode === "guest"}>{mode === "demo"
+    ? <DemoWorkspace navigation={navGroups} providers={fallbackProviders} initialView={initialView} isGuest={authMode === "guest"} setup={(openConnections) => <SetupView demo dataMode="sample" openConnections={openConnections}/>} infrastructure={(onAddMeter) => <InfrastructureView dataMode="sample" onAddMeter={onAddMeter}/>}/>
+    : <DesktopApp authMode={authMode} displayName={displayName} email={email} initialView={initialView}/>}</AppearanceProvider></ExperienceProvider>;
+}

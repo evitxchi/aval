@@ -1,54 +1,111 @@
-import { desc, eq, and } from "drizzle-orm";
+import { desc, eq, and, ne } from "drizzle-orm";
 import { getDb } from "@/db";
 import { draftDocuments } from "@/db/schema";
-import { getApiIdentity } from "@/lib/integrations/session";
+import { getApiIdentity, isGuestIdentity } from "@/lib/integrations/session";
+
+import { ensureOrganization } from "@/lib/integrations/organizations";
+import { removeDrafts, validDraftId } from "@/lib/ask-aval/draft-store";
 
 /** Every persisted Ask Aval Tasks draft for this org, newest first — hydrates the client on load so a refresh doesn't lose them. */
 export async function GET(request: Request) {
   const identity = await getApiIdentity(request);
-  if (!identity) return Response.json({ error: "Authentication required" }, { status: 401 });
+  if (!identity)
+    return Response.json({ error: "Authentication required" }, { status: 401 });
 
   const db = getDb();
   const rows = await db
     .select()
     .from(draftDocuments)
-    .where(eq(draftDocuments.organizationId, identity.organizationId))
+    .where(
+      and(
+        eq(draftDocuments.organizationId, identity.organizationId),
+        ne(draftDocuments.status, "deleted"),
+      ),
+    )
     .orderBy(desc(draftDocuments.createdAt));
 
-  return Response.json({
-    documents: rows.map((row) => ({
-      id: row.id,
-      title: row.title,
-      instructions: row.instructions,
-      format: row.format,
-      status: row.status,
-      headline: row.headline,
-      narrative: row.narrative,
-      documentType: row.documentType,
-      document: row.documentMarkdown,
-      metrics: JSON.parse(row.metricsJson || "[]"),
-      chart: row.chartJson ? JSON.parse(row.chartJson) : null,
-      confidence: row.confidence,
-      error: row.errorMessage,
-      sentTo: row.sentTo,
-      moduleLabel: row.moduleLabel,
-      createdAt: row.createdAt?.getTime() ?? Date.now(),
-    })),
-  }, { headers: { "cache-control": "no-store" } });
+  return Response.json(
+    {
+      documents: rows.map((row) => ({
+        id: row.id,
+        title: row.title,
+        instructions: row.instructions,
+        format: row.format,
+        status: row.status,
+        headline: row.headline,
+        narrative: row.narrative,
+        documentType: row.documentType,
+        document: row.documentMarkdown,
+        metrics: JSON.parse(row.metricsJson || "[]"),
+        chart: row.chartJson ? JSON.parse(row.chartJson) : null,
+        confidence: row.confidence,
+        error: row.errorMessage,
+        sentTo: row.sentTo,
+        moduleLabel: row.moduleLabel,
+        createdAt: row.createdAt?.getTime() ?? Date.now(),
+      })),
+    },
+    { headers: { "cache-control": "no-store" } },
+  );
 }
 
 export async function PATCH(request: Request) {
   const identity = await getApiIdentity(request);
-  if (!identity) return Response.json({ error: "Authentication required" }, { status: 401 });
+  if (!identity)
+    return Response.json({ error: "Authentication required" }, { status: 401 });
 
-  const body = (await request.json().catch(() => ({}))) as { id?: string; sentTo?: string };
-  if (!body.id || !body.sentTo) return Response.json({ error: "id and sentTo are required" }, { status: 400 });
+  const body = (await request.json().catch(() => ({}))) as {
+    id?: string;
+    sentTo?: string;
+  };
+  if (!body.id || !body.sentTo)
+    return Response.json(
+      { error: "id and sentTo are required" },
+      { status: 400 },
+    );
 
   const db = getDb();
   await db
     .update(draftDocuments)
     .set({ sentTo: body.sentTo, updatedAt: new Date() })
-    .where(and(eq(draftDocuments.id, body.id), eq(draftDocuments.organizationId, identity.organizationId)));
+    .where(
+      and(
+        eq(draftDocuments.id, body.id),
+        eq(draftDocuments.organizationId, identity.organizationId),
+        ne(draftDocuments.status, "deleted"),
+      ),
+    );
 
   return Response.json({ ok: true });
+}
+
+/** Delete exactly the selected drafts, including a Clear snapshot. */
+export async function DELETE(request: Request) {
+  const identity = await getApiIdentity(request);
+  if (!identity || isGuestIdentity(identity))
+    return Response.json(
+      { error: "Sign in to manage drafts" },
+      { status: 401 },
+    );
+  const body = (await request.json().catch(() => null)) as {
+    ids?: unknown;
+  } | null;
+  if (
+    !body ||
+    !Array.isArray(body.ids) ||
+    !body.ids.length ||
+    body.ids.length > 50 ||
+    !body.ids.every(validDraftId)
+  ) {
+    return Response.json(
+      { error: "Provide 1–50 valid draft IDs" },
+      { status: 400 },
+    );
+  }
+  await ensureOrganization(identity);
+  await removeDrafts(identity, [...new Set<string>(body.ids)]);
+  return Response.json(
+    { ok: true },
+    { headers: { "cache-control": "no-store" } },
+  );
 }

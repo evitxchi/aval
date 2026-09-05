@@ -5,6 +5,7 @@ import {
   useState,
   type FormEvent,
   type ReactNode,
+  type SetStateAction,
 } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import * as Dialog from "@radix-ui/react-dialog";
@@ -62,22 +63,32 @@ export function PlanningWorkspace({
   view,
   isGuest,
   activity,
+  demoData,
+  onDemoChange,
 }: {
   view: "calendar" | "projects" | "teams" | "tasks";
   isGuest: boolean;
   activity?: ReactNode;
+  demoData?: PlanningData;
+  onDemoChange?: (data: PlanningData) => void;
 }) {
   const t = useTranslations("Planning"),
     e = useTranslations("Enterprise"),
     locale = useLocale();
-  const [data, setData] = useState<PlanningData>({
+  const [storedData, setStoredData] = useState<PlanningData>({
       projects: [],
       items: [],
       members: [],
     }),
-    [loading, setLoading] = useState(!isGuest),
+    [loading, setLoading] = useState(!isGuest && !demoData),
     [error, setError] = useState(""),
     [revision, setRevision] = useState(0);
+  const data = demoData ?? storedData;
+  const setData = (update: SetStateAction<PlanningData>) => {
+    if (demoData && onDemoChange)
+      onDemoChange(typeof update === "function" ? update(demoData) : update);
+    else setStoredData(update);
+  };
   const [anchor, setAnchor] = useState(() => startOfDay(new Date())),
     [layout, setLayout] = useState<"calendar" | "timeline" | "list" | "board">(
       view === "tasks"
@@ -102,7 +113,7 @@ export function PlanningWorkspace({
     [formError, setFormError] = useState(""),
     [confirmDelete, setConfirmDelete] = useState(false);
   useEffect(() => {
-    if (isGuest) return;
+    if (isGuest || demoData) return;
     const abort = new AbortController();
     void (async () => {
       setLoading(true);
@@ -114,7 +125,7 @@ export function PlanningWorkspace({
         });
         if (!r.ok) throw Error();
         const body = (await r.json()) as PlanningData;
-        if (!abort.signal.aborted) setData(body);
+        if (!abort.signal.aborted) setStoredData(body);
       } catch {
         if (!abort.signal.aborted) setError(t("loadError"));
       } finally {
@@ -122,7 +133,7 @@ export function PlanningWorkspace({
       }
     })();
     return () => abort.abort();
-  }, [revision, isGuest, t]);
+  }, [revision, isGuest, t, demoData]);
   const filtered = useMemo(
     () =>
       data.items.filter(
@@ -194,6 +205,29 @@ export function PlanningWorkspace({
               ...form,
               ...(editing ? { id: editing.id, version: editing.version } : {}),
             };
+      if (demoData) {
+        if (editor === "project") {
+          const project = {
+            ...projectForm,
+            id: `demo-${crypto.randomUUID()}`,
+            createdAt: Date.now(),
+          };
+          setData((d) => ({ ...d, projects: [project, ...d.projects] }));
+          setProjectFilter(project.id);
+        } else {
+          const item = {
+            ...form,
+            id: editing?.id ?? `demo-${crypto.randomUUID()}`,
+            version: (editing?.version ?? 0) + 1,
+          };
+          setData((d) => ({
+            ...d,
+            items: [...d.items.filter((i) => i.id !== item.id), item],
+          }));
+        }
+        setEditor(null);
+        return;
+      }
       const response = await fetch("/api/planning", {
         method: editor === "item" && editing ? "PUT" : "POST",
         headers: { "content-type": "application/json" },
@@ -233,6 +267,14 @@ export function PlanningWorkspace({
     setSaving(true);
     setFormError("");
     try {
+      if (demoData) {
+        setData((d) => ({
+          ...d,
+          items: d.items.filter((i) => i.id !== editing.id),
+        }));
+        setEditor(null);
+        return;
+      }
       const r = await fetch("/api/planning", {
         method: "DELETE",
         headers: { "content-type": "application/json" },
@@ -356,7 +398,7 @@ export function PlanningWorkspace({
                   })}
                 </div>
               </section>
-              <WorkspaceMembers />
+              {!demoData && <WorkspaceMembers />}
             </>
           ) : (
             <>

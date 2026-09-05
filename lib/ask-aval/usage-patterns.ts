@@ -15,7 +15,7 @@
  * reported to the model as "this workspace denies X."
  */
 
-import { eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { getDb } from "@/db";
 import { automationRuns, draftDocuments, insightDecisions } from "@/db/schema";
 
@@ -47,7 +47,7 @@ export async function getUsagePatternContext(organizationId: string): Promise<st
   const [decisions, runs, drafts] = await Promise.all([
     db.select().from(insightDecisions).where(eq(insightDecisions.organizationId, organizationId)),
     db.select().from(automationRuns).where(eq(automationRuns.organizationId, organizationId)),
-    db.select().from(draftDocuments).where(eq(draftDocuments.organizationId, organizationId)),
+    db.select().from(draftDocuments).where(and(eq(draftDocuments.organizationId, organizationId), ne(draftDocuments.status, "deleted"))),
   ]);
 
   const lines: string[] = [];

@@ -1,6 +1,6 @@
 {
   "name": "aval-desktop",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "private": true,
   "description": "Trusted desktop shell for Aval with a local Codex App Server bridge",
   "main": "main.cjs",
@@ -10,7 +10,8 @@
     "package:mac": "electron-builder --mac",
     "package:mac:offline": "zsh scripts/package-offline-mac.sh",
     "package:win": "electron-builder --win",
-    "package:linux": "electron-builder --linux"
+    "package:linux": "electron-builder --linux",
+    "package:mac:local": "electron-builder --mac --publish never --config.electronDist=node_modules/electron/dist --config.forceCodeSigning=false --config.mac.identity=- --config.mac.hardenedRuntime=false --config.mac.notarize=false --config.dmg.sign=false"
   },
   "devDependencies": {
     "ajv": "8.20.0",
@@ -97,7 +98,7 @@
       ],
       "iconSize": 112,
       "iconTextSize": 13,
-    "sign": true,
+      "sign": true,
       "title": "Aval",
       "format": "UDZO"
     },

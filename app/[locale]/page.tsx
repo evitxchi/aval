@@ -1,16 +1,13 @@
 import { getPageIdentity } from "@/lib/integrations/session";
 import { SignInScreen } from "@/app/components/auth-gate";
+import { resolveWorkspaceMode } from "@/lib/workspace-mode";
 import { AvalDashboard } from "./dashboard-client";
 
 /**
- * Open access: every visitor gets the dashboard. A signed-in account resolves
- * to its own workspace; everyone else shares the guest workspace
- * (PUBLIC_DEMO_ORGANIZATION_ID), which by construction can never be a real
- * account's org — see lib/integrations/session.ts.
- *
- * The sign-in screen is still reachable at `?signin=1`, because removing the
- * gate must not lock existing account holders out of their own data. Guests
- * are shown a link to it in the profile menu.
+ * Signed-in visitors default to their authenticated workspace. Explicit demo
+ * mode and signed-out visitors mount a separate in-memory preview. The mode
+ * is resolved here, before any account data providers mount in the browser.
+ * Sign-in remains accessible at `?signin=1` and on exiting a guest preview.
  */
 export default async function Home({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const params = await searchParams;
@@ -23,5 +20,5 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
   // secondary figure, and pull the database binding into a page that otherwise
   // server-renders without one. The hero fetches it from /api/workspace after
   // paint instead — the greeting and typed line render immediately either way.
-  return <AvalDashboard authMode={identity.source} displayName={identity.displayName} email={identity.email} />;
+  return <AvalDashboard mode={resolveWorkspaceMode(identity.source === "guest", params.data)} requestedView={typeof params.view === "string" ? params.view : undefined} authMode={identity.source} displayName={identity.displayName} email={identity.email} />;
 }

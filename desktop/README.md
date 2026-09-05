@@ -23,6 +23,22 @@ Set `AVAL_DESKTOP_URL=http://localhost:3000` to point the shell at a local Aval 
 npm run package:mac
 ```
 
+For a local development installer using the already installed Electron runtime:
+
+```sh
+npm run package:mac:local
+```
+
+This local package is ad-hoc signed and is not notarized. Run the command in a
+normal macOS terminal: restricted automation sessions may reject disk-image
+creation with `hdiutil: create failed - Device not configured`. The packaged
+`dist/mac-arm64/Aval.app` and ZIP can still be produced when DMG creation fails.
+Production signing requirements remain enabled for `package:mac` and GitHub.
+
+Desktop loads the hosted website. The release workflow now waits for the
+Cloudflare production workflow for the same commit to succeed before publishing
+`desktop-latest`, so the released desktop wrapper and its hosted UI agree.
+
 `npm run package:mac` is the production path and fails unless a Developer ID identity is available. The GitHub release workflow imports the signing certificate, notarizes the app and DMG with an App Store Connect API key, staples both tickets, verifies them with `codesign`, `stapler`, and Gatekeeper, and publishes SHA-256 checksums. Required repository secrets are documented in `docs/AGENT_PRODUCTION_RUNBOOK.md`.
 
 When npm is unavailable, `npm run package:mac:offline` can create an Apple-silicon development DMG from an already-installed Electron 44 runtime. The resulting app is ad-hoc signed for local testing, not notarized for public distribution. The DMG uses the same 660×420 Aval-branded Finder layout as the normal electron-builder package, including a live `/Applications` link; eject any older Aval disk image before rebuilding.
