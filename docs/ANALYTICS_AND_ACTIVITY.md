@@ -12,6 +12,9 @@ There is no demo mode. Legacy `?data=sample` links cannot enable sample data. An
 
 Desktop 0.1.7 loads the hosted application. The desktop release waits for the same commit's successful website deployment before publishing signed/notarized assets.
 
-Since anonymous demo access is removed, the durable-agent production smoke must sign in. Configure the production GitHub environment secrets `AVAL_SMOKE_EMAIL` and `AVAL_SMOKE_PASSWORD` for a dedicated verification account with Aval Intelligence available. The workflow validates these before applying migrations or deploying. Credentials and session cookies are never printed. The smoke still proves an actual authenticated enqueue, model call, tool call, and persisted answer; it does not replace that check with an anonymous page load.
+CI and local development use Node 24.16.0, pinned in `.node-version`.
+
+Since anonymous access is removed, the durable-agent smoke signs in normally. The workflow provisions one reserved verification account in an isolated workspace using its existing D1 deployment permission. It rotates a random 256-bit password each run, stores only its PBKDF2 hash in D1, and removes the runner's temporary credentials afterward. No business/sample records or connections are inserted. This account has no membership in customer workspaces. Optional `AVAL_SMOKE_EMAIL` and `AVAL_SMOKE_PASSWORD` secrets can select an existing dedicated verification account instead; neither is required for the default workflow. The smoke still proves an actual authenticated enqueue, model call, tool call, and persisted answer.
+
 
 For machines that cannot mount temporary disk images, build the app with `npm run package:mac:local --prefix desktop` and then run `npm run package:mac:dmg-local --prefix desktop`. The fallback creates a true HFS+ UDZO DMG with an Applications link, verifies its checksum, and preserves the app bundle. It is a local, non-notarized artifact; GitHub release builds retain Developer ID signing, notarization, and Gatekeeper checks.

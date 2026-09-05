@@ -6,6 +6,8 @@
  * -> persisted trace -> terminal answer. Polling here only observes state.
  */
 
+import { readFileSync } from "node:fs";
+
 const baseUrl = (process.argv[2] ?? process.env.AVAL_PRODUCTION_URL ?? "").replace(/\/$/, "");
 if (!/^https:\/\//.test(baseUrl)) {
   console.error("Usage: node scripts/smoke-durable-agent.mjs https://production.example");
@@ -13,10 +15,12 @@ if (!/^https:\/\//.test(baseUrl)) {
 }
 
 // Demo access no longer exists. Exercise the real account session boundary.
-const email = process.env.AVAL_SMOKE_EMAIL;
-const password = process.env.AVAL_SMOKE_PASSWORD;
+const prepared = process.env.AVAL_SMOKE_CREDENTIALS_FILE
+  ? JSON.parse(readFileSync(process.env.AVAL_SMOKE_CREDENTIALS_FILE, "utf8")) : {};
+const email = process.env.AVAL_SMOKE_EMAIL || prepared.email;
+const password = process.env.AVAL_SMOKE_PASSWORD || prepared.password;
 if (!email || !password) {
-  fail("Authenticated production smoke needs AVAL_SMOKE_EMAIL and AVAL_SMOKE_PASSWORD for a dedicated verification account.", {});
+  fail("Run prepare-smoke-account.mjs in CI first, or supply a dedicated verification account via AVAL_SMOKE_EMAIL and AVAL_SMOKE_PASSWORD.", {});
 }
 const login = await fetch(`${baseUrl}/api/auth/login`, {
   method: "POST", headers: { "content-type": "application/json" },

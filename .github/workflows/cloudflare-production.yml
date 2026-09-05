@@ -27,7 +27,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version-file: ".node-version"
           cache: npm
 
       - name: Require deployment configuration
@@ -46,22 +46,23 @@ jobs:
       - run: npm test
 
       # Apply additive migrations before the Worker writes the new tables.
-      - name: Check authenticated smoke configuration
+      - name: Apply production D1 migrations
+        run: npx wrangler d1 migrations apply aval-production --remote --config wrangler.deploy.jsonc
+
+      - name: Prepare an isolated authenticated verification account
         env:
           AVAL_SMOKE_EMAIL: ${{ secrets.AVAL_SMOKE_EMAIL }}
           AVAL_SMOKE_PASSWORD: ${{ secrets.AVAL_SMOKE_PASSWORD }}
-        run: |
-          test -n "$AVAL_SMOKE_EMAIL" || { echo "::error::Missing AVAL_SMOKE_EMAIL for the dedicated verification account"; exit 1; }
-          test -n "$AVAL_SMOKE_PASSWORD" || { echo "::error::Missing AVAL_SMOKE_PASSWORD for the dedicated verification account"; exit 1; }
-
-      - name: Apply production D1 migrations
-        run: npx wrangler d1 migrations apply aval-production --remote --config wrangler.deploy.jsonc
+        run: node scripts/prepare-smoke-account.mjs
 
       - name: Deploy production Worker and cron
         run: npx wrangler deploy --config wrangler.deploy.jsonc
 
       - name: Prove one authenticated live durable-agent run
         env:
-          AVAL_SMOKE_EMAIL: ${{ secrets.AVAL_SMOKE_EMAIL }}
-          AVAL_SMOKE_PASSWORD: ${{ secrets.AVAL_SMOKE_PASSWORD }}
+          AVAL_SMOKE_CREDENTIALS_FILE: ${{ runner.temp }}/aval-smoke-credentials.json
         run: node scripts/smoke-durable-agent.mjs "$AVAL_PRODUCTION_URL"
+
+      - name: Remove temporary verification credentials
+        if: always()
+        run: rm -f "$RUNNER_TEMP/aval-smoke-credentials.json" "$RUNNER_TEMP/aval-smoke-account.sql"
