@@ -97,6 +97,7 @@
       ],
       "iconSize": 112,
       "iconTextSize": 13,
+    "sign": true,
       "title": "Aval",
       "format": "UDZO"
     },

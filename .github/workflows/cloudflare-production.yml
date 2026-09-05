@@ -38,6 +38,9 @@ jobs:
           [[ "$AVAL_PRODUCTION_URL" == https://* ]] || { echo "::error::AVAL_PRODUCTION_URL must be an HTTPS production URL"; exit 1; }
 
       - run: npm ci
+      # The root suite discovers desktop/test/, whose cases read the
+      # electron-builder schema out of desktop's own dependencies.
+      - run: npm ci --prefix desktop
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test

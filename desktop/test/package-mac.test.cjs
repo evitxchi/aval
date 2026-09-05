@@ -114,6 +114,12 @@ test("the DMG ships a self-contained Codex runtime", () => {
   // The runtime ships once, via extraResources -- never also inside the asar.
   assert.ok(build.files.includes("!node_modules/**"));
 
+  // electron-builder signs the .app but leaves the DMG container unsigned by
+  // default. Gatekeeper assesses the container the user actually double-clicks,
+  // and rejects an unsigned one as "no usable signature" even when a
+  // notarization ticket is stapled to it.
+  assert.equal(build.dmg.sign, true, "the DMG container must be signed, not only the app inside it");
+
   // The vendored runtime is arm64-only; an x64 DMG would ship a binary that
   // cannot run, so the targets pin the architecture.
   for (const target of build.mac.target) {
