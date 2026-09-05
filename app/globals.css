@@ -1657,3 +1657,52 @@ html.aval-module-picking .content-shell { cursor: crosshair; }
 [data-theme="dark"] .agent-task-detail,
 [data-theme="dark"] .agent-approval-args,
 [data-theme="dark"] .agent-trace-card { background: var(--surface-soft); }
+
+/* ── workspace members ─────────────────────────────────────────────────── */
+.workspace-members { grid-column: 1 / -1; min-height: 0; display: grid; gap: 15px; }
+.workspace-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.workspace-header h2 { margin-bottom: 0; }
+.workspace-role-badge { display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0; padding: 5px 9px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); background: var(--surface); font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: .045em; }
+.workspace-explainer { margin: 0; color: var(--muted); font-size: 9.5px; line-height: 1.55; max-width: 68ch; }
+
+.workspace-switcher { display: grid; gap: 7px; }
+.workspace-switcher > span { color: var(--ink); font-size: 10px; font-weight: 500; }
+.workspace-switcher-options { display: flex; flex-wrap: wrap; gap: 7px; }
+.workspace-chip { display: inline-flex; align-items: baseline; gap: 7px; padding: 7px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); font-size: 10.5px; cursor: pointer; transition: border-color .15s ease, background .15s ease; }
+.workspace-chip small { color: var(--muted); font-size: 8.5px; text-transform: uppercase; letter-spacing: .04em; }
+.workspace-chip:hover:not(:disabled) { border-color: var(--line-strong, var(--muted)); }
+.workspace-chip.current { border-color: transparent; background: color-mix(in srgb, var(--accent, var(--ink)) 9%, var(--surface)); cursor: default; }
+
+.workspace-roster { margin: 0; padding: 0; list-style: none; display: grid; gap: 1px; border: 1px solid var(--line); border-radius: 13px; background: var(--line); overflow: hidden; }
+.workspace-roster li { display: flex; align-items: center; gap: 11px; padding: 11px 13px; background: var(--surface); }
+.workspace-avatar { display: grid; place-items: center; flex-shrink: 0; width: 27px; height: 27px; border-radius: 50%; background: color-mix(in srgb, var(--ink) 6%, var(--surface)); color: var(--muted); }
+.workspace-identity { display: grid; gap: 1px; min-width: 0; flex: 1; }
+.workspace-identity strong { color: var(--ink); font-size: 11px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-identity small { color: var(--muted); font-size: 9px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-role-tag { flex-shrink: 0; color: var(--muted); font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: .045em; }
+.workspace-roster select { flex-shrink: 0; padding: 5px 8px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); color: var(--ink); font-size: 10px; font-family: inherit; }
+.workspace-remove { display: grid; place-items: center; flex-shrink: 0; width: 25px; height: 25px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--muted); cursor: pointer; transition: color .15s ease, border-color .15s ease; }
+.workspace-remove:hover:not(:disabled) { color: var(--viz-red, #a93529); border-color: color-mix(in srgb, var(--viz-red, #a93529) 40%, var(--line)); }
+
+.workspace-invite { display: grid; gap: 11px; padding: 13px; border: 1px solid var(--line); border-radius: 13px; background: color-mix(in srgb, var(--ink) 2%, var(--surface)); }
+.workspace-invite-controls { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
+.workspace-invite-controls label { display: grid; gap: 5px; color: var(--ink); font-size: 10px; font-weight: 500; }
+.workspace-invite-controls select { padding: 7px 9px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); color: var(--ink); font-size: 10.5px; font-family: inherit; }
+.workspace-code { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 11px 13px; border: 1px solid color-mix(in srgb, var(--viz-green, #2c7a5b) 30%, var(--line)); border-radius: 11px; background: color-mix(in srgb, var(--viz-green, #2c7a5b) 6%, var(--surface)); }
+.workspace-code p { margin: 0 0 5px; color: var(--muted); font-size: 9px; line-height: 1.5; max-width: 52ch; }
+.workspace-code code { display: block; color: var(--ink); font-size: 12px; font-weight: 600; letter-spacing: .03em; word-break: break-all; }
+.workspace-invitations { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.workspace-invitations li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 11px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); color: var(--muted); font-size: 9.5px; }
+
+.workspace-redeem { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
+.workspace-redeem label { display: grid; gap: 4px; flex: 1; min-width: 210px; color: var(--ink); font-size: 10px; font-weight: 500; }
+.workspace-redeem small { color: var(--muted); font-size: 9px; font-weight: 400; }
+.workspace-redeem input { padding: 8px 10px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); color: var(--ink); font-size: 10.5px; font-family: inherit; }
+.workspace-feedback { margin: 0; font-size: 9.5px; line-height: 1.5; }
+.workspace-feedback.error { color: var(--viz-red, #a93529); }
+.workspace-feedback.success { color: var(--viz-green, #2c7a5b); }
+
+@media (max-width: 640px) {
+  .workspace-invite-controls, .workspace-redeem { align-items: stretch; }
+  .workspace-roster li { flex-wrap: wrap; }
+}

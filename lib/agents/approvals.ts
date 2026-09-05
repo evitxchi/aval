@@ -22,6 +22,7 @@ import { approvalTierFor, requiredApprovalsFor, type ApprovalTier } from "./fina
 import type { ToolDescriptor } from "./registry.ts";
 
 import { canDecide } from "./approval-rules.ts";
+import type { WorkspaceRole } from "../organizations/roles.ts";
 import { APPROVAL_TTL_MS } from "./approvals-ttl.ts";
 export type { ApprovalStatus } from "./approval-rules.ts";
 import type { ApprovalStatus } from "./approval-rules.ts";
@@ -75,6 +76,8 @@ export interface ApprovalRecord {
  */
 export async function requestApproval(request: ApprovalRequest): Promise<ApprovalRecord> {
   const now = new Date();
+  const resolvedTier: ApprovalTier = request.tier
+    ?? (request.amountCents === undefined ? "single_approver" : approvalTierFor(request.amountCents));
   const row = {
     id: crypto.randomUUID(),
     taskId: request.taskId,
@@ -82,7 +85,7 @@ export async function requestApproval(request: ApprovalRequest): Promise<Approva
     stepIndex: request.stepIndex,
     toolName: request.tool.name,
     riskLevel: request.tool.riskLevel,
-    tier: request.tier ?? (request.amountCents === undefined ? ("single_approver" as ApprovalTier) : approvalTierFor(request.amountCents)),
+    tier: resolvedTier,
     amountCents: request.amountCents ?? null,
     currency: request.currency ?? null,
     evidenceJson: JSON.stringify(request.evidence),
@@ -92,7 +95,13 @@ export async function requestApproval(request: ApprovalRequest): Promise<Approva
     decidedAt: null,
     decidedByUserId: null,
     decisionNote: null,
-    requiredApprovals: request.requiredApprovals ?? (requiredApprovalsFor(request.tier ?? "single_approver") || 1),
+    // Derived from the tier this request actually carries, not from the
+    // caller's optional hint. Reading `request.tier` here meant an amount-
+    // derived `elevated_approver` was still stamped with one required
+    // approver, so one person could clear a two-person action alone. It was
+    // unreachable until workspaces could hold two people, which is exactly
+    // when it would have started mattering.
+    requiredApprovals: request.requiredApprovals ?? (requiredApprovalsFor(resolvedTier) || 1),
     approvalsReceived: 0,
     policyVersion: request.policyVersion ?? 1,
   };
@@ -156,7 +165,7 @@ export async function listPendingApprovals(organizationId: string, limit = 50): 
 
 export type DecisionOutcome =
   | { ok: true; approval: ApprovalRecord; complete: boolean }
-  | { ok: false; reason: "not_found" | "already_decided" | "expired" | "self_approval" | "duplicate_approver" };
+  | { ok: false; reason: "not_found" | "already_decided" | "expired" | "self_approval" | "not_an_approver" | "duplicate_approver" };
 
 /**
  * Records a decision.
@@ -181,12 +190,13 @@ export async function decideApproval(
   decision: "approved" | "rejected",
   decidedByUserId: string,
   requestedByUserId: string,
+  deciderRole: WorkspaceRole,
   note?: string,
 ): Promise<DecisionOutcome> {
   const approval = await getApproval(organizationId, approvalId);
   if (!approval) return { ok: false, reason: "not_found" };
 
-  const guard = canDecide(approval, decision, decidedByUserId, requestedByUserId);
+  const guard = canDecide(approval, decision, decidedByUserId, requestedByUserId, deciderRole);
   if (!guard.ok) {
     // Expiry is also written through, so the row stops appearing as pending —
     // but the refusal above does not depend on that write succeeding.

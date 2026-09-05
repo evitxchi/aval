@@ -36,7 +36,7 @@ export async function POST(request: Request) {
   }
 
   const organizationId = await organizationIdForUser(user.id);
-  await ensureOrganization({ userId: user.id, email: user.email, displayName: user.displayName, organizationId, source: "password" });
+  await ensureOrganization({ userId: user.id, email: user.email, displayName: user.displayName, organizationId, role: "owner", source: "password" });
 
   const cookie = await createSessionCookie({ userId: user.id, email: user.email, displayName: user.displayName });
   return new Response(JSON.stringify({ email: user.email, displayName: user.displayName }), {

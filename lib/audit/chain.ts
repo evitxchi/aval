@@ -46,7 +46,14 @@ export type AuditEntryKind =
   | "delegation"
   | "task_completed"
   | "task_failed"
-  | "task_cancelled";
+  | "task_cancelled"
+  // workspace membership — who can see this tenant's data, and who can
+  // approve an agent action in it, belongs in the same tamper-evident record
+  // as the approvals themselves.
+  | "membership_changed"
+  | "invitation_issued"
+  | "invitation_accepted"
+  | "invitation_revoked";
 
 /** One link, before it is chained. */
 export interface AuditEvent {

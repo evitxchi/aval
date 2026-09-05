@@ -1,8 +1,21 @@
 import { headers } from "next/headers";
 import { readSessionCookie } from "@/lib/auth/session-cookie";
 import type { AuthMode } from "@/app/components/auth-gate";
+import { IMPLICIT_OWNER_ROLE, type WorkspaceRole } from "@/lib/organizations/roles";
 
-export type ApiIdentity = { userId: string; email: string; displayName: string; organizationId: string; source: AuthMode };
+export type ApiIdentity = {
+  userId: string;
+  email: string;
+  displayName: string;
+  organizationId: string;
+  /**
+   * What this user may do in `organizationId`. Resolved per request from
+   * membership rather than carried in the session, so revoking access takes
+   * effect on the next call instead of when a thirty-day cookie expires.
+   */
+  role: WorkspaceRole;
+  source: AuthMode;
+};
 
 /**
  * The workspace every signed-out visitor shares.
@@ -35,7 +48,25 @@ export async function getApiIdentity(request: Request): Promise<ApiIdentity | nu
   // no such headers at all, so this is the only path real visitors have.
   const sessionUser = await readSessionCookie(request);
   if (sessionUser) {
-    return { ...sessionUser, organizationId: await organizationIdForUser(sessionUser.userId), source: "password" };
+    const personal = await organizationIdForUser(sessionUser.userId);
+    // The cookie says which workspace was chosen; membership decides whether
+    // it still counts. A revoked member falls back to their own workspace
+    // rather than keeping access until the cookie expires.
+    // Dynamic for the same reason session-cookie.ts imports its secret that
+    // way: this module is reachable from page rendering, and membership.ts
+    // reaches db/index.ts, which statically imports the Workers-only
+    // `cloudflare:workers`. A static import there fails to *load* outside a
+    // real Workers runtime — before any code runs and with nothing to catch.
+    const { resolveMembership } = await import("@/lib/organizations/membership");
+    const membership = await resolveMembership(sessionUser.userId, personal, sessionUser.activeOrganizationId);
+    return {
+      userId: sessionUser.userId,
+      email: sessionUser.email,
+      displayName: sessionUser.displayName,
+      organizationId: membership.organizationId,
+      role: membership.role,
+      source: "password",
+    };
   }
 
   let hostname = "";
@@ -65,6 +96,10 @@ export async function getApiIdentity(request: Request): Promise<ApiIdentity | nu
       email: "guest@aval.app",
       displayName: "Guest",
       organizationId: PUBLIC_DEMO_ORGANIZATION_ID,
+      // Nominal only. Every guest is the same subject in a shared workspace,
+      // so policy.ts denies mutation to guests outright — this role never
+      // widens what one of them can do.
+      role: "member",
       source: "guest",
     };
   }
@@ -74,7 +109,16 @@ export async function getApiIdentity(request: Request): Promise<ApiIdentity | nu
   if (encodedName) {
     try { displayName = decodeURIComponent(encodedName); } catch { displayName = encodedName; }
   }
-  return { userId, email, displayName, organizationId: await organizationIdForUser(userId), source: chatgptUserId ? "chatgpt" : "local" };
+  // Platform-injected identity has no session cookie to carry a workspace
+  // choice, so it always resolves to its own workspace.
+  return {
+    userId,
+    email,
+    displayName,
+    organizationId: await organizationIdForUser(userId),
+    role: IMPLICIT_OWNER_ROLE,
+    source: chatgptUserId ? "chatgpt" : "local",
+  };
 }
 
 /** Same identity resolution as getApiIdentity, for use in a Server Component page (which gets `headers()`, not a `Request`). */

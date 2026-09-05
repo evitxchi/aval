@@ -74,11 +74,16 @@ export async function POST(request: Request) {
     // Separation of duties is checked against the user the task runs on
     // behalf of, not against whoever happens to be calling.
     task.userId,
+    // Resolved from membership on this request, so access revoked since the
+    // session cookie was issued takes effect now rather than in thirty days.
+    identity.role,
     typeof body.note === "string" ? body.note.slice(0, 400) : undefined,
   );
 
   if (!outcome.ok) {
-    const status = outcome.reason === "not_found" ? 404 : outcome.reason === "self_approval" ? 403 : 409;
+    const status = outcome.reason === "not_found" ? 404
+      : outcome.reason === "self_approval" || outcome.reason === "not_an_approver" ? 403
+      : 409;
     return Response.json({ error: MESSAGES[outcome.reason] }, { status });
   }
 
@@ -108,6 +113,7 @@ const MESSAGES = {
   already_decided: "This action was already decided.",
   expired: "This approval request expired. The agent must propose the action again.",
   self_approval: "A critical action cannot be approved by the person whose task proposed it.",
+  not_an_approver: "Approving agent actions requires the approver or owner role in this workspace.",
   duplicate_approver: "Your decision is already recorded. An elevated action needs another distinct approver.",
 } as const;
 

@@ -180,7 +180,10 @@ test("a parked task wakes only once its live approval is settled or timed out", 
   const decided = await park("Decided");
   const stale = await park("Timed out", true);
 
-  await approvals.decideApproval("org_1", decided.approval.id, "approved", "user_2", "user_1", "go");
+  // The decider's role is resolved from membership per request, so a caller
+  // without approval authority is refused and the task stays parked.
+  const decision = await approvals.decideApproval("org_1", decided.approval.id, "approved", "user_2", "user_1", "approver", "go");
+  assert.equal(decision.ok, true, decision.ok ? "" : decision.reason);
   const resumable = (await tasks.resumableApprovalTasks(10)).map((t) => t.id).sort();
   assert.deepEqual(resumable, [decided.task.id, stale.task.id].sort());
   assert.ok(!resumable.includes(pending.task.id), "an undecided, unexpired request keeps its task parked");

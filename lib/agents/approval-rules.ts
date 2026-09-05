@@ -7,9 +7,11 @@
  * modes, and a guard nobody can run tests against is a guard nobody can trust.
  */
 
+import { canApprove, type WorkspaceRole } from "../organizations/roles.ts";
+
 export type ApprovalStatus = "pending" | "approved" | "rejected" | "expired";
 
-export type DecisionRefusal = "already_decided" | "expired" | "self_approval";
+export type DecisionRefusal = "already_decided" | "expired" | "self_approval" | "not_an_approver";
 
 /** The approval facts a decision needs. Structural, so nothing here touches a row type. */
 export interface DecidableApproval {
@@ -33,14 +35,20 @@ export interface DecidableApproval {
  *   a human gate exists at all; letting the requester close it makes the gate
  *   decorative. Scoped to `critical` only, so a high-risk draft send does not
  *   require a second person to be awake.
+ * - **not an approver** — a member can run an agent and read everything the
+ *   workspace holds without being able to release money. Checked first, so
+ *   someone with no authority learns that rather than which action was
+ *   proposed.
  */
 export function canDecide(
   approval: DecidableApproval,
   decision: "approved" | "rejected",
   decidedByUserId: string,
   requestedByUserId: string,
+  deciderRole: WorkspaceRole,
   now: Date = new Date(),
 ): { ok: true } | { ok: false; reason: DecisionRefusal } {
+  if (!canApprove(deciderRole)) return { ok: false, reason: "not_an_approver" };
   if (approval.status !== "pending") return { ok: false, reason: "already_decided" };
   if (approval.expiresAt.getTime() < now.getTime()) return { ok: false, reason: "expired" };
   // Rejection is deliberately exempt: anyone who can see the request should be

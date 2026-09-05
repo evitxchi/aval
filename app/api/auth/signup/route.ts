@@ -39,7 +39,7 @@ export async function POST(request: Request) {
   await db.insert(users).values({ id, email, passwordHash, displayName, createdAt: now, updatedAt: now });
 
   const organizationId = await organizationIdForUser(id);
-  await ensureOrganization({ userId: id, email, displayName, organizationId, source: "password" });
+  await ensureOrganization({ userId: id, email, displayName, organizationId, role: "owner", source: "password" });
 
   const cookie = await createSessionCookie({ userId: id, email, displayName });
   return new Response(JSON.stringify({ email, displayName }), {

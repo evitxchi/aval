@@ -113,8 +113,9 @@ The repository currently passes:
 - `npm run i18n:check` — 1,028 English and Spanish keys in parity;
 - `npm run typecheck`;
 - `npm run lint` — zero errors (three pre-existing `<img>` warnings);
-- `npm test` — production build, 414 unit tests, and the runtime lane below;
-- `npm run test:runtime` — 11 integration tests that execute the control loop;
+- `npm test` — production build, 447 unit tests, and the runtime lane below;
+- `npm run test:runtime` — 30 integration tests that execute the control loop
+  and workspace membership;
 - `npm --prefix desktop test` — 20 tests;
 - `plutil -lint` on both macOS entitlement files.
 
@@ -172,9 +173,12 @@ GET    /api/agents/health            owner scope or bearer-auth global scope
   inside an invocation.
 - Financial tool descriptors are unwired and fail closed. Infrastructure for
   safe execution is present; money movement is not being claimed.
-- There is no organization membership/invitation system yet, so critical
-  second-person approval is not operational. Critical execution is therefore
-  blocked rather than weakened.
+- Workspace membership is operational as of 2026-09-04. A workspace holds
+  owner, approver and member roles; only an owner invites or sets policy, and
+  only an owner or approver may decide an approval. The elevated tier's two
+  distinct approvers are now reachable, so critical execution is gated rather
+  than blocked. Membership is re-read on every request, so revoking access
+  takes effect on the next call rather than when a session expires.
 - Vendor-spend reconciliation has no provider adapter and cannot become
   `matched`.
 

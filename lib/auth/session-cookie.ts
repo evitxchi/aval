@@ -15,6 +15,16 @@ export interface SessionUser {
   userId: string;
   email: string;
   displayName: string;
+  /**
+   * The workspace this user last switched into.
+   *
+   * A *request*, never authority. The cookie is signed, so it cannot be
+   * forged — but it lives for thirty days, which is long enough for the
+   * membership behind it to be revoked. `resolveMembership` re-reads
+   * membership on every request and falls back to the personal workspace when
+   * the claim no longer holds.
+   */
+  activeOrganizationId?: string;
 }
 
 // Dynamic, not a top-level `import ... from "cloudflare:workers"` — this
@@ -76,7 +86,12 @@ export async function readSessionCookie(request: Request): Promise<SessionUser |
     if (expected !== signature) return null;
     const payload = JSON.parse(new TextDecoder().decode(base64UrlDecode(body))) as SessionUser & { exp: number };
     if (typeof payload.exp !== "number" || payload.exp < Date.now()) return null;
-    return { userId: payload.userId, email: payload.email, displayName: payload.displayName };
+    return {
+      userId: payload.userId,
+      email: payload.email,
+      displayName: payload.displayName,
+      activeOrganizationId: typeof payload.activeOrganizationId === "string" ? payload.activeOrganizationId : undefined,
+    };
   } catch {
     return null;
   }

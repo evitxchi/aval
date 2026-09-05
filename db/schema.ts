@@ -33,6 +33,72 @@ export const organizations = sqliteTable("organizations", {
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
 });
 
+/**
+ * Who belongs to a workspace, and what they may do in it.
+ *
+ * Until this existed, `organizationIdForUser` hashed a user id into a
+ * workspace, so every account was alone in its own. Two controls depended on a
+ * second person who could not exist: the elevated approval tier requires two
+ * distinct approvers, and separation of duties forbids the requester from
+ * approving a critical action. Both failed closed — safe, but it meant the
+ * approval gate could never open for the actions it exists to gate.
+ *
+ * A user's personal workspace is still `org_<hash(userId)>` and is not
+ * migrated; membership is additive. A row here is what lets someone act in a
+ * workspace that is not their own.
+ */
+export const organizationMembers = sqliteTable(
+  "organization_members",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id").notNull().references(() => organizations.id),
+    userId: text("user_id").notNull().references(() => users.id),
+    // owner: policy, invitations, membership, approvals.
+    // approver: approvals, plus everything a member may do.
+    // member: run agents and read; never decides an approval.
+    role: text("role").notNull(),
+    invitedByUserId: text("invited_by_user_id"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    // One membership per person per workspace. This is also what makes
+    // "two distinct approvers" countable rather than a matter of trust.
+    uniqueIndex("organization_members_org_user_uq").on(table.organizationId, table.userId),
+    index("organization_members_user_idx").on(table.userId),
+  ],
+);
+
+/**
+ * An outstanding invitation to a workspace.
+ *
+ * There is no email service in this deployment, so the code is shown to the
+ * inviter once and shared out of band. Only its hash is stored: an invitation
+ * grants standing access to a tenant's data, which makes it a credential, and
+ * a credential readable from a database row is one a database read can steal.
+ */
+export const organizationInvitations = sqliteTable(
+  "organization_invitations",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id").notNull().references(() => organizations.id),
+    codeHash: text("code_hash").notNull(),
+    role: text("role").notNull(),
+    createdByUserId: text("created_by_user_id").notNull(),
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+    acceptedByUserId: text("accepted_by_user_id"),
+    acceptedAt: integer("accepted_at", { mode: "timestamp_ms" }),
+    revokedAt: integer("revoked_at", { mode: "timestamp_ms" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    // The lookup is by hash, and uniqueness stops one code being redeemed
+    // twice through concurrent requests.
+    uniqueIndex("organization_invitations_code_uq").on(table.codeHash),
+    index("organization_invitations_org_idx").on(table.organizationId, table.createdAt),
+  ],
+);
+
 export const integrationConnections = sqliteTable(
   "integration_connections",
   {

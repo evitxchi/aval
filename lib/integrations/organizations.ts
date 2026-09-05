@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import { upsertMembership } from "@/lib/organizations/membership";
 import { getDb } from "@/db";
 import { organizations } from "@/db/schema";
 import type { ApiIdentity } from "./session";
@@ -22,5 +23,10 @@ export async function ensureOrganization(identity: ApiIdentity) {
     updatedAt: now,
   };
   await db.insert(organizations).values(organization).onConflictDoNothing();
+  // The owner gets a membership row too, so a workspace appears in its own
+  // owner's switcher and every "who is in this workspace" read has one shape.
+  // roleFor still treats organizations.ownerUserId as authoritative, so a
+  // workspace created before this table is not locked out by its absence.
+  await upsertMembership({ organizationId: identity.organizationId, userId: identity.userId, role: "owner" }).catch(() => {});
   return organization;
 }
