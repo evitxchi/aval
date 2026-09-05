@@ -48,7 +48,7 @@ Five pieces, following the pure/impure split the codebase already uses
 
 ```
 lib/integrations/quickbooks.ts             impure  QBO HTTP: refresh, realmId, queries, CDC
-lib/integrations/quickbooks-normalize.ts   PURE    QBO JSON -> ImportBatch. Every mapping rule.
+lib/integrations/quickbooks-rules.ts       PURE    QBO JSON -> ImportBatch. Every mapping rule.
 lib/integrations/sync-worker.ts            impure  claim a run, drive it, advance the cursor
 app/api/oauth/callback/route.ts            edit    capture realmId into externalAccountId
 worker/index.ts                            edit    the minute cron also drains sync runs
@@ -70,14 +70,16 @@ cron (existing * * * * *)
      │                  SELECT * FROM JournalEntry  (paginated)
      │    later      -> /cdc?entities=Account,JournalEntry&changedSince=<cursor>
      ├─ normalizeQuickbooks(payload) -> ImportBatch        [pure, tested]
-     ├─ planImport(batch) -> applyImport(plan)             [existing, tested]
+     ├─ applyImport(orgId, batch, source, syncRunId)       [existing, tested]
+     │    (applyImport calls planImport itself; the worker passes a batch)
      └─ write countsJson, advance cursorJson, status = completed
 ```
 
 ## Mapping rules
 
 These are the decisions worth testing, and they all live in
-`quickbooks-normalize.ts`.
+`quickbooks-rules.ts`, matching the repo's existing `*-rules.ts` convention
+(`approval-rules`, `delegation-rules`, `health-rules`, `reconciliation-rules`).
 
 ### Account type
 
@@ -97,11 +99,12 @@ looks plausible is worse than a row that visibly did not import.
 
 `profitAndLoss` sums `entry.amountCents` directly into income and expense
 totals, so Aval's convention is **positive in the account's natural
-direction** — not signed debits and credits. A QBO journal line carries
-`DebitAmount` or `CreditAmount` plus a `PostingType`, so:
+direction** — not signed debits and credits. A QBO journal line carries a
+single positive `Amount` plus `JournalEntryLineDetail.PostingType`, which is
+`"Debit"` or `"Credit"`, so:
 
-- income, liability, equity accounts: `credit − debit`
-- asset, expense accounts: `debit − credit`
+- income, liability, equity accounts: `Credit` is positive, `Debit` negative
+- asset, expense accounts: `Debit` is positive, `Credit` negative
 
 Getting this backwards produces a P&L that is exactly wrong rather than
 obviously broken, which is why it is a tested rule rather than an inline
@@ -177,7 +180,7 @@ are already declared in the catalog and used by the OAuth flow.
 
 ## Testing
 
-**Pure normalizer** — `tests/quickbooks-normalize.test.ts`, `node --test`:
+**Pure rules** — `tests/quickbooks-rules.test.ts`, `node --test`:
 
 - every `AccountType` in the table maps as specified
 - an unrecognized type is rejected, not defaulted
