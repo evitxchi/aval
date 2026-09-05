@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent, MouseEvent as ReactMouseEvent } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { ChatLines, CheckCircle, Database, NavArrowRight, Page, SendDiagonal, StatsUpSquare, ViewGrid, WarningTriangle, Xmark } from "iconoir-react";
+import { ChatLines, CheckCircle, Database, NavArrowRight, Page, Search, SendDiagonal, StatsUpSquare, ViewGrid, WarningTriangle, Xmark } from "iconoir-react";
 import { useExperience } from "@/app/components/experience";
 import type { CreateDraftInput, DraftFormat } from "@/app/components/ask-aval-tasks";
 import { MarkdownPreview } from "@/app/components/markdown-preview";
@@ -37,6 +37,12 @@ type Answer = {
   action?: string;
   actionDetail?: string;
   confidence?: "high" | "medium" | "low";
+  /**
+   * The tools the model actually called, from the response's own
+   * `tools_used`. Rendered as the reasoning trace — real work, not a
+   * simulation of it.
+   */
+  tools_used?: string[];
 };
 type ChatMessage = {
   id: number;
@@ -106,6 +112,52 @@ const viewNameKeys: Record<string, string> = {
   settings: "Nav.settings",
 };
 
+/**
+ * A tool name as a person would read it: `get_delinquent_accounts` becomes
+ * "delinquent accounts".
+ *
+ * Derived rather than translated into a table of hand-written labels. A table
+ * would need an entry per tool in every locale, and the entry that goes stale
+ * is the one nobody notices — a trace that names the wrong source is worse
+ * than one that names the source plainly.
+ */
+function readableToolName(tool: string): string {
+  return tool.replace(/^(get|list|read|record|fetch)_/, "").replace(/_/g, " ");
+}
+
+/**
+ * Reveals `text` a character at a time.
+ *
+ * A spinner says only "wait". A phrase that types itself says what is being
+ * waited on, and the reveal is what makes it read as work in progress rather
+ * than a label that happens to be sitting there.
+ */
+function useTypedText(text: string, active: boolean): string {
+  // Reset during render rather than in an effect: React's documented way to
+  // adjust state when an input changes, and it avoids the cascading-render
+  // the effect form causes — the old phrase never flashes at the new one's
+  // length while a first interval tick catches up.
+  const [typed, setTyped] = useState({ source: text, shown: "" });
+  if (typed.source !== text) setTyped({ source: text, shown: "" });
+
+  useEffect(() => {
+    if (!active || !text) return;
+    if (typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+      const settle = window.setTimeout(() => setTyped({ source: text, shown: text }), 0);
+      return () => window.clearTimeout(settle);
+    }
+    let index = 0;
+    const timer = window.setInterval(() => {
+      index += 1;
+      setTyped({ source: text, shown: text.slice(0, index) });
+      if (index >= text.length) window.clearInterval(timer);
+    }, 26);
+    return () => window.clearInterval(timer);
+  }, [text, active]);
+
+  return active ? typed.shown : "";
+}
+
 const THINKING_PHRASE_KEYS = [
   "AvalAssistant.thinkingPhrase1",
   "AvalAssistant.thinkingPhrase2",
@@ -172,6 +224,7 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
   const [input, setInput] = useState("");
   const [thinking, setThinking] = useState(false);
   const [thinkingPhraseKey, setThinkingPhraseKey] = useState(THINKING_PHRASE_KEYS[0]);
+  const typedThinking = useTypedText(t(thinkingPhraseKey), thinking);
   const [pickingModule, setPickingModule] = useState(false);
   const [selectedModule, setSelectedModule] = useState<SelectedModule | null>(null);
   const [pickingPersona, setPickingPersona] = useState(false);
@@ -400,7 +453,11 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
       // level (plus tools_used), not wrapped in an { answer: ... } envelope.
       const data = (await response.json()) as Record<string, unknown> & { error?: string };
       if (!response.ok || !isAnswerShaped(data)) throw new Error(typeof data.error === "string" ? data.error : "The assistant is unavailable right now.");
-      const answer = { ...data, metrics: Array.isArray(data.metrics) ? data.metrics : [] } as Answer;
+      const answer = {
+        ...data,
+        metrics: Array.isArray(data.metrics) ? data.metrics : [],
+        tools_used: Array.isArray(data.tools_used) ? data.tools_used.filter((name): name is string => typeof name === "string") : [],
+      } as Answer;
       setMessages((current) => [...current, { id: nextId.current++, role: "assistant", answer }]);
     } catch (error) {
       // Previously this substituted a locally generated answer with hardcoded
@@ -598,6 +655,18 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
                 )}
                 {message.answer && (
                   <div className="aval-chat-answer">
+                    {message.answer.tools_used && message.answer.tools_used.length > 0 && (
+                      <div className="aval-chat-trace">
+                        {message.answer.tools_used.map((tool, index) => (
+                          <div className="aval-chat-trace-step" key={`${tool}-${index}`}>
+                            <span className="aval-chat-trace-rail" aria-hidden="true"><Search width={14} height={14} /></span>
+                            <span className="aval-chat-trace-body">
+                              <span>{t("AvalAssistant.traceRead", { source: readableToolName(tool) })}</span>
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     <div className="aval-chat-answer-heading">
                       <StatsUpSquare width={18} height={18} />
                       <strong>{message.answer.headline}</strong>
@@ -636,7 +705,9 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
               <div className="aval-chat-thinking" aria-label={t(thinkingPhraseKey)}>
                 <AvalAgentAvatar shape={activePersona.shape} theme={activePersona.theme} icon={activePersona.icon} size={20} />
                 <i className="aval-chat-thinking-ring" />
-                <span>{t(thinkingPhraseKey)}</span>
+                {/* The label above carries the full phrase for assistive tech,
+                    so the typed reveal stays decorative. */}
+                <span className="aval-chat-thinking-text" aria-hidden="true">{typedThinking}</span>
               </div>
             )}
           </div>

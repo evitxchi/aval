@@ -639,22 +639,14 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--ink); outli
 .brand-mark { width: 43px; height: 43px; flex: 0 0 auto; display: grid; place-items: center; border: 1px solid rgba(15,15,15,.09); border-radius: 13px; background: white; box-shadow: 0 1px 3px rgba(15,15,15,.05); overflow: hidden; }
 .brand-mark svg { width: 23px; height: 23px; }
 .brand-mark img { width: 23px; height: 23px; border-radius: 6px; object-fit: cover; }
+/* Vendor marks are contained rather than cropped: some ship as full-bleed
+   tiles and others as transparent glyphs, and `cover` would cut the latter. */
+.brand-mark img.provider-logo { object-fit: contain; }
 .brand-mark.small { width: 33px; height: 33px; border-radius: 10px; }
 .brand-mark.small svg { width: 18px; height: 18px; }
 .brand-mark.small img { width: 18px; height: 18px; border-radius: 5px; }
 .wordmark { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 8px; color: white; font-size: 20px; line-height: 1; }
-.appfolio-mark { background: #0a79bf; font-weight: 400; }
-.buildium-mark { background: #1f54a4; font-size: 16px; }
-.granola-mark { background: #6f5845; font-family: Georgia, serif; }
-.contpaqi-mark { background: #009688; font-weight: 600; }
-.alegra-mark { background: #6c3ce0; font-weight: 600; }
 .yardi-mark { background: #0f8a6b; font-weight: 600; }
-.realpage-mark { background: #1f5fb8; font-weight: 600; }
-.entrata-mark { background: #6b3fa0; font-weight: 600; }
-.rentmanager-mark { background: #22406b; font-size: 13px; font-weight: 600; }
-.doorloop-mark { background: #12a89d; font-weight: 600; }
-.zai-mark { background: #4f46e5; font-weight: 600; }
-.siliconflow-mark { background: #7c3aed; font-size: 12px; font-weight: 600; }
 
 .task-toolbar { padding: 15px 0; display: grid; grid-template-columns: minmax(240px, 430px) auto auto; justify-content: end; gap: 8px; }
 .search-field { height: 42px; display: flex; align-items: center; gap: 9px; padding: 0 12px; border: 1px solid var(--line); border-radius: 13px; background: white; color: var(--quiet); }
@@ -1023,107 +1015,129 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--ink); outli
 }
 
 /* Contextual Aval assistant */
+/* ── Ask Aval: a full-height side rail ─────────────────────────────────────
+   Not a floating bubble. This is a governance product — the assistant is a
+   workspace someone reads for minutes at a time, so it takes the window's
+   edge, sets type at a size meant for reading rather than glancing, and shows
+   the work it did rather than only the conclusion. */
 .aval-assistant { position: relative; z-index: 95; }
-.aval-assistant-launcher { position: fixed; z-index: 96; right: 22px; bottom: 22px; width: 54px; height: 54px; display: grid; place-items: center; border: 1px solid color-mix(in srgb, var(--ink) 80%, transparent); border-radius: 18px; background: var(--ink); color: var(--inverse-ink); box-shadow: 0 14px 34px rgba(15,15,15,.22), inset 0 1px 0 rgba(255,255,255,.2); cursor: pointer; transition: transform .2s ease, border-radius .2s ease, box-shadow .2s ease; }
-.aval-assistant-launcher:hover { transform: translateY(-2px); box-shadow: 0 18px 42px rgba(15,15,15,.27), inset 0 1px 0 rgba(255,255,255,.2); }
+.aval-assistant-launcher { position: fixed; z-index: 96; right: 22px; bottom: 22px; width: 52px; height: 52px; display: grid; place-items: center; border: 1px solid color-mix(in srgb, var(--ink) 80%, transparent); border-radius: 17px; background: var(--ink); color: var(--inverse-ink); box-shadow: 0 12px 30px rgba(15,15,15,.20), inset 0 1px 0 rgba(255,255,255,.18); cursor: pointer; transition: transform .18s cubic-bezier(.2,.8,.2,1), opacity .18s ease; }
+.aval-assistant-launcher:hover { transform: translateY(-2px); }
 .aval-assistant-launcher > span { position: absolute; right: 4px; top: 4px; width: 9px; height: 9px; border: 2px solid var(--ink); border-radius: 50%; background: #8fc9a3; }
-.aval-assistant.is-open .aval-assistant-launcher { border-radius: 16px; }
+/* The launcher steps aside rather than sitting on top of its own panel. */
+.aval-assistant.is-open .aval-assistant-launcher { opacity: 0; pointer-events: none; transform: scale(.9); }
 
-.aval-assistant-panel { position: fixed; z-index: 95; right: 22px; bottom: 86px; width: min(410px, calc(100vw - 44px)); height: min(650px, calc(100dvh - 112px)); min-height: 470px; display: grid; grid-template-rows: auto auto minmax(0,1fr) auto auto auto; overflow: hidden; border: 1px solid var(--line-strong); border-radius: 24px; background: color-mix(in srgb, var(--surface-raised) 97%, transparent); color: var(--ink); box-shadow: 0 28px 72px rgba(14,14,14,.2), 0 3px 14px rgba(14,14,14,.08); backdrop-filter: blur(24px); animation: aval-chat-rise .26s cubic-bezier(.2,.8,.2,1); }
-@keyframes aval-chat-rise { from { opacity: 0; transform: translateY(12px) scale(.975); } }
+.aval-assistant-panel { position: fixed; z-index: 95; inset-block: 0; right: 0; width: min(468px, 100vw); display: grid; grid-template-rows: auto auto minmax(0,1fr) auto auto auto; overflow: hidden; border-left: 1px solid var(--line); background: var(--surface-raised); color: var(--ink); box-shadow: -24px 0 60px rgba(14,14,14,.10); animation: aval-rail-in .3s cubic-bezier(.22,1,.36,1); }
+@keyframes aval-rail-in { from { transform: translateX(26px); opacity: 0; } }
 
-.aval-assistant-header { min-height: 73px; padding: 13px 14px 13px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line); }
-.aval-assistant-identity { min-width: 0; display: flex; align-items: center; gap: 10px; }
-.aval-assistant-mark { width: 38px; height: 38px; flex: 0 0 auto; display: grid; place-items: center; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-soft) url("/brand/aval-mark.png") center / cover no-repeat; }
-.aval-assistant-identity > span:last-child { min-width: 0; display: grid; gap: 4px; }
-.aval-assistant-identity strong { font-size: 12px; font-weight: 400; letter-spacing: -.1px; }
-.aval-assistant-identity small { display: flex; align-items: center; gap: 6px; color: var(--quiet); font-size: 8px; }
+.aval-assistant-header { min-height: 64px; padding: 14px 16px 14px 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line); }
+.aval-assistant-identity { min-width: 0; display: flex; align-items: center; gap: 11px; }
+.aval-assistant-mark { width: 34px; height: 34px; flex: 0 0 auto; display: grid; place-items: center; overflow: hidden; border: 1px solid var(--line); border-radius: 11px; background: var(--surface-soft) url("/brand/aval-mark.png") center / cover no-repeat; }
+.aval-assistant-identity > span:last-child { min-width: 0; display: grid; gap: 3px; }
+.aval-assistant-identity strong { font-size: 14px; font-weight: 550; letter-spacing: -.15px; }
+.aval-assistant-identity small { display: flex; align-items: center; gap: 6px; color: var(--quiet); font-size: 11.5px; }
 .aval-assistant-identity small i { width: 6px; height: 6px; border-radius: 50%; background: #4f9568; box-shadow: 0 0 0 3px color-mix(in srgb, #4f9568 13%, transparent); }
-.aval-assistant-close { width: 35px; height: 35px; flex: 0 0 auto; display: grid; place-items: center; border: 0; border-radius: 11px; background: transparent; color: var(--muted); cursor: pointer; }
+.aval-assistant-close { width: 34px; height: 34px; flex: 0 0 auto; display: grid; place-items: center; border: 0; border-radius: 10px; background: transparent; color: var(--muted); cursor: pointer; transition: background .15s ease, color .15s ease; }
 .aval-assistant-close:hover { background: var(--surface-soft); color: var(--ink); }
 
-/* max-height + its own scroll, not just `auto` — .aval-assistant-panel is a
-   fixed-height grid (`grid-template-rows: auto auto minmax(0,1fr) auto auto
-   auto`); an `auto` row can grow past the space the grid actually has left
-   once the panel's total height is spoken for, and since this section has
-   `overflow: visible`, that excess spilled straight into the message
-   stream below it rather than being clipped or scrolled — happened once
-   the agent-creation form's content made this section tall enough to hit
-   that ceiling. */
-.aval-assistant-context { min-height: 43px; max-height: 340px; overflow-y: auto; padding: 7px 12px; display: grid; gap: 7px; border-bottom: 1px solid var(--line); background: var(--surface-soft); color: var(--quiet); font-size: 8px; }
-.aval-chat-context-row { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.aval-chat-scope { min-width: 0; display: flex; align-items: center; gap: 7px; white-space: nowrap; }
-.aval-chat-scope span { overflow: hidden; text-overflow: ellipsis; }
-.aval-module-picker { min-height: 29px; padding: 0 8px; flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface-raised); color: var(--muted); font-size: 8px; cursor: pointer; }
-.aval-module-picker:hover, .aval-module-picker.active { border-color: var(--line-strong); background: var(--ink); color: var(--inverse-ink); }
-.aval-module-picker-instruction { margin: 0; padding: 7px 8px; display: flex; align-items: center; gap: 7px; border-radius: 9px; background: var(--ink); color: var(--inverse-ink); line-height: 1.35; }
-.aval-module-picker-instruction > span { width: 6px; height: 6px; flex: 0 0 auto; border-radius: 50%; background: #8fc9a3; box-shadow: 0 0 0 3px color-mix(in srgb, #8fc9a3 18%, transparent); }
-.aval-selected-module-context { min-width: 0; min-height: 40px; padding: 6px 7px 6px 9px; display: grid; grid-template-columns: 17px minmax(0,1fr) 28px; align-items: center; gap: 8px; border: 1px solid var(--line-strong); border-radius: 11px; background: var(--surface-raised); color: var(--ink); }
-.aval-selected-module-context > span { min-width: 0; display: grid; gap: 2px; }
-.aval-selected-module-context small { color: var(--quiet); font-size: 7px; text-transform: uppercase; letter-spacing: .08em; }
-.aval-selected-module-context strong { overflow: hidden; font-size: 9px; font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
-.aval-selected-module-context button { width: 28px; height: 28px; display: grid; place-items: center; border: 0; border-radius: 8px; background: transparent; color: var(--quiet); cursor: pointer; }
-.aval-selected-module-context button:hover { background: var(--surface-soft); color: var(--ink); }
+.aval-assistant-context { min-height: 44px; max-height: 320px; overflow-y: auto; padding: 9px 16px; display: grid; gap: 8px; border-bottom: 1px solid var(--line); background: var(--surface-soft); color: var(--muted); font-size: 12px; }
+.aval-chat-context-row { min-width: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.aval-chat-scope { min-width: 0; display: flex; align-items: center; gap: 5px; }
+.aval-chat-scope span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-.aval-assistant-stream { min-height: 0; padding: 17px 16px 10px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
-.aval-chat-message { width: fit-content; max-width: 92%; margin-bottom: 12px; }
-.aval-chat-message.user { margin-left: auto; padding: 10px 12px; border-radius: 15px 15px 5px 15px; background: var(--ink); color: var(--inverse-ink); }
+.aval-assistant-stream { min-height: 0; padding: 20px 20px 12px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.aval-chat-message { max-width: 100%; margin-bottom: 20px; }
+/* The person's own words read as a spoken turn: a soft bubble, right-aligned,
+   sized to its content. The assistant's answer is the document being read, so
+   it takes the full column with no container at all. */
+.aval-chat-message.user { width: fit-content; max-width: 86%; margin-left: auto; padding: 10px 14px; border-radius: 16px 16px 4px 16px; background: var(--surface-soft); }
 .aval-chat-message.assistant { padding: 0; }
-.aval-chat-message > p { margin: 0; font-size: 10px; line-height: 1.55; }
-.aval-chat-message.assistant > p { padding: 11px 12px; border: 1px solid var(--line); border-radius: 15px 15px 15px 5px; background: var(--surface); color: var(--muted); }
+.aval-chat-message > p { margin: 0; font-size: 14.5px; line-height: 1.55; }
+.aval-chat-message.assistant > p { padding: 0; border: 0; background: none; color: var(--ink); }
 
-.aval-chat-answer { display: grid; gap: 11px; }
-.aval-chat-answer-heading { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; align-items: start; gap: 8px; }
-.aval-chat-answer-heading svg { margin-top: 1px; }
-.aval-chat-answer-heading strong { font-size: 13px; font-weight: 400; letter-spacing: -.25px; line-height: 1.35; }
-.aval-chat-confidence { padding: 3px 7px; border-radius: 7px; background: var(--surface-soft); color: var(--quiet); font-size: 7px; text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; }
+/* ── reasoning trace ───────────────────────────────────────────────────────
+   The tools that actually ran, from the response's own `tools_used`. It is
+   rendered after the answer arrives rather than streamed during the wait,
+   because the request is not streaming: inventing progress would be a picture
+   of work the system cannot claim to have done in that order. */
+.aval-chat-trace { margin-bottom: 14px; display: grid; gap: 0; }
+.aval-chat-trace-step { display: grid; grid-template-columns: 18px minmax(0,1fr); gap: 10px; align-items: start; }
+.aval-chat-trace-rail { display: grid; justify-items: center; gap: 3px; height: 100%; color: var(--quiet); }
+.aval-chat-trace-rail svg { margin-top: 1px; }
+/* The connector stops at the last step, so the trace reads as finished. */
+.aval-chat-trace-step:not(:last-child) .aval-chat-trace-rail::after { content: ""; width: 1px; flex: 1; min-height: 12px; background: var(--line-strong); }
+.aval-chat-trace-body { min-width: 0; padding-bottom: 10px; display: grid; gap: 6px; }
+.aval-chat-trace-body > span { color: var(--muted); font-size: 13px; line-height: 1.45; }
+.aval-chat-trace-chip { width: fit-content; max-width: 100%; padding: 5px 9px; border-radius: 7px; background: var(--surface-soft); color: var(--quiet); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.aval-chat-answer { display: grid; gap: 13px; }
+.aval-chat-answer-heading { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 10px; align-items: baseline; }
+.aval-chat-answer-heading strong { font-size: 15.5px; font-weight: 550; letter-spacing: -.2px; line-height: 1.4; }
+.aval-chat-confidence { padding: 3px 8px; border-radius: 7px; background: var(--surface-soft); color: var(--muted); font-size: 11px; white-space: nowrap; }
 .aval-chat-confidence.high { color: var(--viz-green); }
 .aval-chat-confidence.low { color: var(--viz-amber); }
-.aval-chat-answer > p { margin: 0; color: var(--muted); font-size: 9px; line-height: 1.55; }
-.aval-chat-document { padding: 11px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-soft); color: var(--muted); font-size: 9.5px; line-height: 1.6; max-height: 260px; overflow-y: auto; }
-.aval-chat-chart { display: grid; gap: 5px; }
-.aval-chat-chart > p { margin: 0; color: var(--quiet); font-size: 8px; text-transform: uppercase; letter-spacing: .04em; }
+.aval-chat-answer > p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.6; }
+.aval-chat-document { padding: 13px 15px; border: 1px solid var(--line); border-radius: 13px; background: var(--surface-soft); font-size: 13.5px; line-height: 1.6; }
+.aval-chat-chart { display: grid; gap: 6px; }
+.aval-chat-chart > p { margin: 0; color: var(--quiet); font-size: 11.5px; }
 .aval-chat-chart-line { fill: none; stroke: var(--ink); stroke-width: 1.5; }
 .aval-chat-chart-dot { fill: var(--ink); }
-.aval-chat-chart-labels { display: flex; justify-content: space-between; color: var(--quiet); font-size: 7px; }
-.aval-chat-stats { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 6px; }
-.aval-chat-stats > span { min-width: 0; padding: 9px; display: grid; gap: 4px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface-soft); }
-.aval-chat-stats small { color: var(--quiet); font-size: 7px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.aval-chat-stats strong { font-size: 10px; font-weight: 400; white-space: nowrap; }
+.aval-chat-chart-labels { display: flex; justify-content: space-between; color: var(--quiet); font-size: 11px; }
+.aval-chat-stats { display: grid; grid-template-columns: repeat(auto-fit,minmax(96px,1fr)); gap: 7px; }
+.aval-chat-stats > span { min-width: 0; padding: 11px 12px; display: grid; gap: 4px; border: 1px solid var(--line); border-radius: 11px; }
+.aval-chat-stats small { color: var(--quiet); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.aval-chat-stats strong { font-size: 15px; font-weight: 550; letter-spacing: -.2px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 .aval-chat-evidence { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
-.aval-chat-evidence summary { min-height: 38px; display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 8px; list-style: none; cursor: pointer; }
+.aval-chat-evidence summary { min-height: 40px; display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12.5px; cursor: pointer; list-style: none; }
 .aval-chat-evidence summary::-webkit-details-marker { display: none; }
+.aval-chat-evidence summary svg { transition: transform .18s ease; }
 .aval-chat-evidence[open] summary svg { transform: rotate(90deg); }
-.aval-chat-evidence > div { padding-bottom: 5px; }
-.aval-chat-evidence > div > span { min-height: 38px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid var(--line); }
-.aval-chat-evidence > div small { color: var(--muted); font-size: 8px; }
-.aval-chat-evidence > div strong { color: var(--ink); font-size: 8px; font-weight: 400; text-align: right; }
-.aval-chat-evidence > p { margin: 0; padding: 8px 0 10px; display: flex; align-items: center; gap: 6px; color: var(--quiet); font-size: 7px; line-height: 1.4; }
+.aval-chat-evidence > div { padding-bottom: 6px; }
+.aval-chat-evidence > div > span { min-height: 36px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.aval-chat-evidence > div small { color: var(--muted); font-size: 12px; }
+.aval-chat-evidence > div strong { color: var(--ink); font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.aval-chat-evidence > p { margin: 0; padding: 8px 0 11px; display: flex; align-items: center; gap: 6px; color: var(--quiet); font-size: 11.5px; }
 
-.aval-chat-action { width: 100%; min-height: 58px; padding: 10px 11px; display: grid; grid-template-columns: 18px minmax(0,1fr) 17px; align-items: center; gap: 9px; border: 0; border-radius: 13px; background: var(--ink); color: var(--inverse-ink); text-align: left; cursor: pointer; }
-.aval-chat-action > span { min-width: 0; display: grid; gap: 4px; }
-.aval-chat-action strong { font-size: 9px; font-weight: 400; }
-.aval-chat-action small { color: color-mix(in srgb, var(--inverse-ink) 64%, transparent); font-size: 7px; line-height: 1.35; }
+.aval-chat-action { width: 100%; min-height: 56px; padding: 11px 13px; display: flex; align-items: center; gap: 11px; border: 0; border-radius: 13px; background: var(--ink); color: var(--inverse-ink); text-align: left; cursor: pointer; }
+.aval-chat-action > span { min-width: 0; flex: 1; display: grid; gap: 3px; }
+.aval-chat-action strong { font-size: 13px; font-weight: 500; }
+.aval-chat-action small { color: color-mix(in srgb, var(--inverse-ink) 68%, transparent); font-size: 11.5px; }
 .aval-chat-action:disabled { background: var(--surface-sunken); color: var(--muted); cursor: default; }
 .aval-chat-action:disabled small { color: var(--quiet); }
 
-.aval-chat-thinking { min-height: 34px; display: flex; align-items: center; gap: 7px; color: var(--quiet); font-size: 9px; }
-.aval-chat-thinking .aval-agent-avatar { border: 0; background: none; }
-.aval-chat-thinking-ring { width: 12px; height: 12px; flex-shrink: 0; border: 2px solid var(--line-strong); border-top-color: var(--muted); border-radius: 50%; animation: aval-thinking-spin .8s linear infinite; }
+/* ── thinking ──────────────────────────────────────────────────────────────
+   The phrase types itself in. A steady-state spinner says only "wait"; a
+   phrase appearing at reading speed says what is being waited on. */
+.aval-chat-thinking { min-height: 34px; display: flex; align-items: center; gap: 9px; color: var(--muted); font-size: 13.5px; }
+.aval-chat-thinking .aval-agent-avatar { border: 0; background: none; box-shadow: none; }
+.aval-chat-thinking-ring { width: 12px; height: 12px; flex-shrink: 0; border: 1.5px solid var(--line-strong); border-top-color: var(--muted); border-radius: 50%; animation: aval-thinking-spin .8s linear infinite; }
 @keyframes aval-thinking-spin { to { transform: rotate(360deg); } }
+.aval-chat-thinking-text::after { content: ""; display: inline-block; width: 1.5px; height: 1em; margin-left: 2px; vertical-align: text-bottom; background: var(--muted); animation: aval-caret 1s step-end infinite; }
+@keyframes aval-caret { 50% { opacity: 0; } }
+/* A typed phrase is decoration around a wait, so it stops when motion does. */
+@media (prefers-reduced-motion: reduce) {
+  .aval-chat-thinking-ring { animation: none; }
+  .aval-chat-thinking-text::after { animation: none; opacity: 0; }
+  .aval-assistant-panel { animation: none; }
+}
 
-.aval-chat-suggestions { padding: 0 16px 10px; display: grid; gap: 6px; }
-.aval-chat-suggestions button { min-height: 38px; padding: 0 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface); color: var(--muted); font-size: 8px; text-align: left; cursor: pointer; }
-.aval-chat-suggestions button:hover { border-color: var(--line-strong); background: var(--surface-soft); color: var(--ink); }
+.aval-chat-suggestions { padding: 0 20px 12px; display: grid; gap: 7px; }
+.aval-chat-suggestions button { min-height: 42px; padding: 0 13px; display: flex; align-items: center; justify-content: space-between; gap: 10px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface-raised); color: var(--ink); font-size: 13px; text-align: left; cursor: pointer; transition: border-color .15s ease, background .15s ease; }
+.aval-chat-suggestions button:hover { border-color: var(--line-strong); background: var(--surface-soft); }
+.aval-chat-suggestions button svg { flex: 0 0 auto; color: var(--quiet); }
 
-.aval-chat-composer { margin: 0 12px; padding: 5px 5px 5px 12px; display: grid; grid-template-columns: minmax(0,1fr) 36px; align-items: center; gap: 8px; border: 1px solid var(--line-strong); border-radius: 14px; background: var(--surface); box-shadow: 0 1px 0 rgba(255,255,255,.55) inset; }
-.aval-chat-composer:focus-within { border-color: color-mix(in srgb, var(--ink) 38%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ink) 6%, transparent); }
-.aval-chat-composer input { min-width: 0; height: 34px; border: 0; outline: 0; background: transparent; color: var(--ink); font-size: 9px; }
+.aval-chat-composer { margin: 0 16px; padding: 6px 6px 6px 15px; display: flex; align-items: center; gap: 9px; border: 1px solid var(--line-strong); border-radius: 15px; background: var(--surface-raised); transition: border-color .15s ease, box-shadow .15s ease; }
+.aval-chat-composer:focus-within { border-color: color-mix(in srgb, var(--ink) 40%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ink) 6%, transparent); }
+.aval-chat-composer input { min-width: 0; flex: 1; height: 36px; border: 0; outline: 0; background: none; color: var(--ink); font-family: inherit; font-size: 14px; }
 .aval-chat-composer input::placeholder { color: var(--quiet); }
-.aval-chat-composer button { width: 36px; height: 36px; display: grid; place-items: center; border: 0; border-radius: 10px; background: var(--ink); color: var(--inverse-ink); cursor: pointer; }
+.aval-chat-composer button { width: 36px; height: 36px; flex: 0 0 auto; display: grid; place-items: center; border: 0; border-radius: 11px; background: var(--ink); color: var(--inverse-ink); cursor: pointer; transition: opacity .15s ease; }
 .aval-chat-composer button:disabled { background: var(--surface-sunken); color: var(--quiet); cursor: default; }
-.aval-chat-disclaimer { margin: 8px 12px 11px; color: var(--quiet); font-size: 7px; text-align: center; }
+.aval-chat-disclaimer { margin: 10px 16px 14px; color: var(--quiet); font-size: 11px; text-align: center; }
+
+@media (max-width: 560px) {
+  .aval-assistant-panel { width: 100vw; border-left: 0; }
+}
 
 html.aval-module-picking .content-shell { cursor: crosshair; }
 .aval-ai-module-hover, .aval-ai-module-selected { position: relative; z-index: 34; outline: 2px solid var(--ink) !important; outline-offset: 3px; }

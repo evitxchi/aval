@@ -11,8 +11,39 @@ function OpenAiMark() { return <svg viewBox="0 0 24 24" aria-label="OpenAI" role
 
 function TwilioMark() { return <svg viewBox="0 0 24 24" aria-label="Twilio" role="img"><circle cx="12" cy="12" r="10" fill="#F22F46"/><g fill="#fff"><circle cx="8.6" cy="8.6" r="2.1"/><circle cx="15.4" cy="8.6" r="2.1"/><circle cx="8.6" cy="15.4" r="2.1"/><circle cx="15.4" cy="15.4" r="2.1"/></g></svg>; }
 
+/**
+ * Providers whose real mark ships as a file.
+ *
+ * These are the ones `simple-icons` does not carry — it only covers brands
+ * above a popularity threshold, which most property-management software sits
+ * under. Each file is the vendor's own current icon asset, kept local rather
+ * than hotlinked so the marks survive offline, cannot break when a vendor
+ * reorganizes its CDN, and need no CSP exception.
+ *
+ * Yardi is deliberately absent: it serves a 403 to anything that is not a
+ * browser, and its only reachable icon is 16px. A clean typographic tile beats
+ * a smeared one, so it keeps its wordmark until a real asset can be obtained.
+ */
+const PROVIDER_ASSETS: Readonly<Record<string, string>> = {
+  appfolio: "/brand/providers/appfolio.png",
+  buildium: "/brand/providers/buildium.png",
+  realpage: "/brand/providers/realpage.svg",
+  entrata: "/brand/providers/entrata.png",
+  rentmanager: "/brand/providers/rentmanager.png",
+  doorloop: "/brand/providers/doorloop.png",
+  granola: "/brand/providers/granola.svg",
+  contpaqi: "/brand/providers/contpaqi.png",
+  alegra: "/brand/providers/alegra.svg",
+  zai: "/brand/providers/zai.svg",
+  siliconflow: "/brand/providers/siliconflow.png",
+};
+
 /** The same provider-mark rendering used across Connections, Inbox, and Tasks — reused by the automation timeline so real channel icons appear per step instead of generic action icons. */
 export function BrandMark({ provider, small = false }: { provider: string; small?: boolean }) {
-  const inner = provider === "whatsapp" ? <SimpleMark icon={siWhatsapp}/> : provider === "apple_messages" ? <SimpleMark icon={siApple}/> : provider === "slack" ? <SlackMark/> : provider === "notion" ? <SimpleMark icon={siNotion}/> : provider === "outlook" ? <OutlookMark/> : provider === "gmail" ? <SimpleMark icon={siGmail}/> : provider === "telegram" ? <SimpleMark icon={siTelegram}/> : provider === "twilio" ? <TwilioMark/> : provider === "quickbooks" ? <SimpleMark icon={siQuickbooks}/> : provider === "xero" ? <SimpleMark icon={siXero}/> : provider === "appfolio" ? <span className="wordmark appfolio-mark">a</span> : provider === "buildium" ? <span className="wordmark buildium-mark">B</span> : provider === "granola" ? <span className="wordmark granola-mark">g</span> : provider === "contpaqi" ? <span className="wordmark contpaqi-mark">C</span> : provider === "alegra" ? <span className="wordmark alegra-mark">A</span> : provider === "yardi" ? <span className="wordmark yardi-mark">Y</span> : provider === "realpage" ? <span className="wordmark realpage-mark">R</span> : provider === "entrata" ? <span className="wordmark entrata-mark">E</span> : provider === "rentmanager" ? <span className="wordmark rentmanager-mark">RM</span> : provider === "doorloop" ? <span className="wordmark doorloop-mark">D</span> : provider === "whatsapp_personal" ? <SimpleMark icon={siWhatsapp}/> : provider === "aval" ? <img src="/brand/aval-mark.png" alt="Aval" /> : provider === "anthropic" || provider === "claude" ? <SimpleMark icon={siAnthropic}/> : provider === "openai" || provider === "chatgpt" ? <OpenAiMark/> : provider === "google_gemini" ? <SimpleMark icon={siGooglegemini}/> : provider === "openrouter" ? <SimpleMark icon={siOpenrouter}/> : provider === "moonshot" ? <SimpleMark icon={siMoonshotai}/> : provider === "zai" ? <span className="wordmark zai-mark">Z</span> : provider === "deepseek" ? <SimpleMark icon={siDeepseek}/> : provider === "alibaba_model_studio" ? <SimpleMark icon={siAlibabacloud}/> : provider === "siliconflow" ? <span className="wordmark siliconflow-mark">SF</span> : <Database width={22} height={22}/>;
+  const asset = PROVIDER_ASSETS[provider];
+  if (asset) {
+    return <span className={`brand-mark ${small ? "small" : ""} brand-${provider}`}><img className="provider-logo" src={asset} alt="" aria-hidden="true"/></span>;
+  }
+  const inner = provider === "whatsapp" ? <SimpleMark icon={siWhatsapp}/> : provider === "apple_messages" ? <SimpleMark icon={siApple}/> : provider === "slack" ? <SlackMark/> : provider === "notion" ? <SimpleMark icon={siNotion}/> : provider === "outlook" ? <OutlookMark/> : provider === "gmail" ? <SimpleMark icon={siGmail}/> : provider === "telegram" ? <SimpleMark icon={siTelegram}/> : provider === "twilio" ? <TwilioMark/> : provider === "quickbooks" ? <SimpleMark icon={siQuickbooks}/> : provider === "xero" ? <SimpleMark icon={siXero}/> : provider === "yardi" ? <span className="wordmark yardi-mark">Y</span> : provider === "whatsapp_personal" ? <SimpleMark icon={siWhatsapp}/> : provider === "aval" ? <img src="/brand/aval-mark.png" alt="Aval" /> : provider === "anthropic" || provider === "claude" ? <SimpleMark icon={siAnthropic}/> : provider === "openai" || provider === "chatgpt" ? <OpenAiMark/> : provider === "google_gemini" ? <SimpleMark icon={siGooglegemini}/> : provider === "openrouter" ? <SimpleMark icon={siOpenrouter}/> : provider === "moonshot" ? <SimpleMark icon={siMoonshotai}/> : provider === "deepseek" ? <SimpleMark icon={siDeepseek}/> : provider === "alibaba_model_studio" ? <SimpleMark icon={siAlibabacloud}/> : <Database width={22} height={22}/>;
   return <span className={`brand-mark ${small ? "small" : ""} brand-${provider}`}>{inner}</span>;
 }
