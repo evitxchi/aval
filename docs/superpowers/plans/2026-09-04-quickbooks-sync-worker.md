@@ -503,8 +503,8 @@ Append to `tests/quickbooks-rules.test.ts`:
 import { realmIdFromCallback } from "../lib/integrations/quickbooks-rules.ts";
 
 test("the realmId is read from the callback query string", () => {
-  const url = new URL("https://aval.example/api/oauth/callback?code=abc&state=xyz&realmId=9341453various");
-  assert.equal(realmIdFromCallback(url), "9341453various");
+  const url = new URL("https://aval.example/api/oauth/callback?code=abc&state=xyz&realmId=9341452148329929");
+  assert.equal(realmIdFromCallback(url), "9341452148329929");
 });
 
 test("a missing or empty realmId reads as absent rather than an empty string", () => {
