@@ -184,7 +184,8 @@
     "toolPropertyBreakdown": "Desglose por propiedad",
     "unavailable": "El asistente no está disponible en este momento.",
     "viewEvidence": "Ver evidencia",
-    "welcomeMessage": "Estoy conectado al contexto de este tablero. Pregunta por cobranza, vacantes, mantenimiento o qué necesita atención."
+    "welcomeMessage": "Estoy conectado al contexto de este tablero. Pregunta por cobranza, vacantes, mantenimiento o qué necesita atención.",
+    "traceRead": "Consultó {source}"
   },
   "BillingSettings": {
     "buyPack": "Comprar {tokens} tokens por ${price}",
@@ -221,6 +222,7 @@
     "destinationsHint": "Un ID exacto de cuenta o proveedor por línea.",
     "destinationsReplace": "Hay {count} destino(s) activo(s). Vuelve a ingresar la lista completa para publicar una nueva versión.",
     "eyebrow": "Gobernanza de agentes",
+    "title": "Política de ejecución financiera",
     "hardCeiling": "Límite máximo por transacción",
     "hardCeilingHint": "El agente rechaza cualquier monto superior, sin importar las aprobaciones.",
     "humanGateBody": "Los pagos, la firma de contratos, las acciones destructivas, los cambios de permisos y las comunicaciones externas nunca se ejecutan automáticamente.",

@@ -184,7 +184,8 @@
     "toolPropertyBreakdown": "Property breakdown",
     "unavailable": "The assistant is unavailable right now.",
     "viewEvidence": "View evidence",
-    "welcomeMessage": "I’m connected to this dashboard context. Ask about collections, vacancies, maintenance, or what deserves attention."
+    "welcomeMessage": "I’m connected to this dashboard context. Ask about collections, vacancies, maintenance, or what deserves attention.",
+    "traceRead": "Read {source}"
   },
   "BillingSettings": {
     "buyPack": "Buy {tokens} tokens for ${price}",
@@ -221,6 +222,7 @@
     "destinationsHint": "One exact provider account or vendor ID per line.",
     "destinationsReplace": "{count} destination(s) are active. Re-enter the complete allowlist to publish a new version.",
     "eyebrow": "Agent governance",
+    "title": "Financial execution policy",
     "hardCeiling": "Hard transaction ceiling",
     "hardCeilingHint": "The agent refuses anything above this, regardless of approvals.",
     "humanGateBody": "Payments, lease execution, destructive actions, permission changes, and external communications never run automatically.",
