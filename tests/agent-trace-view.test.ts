@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { serializeTraceStep } from "../lib/agents/trace-view.ts";
 import { formatDuration, groupBySteps, toneFor } from "../lib/agents/trace-view.ts";
 import { TASK_STATES, TERMINAL_STATES } from "../lib/agents/task-state.ts";
 
@@ -9,6 +10,34 @@ import { TASK_STATES, TERMINAL_STATES } from "../lib/agents/task-state.ts";
  * keep that claim honest — a misclassified row does not look broken, it looks
  * like a different thing happened.
  */
+
+/**
+ * The detail route is what the deployment smoke test and the execution UI both
+ * read. Provenance was persisted by appendStep and asserted by the smoke test
+ * while the serializer omitted it, so the fields existed in D1 and reached
+ * nobody — the first live production run failed on exactly this.
+ */
+test("the trace a caller receives carries the provider and model that ran", () => {
+  const serialized = serializeTraceStep({
+    sequence: 3, stepIndex: 1, kind: "model_call",
+    modelProvider: "anthropic", modelName: "claude-opus-5",
+    toolName: null, policyEffect: null, denyCode: null, riskLevel: null,
+    attempt: 1, durationMs: null, error: null, createdAt: new Date(0),
+  });
+  assert.equal(serialized.modelProvider, "anthropic");
+  assert.equal(serialized.modelName, "claude-opus-5");
+});
+
+test("a step with no model recorded serializes null rather than dropping the field", () => {
+  const serialized = serializeTraceStep({
+    sequence: 4, stepIndex: 1, kind: "tool_call",
+    modelProvider: null, modelName: null,
+    toolName: "get_portfolio_metrics", policyEffect: "allow", denyCode: null, riskLevel: "low",
+    attempt: 1, durationMs: 12, error: null, createdAt: new Date(0),
+  });
+  assert.equal(serialized.modelProvider, null);
+  assert.ok("modelName" in serialized, "the key must always be present so a consumer can rely on its shape");
+});
 
 test("a refused call reads as a denial, not as the tool call it was proposed as", () => {
   // The row arrives with kind "tool_call" and policy "deny". Classifying on

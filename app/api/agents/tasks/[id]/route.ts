@@ -1,5 +1,6 @@
 import { getApiIdentity } from "@/lib/integrations/session";
 import { ensureOrganization } from "@/lib/integrations/organizations";
+import { serializeTraceStep } from "@/lib/agents/trace-view";
 import { getTask, listSteps, requestCancel, TERMINAL_STATES, type TaskState } from "@/lib/agents/tasks";
 
 /**
@@ -39,19 +40,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     error: task.error,
     createdAt: task.createdAt,
     finishedAt: task.finishedAt,
-    trace: steps.map((step) => ({
-      sequence: step.sequence,
-      step: step.stepIndex,
-      kind: step.kind,
-      tool: step.toolName,
-      policy: step.policyEffect,
-      denyCode: step.denyCode,
-      risk: step.riskLevel,
-      attempt: step.attempt,
-      durationMs: step.durationMs,
-      error: step.error,
-      at: step.createdAt,
-    })),
+    trace: steps.map(serializeTraceStep),
   }, { headers: { "cache-control": "no-store" } });
 }
 

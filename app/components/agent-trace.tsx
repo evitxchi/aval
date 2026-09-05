@@ -70,6 +70,8 @@ interface TraceEntry {
   sequence: number;
   step: number;
   kind: string;
+  modelProvider: string | null;
+  modelName: string | null;
   tool: string | null;
   policy: string | null;
   denyCode: string | null;

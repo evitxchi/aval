@@ -9,6 +9,65 @@
  * what an agent did.
  */
 
+/**
+ * The wire shape of one trace row.
+ *
+ * Lives here rather than inline in the route so the fields a caller receives
+ * are asserted by a test. Provenance was persisted, asserted by the deployment
+ * smoke test, and silently dropped by the route's own mapping — a read path
+ * that quietly narrows a write path is not visible to the compiler, and the
+ * first live production run is an expensive place to find it.
+ */
+export interface SerializedTraceStep {
+  sequence: number;
+  step: number;
+  kind: string;
+  modelProvider: string | null;
+  modelName: string | null;
+  tool: string | null;
+  policy: string | null;
+  denyCode: string | null;
+  risk: string | null;
+  attempt: number;
+  durationMs: number | null;
+  error: string | null;
+  at: Date;
+}
+
+export interface TraceStepRow {
+  sequence: number;
+  stepIndex: number;
+  kind: string;
+  modelProvider: string | null;
+  modelName: string | null;
+  toolName: string | null;
+  policyEffect: string | null;
+  denyCode: string | null;
+  riskLevel: string | null;
+  attempt: number;
+  durationMs: number | null;
+  error: string | null;
+  createdAt: Date;
+}
+
+export function serializeTraceStep(step: TraceStepRow): SerializedTraceStep {
+  return {
+    sequence: step.sequence,
+    step: step.stepIndex,
+    kind: step.kind,
+    modelProvider: step.modelProvider,
+    modelName: step.modelName,
+    tool: step.toolName,
+    policy: step.policyEffect,
+    denyCode: step.denyCode,
+    risk: step.riskLevel,
+    attempt: step.attempt,
+    durationMs: step.durationMs,
+    error: step.error,
+    at: step.createdAt,
+  };
+}
+
 export interface TraceEntryShape {
   sequence: number;
   step: number;
