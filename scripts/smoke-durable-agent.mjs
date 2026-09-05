@@ -12,6 +12,19 @@ if (!/^https:\/\//.test(baseUrl)) {
   process.exit(2);
 }
 
+// Demo access no longer exists. Exercise the real account session boundary.
+const email = process.env.AVAL_SMOKE_EMAIL;
+const password = process.env.AVAL_SMOKE_PASSWORD;
+if (!email || !password) {
+  fail("Authenticated production smoke needs AVAL_SMOKE_EMAIL and AVAL_SMOKE_PASSWORD for a dedicated verification account.", {});
+}
+const login = await fetch(`${baseUrl}/api/auth/login`, {
+  method: "POST", headers: { "content-type": "application/json" },
+  body: JSON.stringify({ email, password }),
+});
+const sessionCookie = login.headers.get("set-cookie")?.split(";")[0];
+if (!login.ok || !sessionCookie) fail(`Verification account login failed (${login.status})`, {});
+
 const deadline = Date.now() + 6 * 60_000;
 const created = await request("/api/agents/tasks", {
   method: "POST",
@@ -64,7 +77,7 @@ while (Date.now() < deadline) {
 fail(`task did not finish within six minutes (last status: ${lastStatus})`, { taskId });
 
 async function request(path, init) {
-  const response = await fetch(`${baseUrl}${path}`, init);
+  const response = await fetch(`${baseUrl}${path}`, { ...init, headers: { ...init?.headers, cookie: sessionCookie } });
   const text = await response.text();
   let body;
   try { body = text ? JSON.parse(text) : null; } catch { body = { nonJsonBody: text.slice(0, 500) }; }

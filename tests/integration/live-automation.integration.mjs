@@ -1,0 +1,33 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { registerHooks } from "node:module";
+import { bootRuntime } from "./harness.mjs";
+registerHooks({ resolve(specifier, context, next) { return next(specifier === "next/headers" ? "next/headers.js" : specifier, context); } });
+const request = (body) => new Request("https://aval.test/api/automations", { method: body ? "POST" : "GET", headers: { "oai-authenticated-user-id": "alice", "oai-authenticated-user-email": "alice@example.test", "content-type": "application/json" }, ...(body ? { body: JSON.stringify(body) } : {}) });
+test("an empty live workspace never offers sample automation triggers or accepts sample decisions", async () => {
+  const sqlite = await bootRuntime();
+  const { getApiIdentity } = await import("../../lib/integrations/session.ts");
+  const { ensureOrganization } = await import("../../lib/integrations/organizations.ts");
+  await ensureOrganization(await getApiIdentity(request()));
+  const route = await import("../../app/api/automations/route.ts");
+  const decision = await import("../../app/api/insights/decision/route.ts");
+  assert.deepEqual((await (await route.GET(request())).json()).triggers, []);
+  assert.equal((await route.POST(request({ action: "start", insightId: "maintenance-sla" }))).status, 404);
+  assert.equal((await decision.POST(request({ insightId: "collections-gap", decision: "approved" }))).status, 400);
+  assert.equal(sqlite.prepare("SELECT count(*) AS n FROM automation_runs").get().n, 0);
+  assert.equal(sqlite.prepare("SELECT count(*) AS n FROM insight_decisions").get().n, 0);
+});
+test("automation findings are derived from the caller's actual property records", async () => {
+  await bootRuntime();
+  const { getApiIdentity } = await import("../../lib/integrations/session.ts");
+  const { ensureOrganization } = await import("../../lib/integrations/organizations.ts");
+  const identity = await getApiIdentity(request()); await ensureOrganization(identity);
+  const { createProperty, createUnit } = await import("../../lib/operations/portfolio.ts");
+  const property = await createProperty(identity.organizationId, { name: "Harbor Court" });
+  await createUnit(identity.organizationId, { propertyId: property.id, unitNumber: "204", status: "vacant_ready", marketRentCents: 150000, vacantSince: new Date(Date.now() - 95 * 86400000) });
+  const route = await import("../../app/api/automations/route.ts");
+  const { triggers } = await (await route.GET(request())).json();
+  assert.ok(triggers.length > 0);
+  assert.ok(triggers.every(t => typeof t.title === "string" && !t.titleKey && t.channel === "aval"));
+  assert.ok(triggers.some(t => /vacan/i.test(t.title)));
+});

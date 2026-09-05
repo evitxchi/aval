@@ -416,10 +416,8 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [pickingModule]);
 
-  // Tries the real Claude API first, grounded in the same dashboard data the
-  // page shows. Falls back to the local sample-mode analyzer — and says so —
-  // if no key is configured yet or the request fails, so the assistant
-  // never silently claims a canned pattern-match was live analysis.
+  // Answers are grounded in authenticated workspace records. Failures are
+  // shown explicitly and never replaced with canned analysis.
   const submitQuestion = async (question: string) => {
     const trimmed = question.trim();
     if (!trimmed || thinking) return;

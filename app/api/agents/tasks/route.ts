@@ -16,9 +16,7 @@ import { runTaskInBackground, type AgentWorkerEnv } from "@/lib/agents/worker";
  * holding the HTTP response open, and the minute cron is the recovery path if
  * that isolate disappears. Browser polling only observes state.
  *
- * Guests may create and watch tasks (the demo is the product's front door) but
- * every mutating tool is denied to them by policy, so a guest task can only
- * ever read the shared demo workspace.
+ * Tasks require authentication and are scoped to the caller's organization.
  */
 
 const MAX_GOAL_CHARS = 1200;

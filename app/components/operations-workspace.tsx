@@ -1,39 +1,42 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Refresh } from "iconoir-react";
 import type { OperationsOverview } from "@/lib/operations/summary";
-import {
-  sampleData,
-  derivePropertyTotals,
-  deriveMaintenanceReported,
-  derivedSample,
-} from "@/app/data/sample";
 import { DataChart, type ChartRow, type ChartSeries } from "./data-chart";
 import { useExperience } from "./experience";
-type OperationsModule = "properties" | "leasing" | "maintenance" | "accounting";
+type OperationsModule =
+  "properties" | "leasing" | "maintenance" | "accounting" | "overview";
+const palette = [
+  "var(--viz-blue)",
+  "var(--viz-green)",
+  "var(--viz-indigo)",
+  "var(--viz-amber)",
+  "#e78bb0",
+  "#50bfc7",
+];
 export function OperationsWorkspace({
   view,
-  sample,
   openConnections,
+  hero,
 }: {
   view: OperationsModule;
-  sample: boolean;
   openConnections: () => void;
+  hero?: ReactNode;
 }) {
-  const t = useTranslations();
-  const e = useTranslations("Enterprise");
-  const locale = useLocale();
+  const t = useTranslations(),
+    e = useTranslations("Enterprise"),
+    c = useTranslations("Charts"),
+    locale = useLocale();
   const { market } = useExperience();
   const [period, setPeriod] = useState("month_to_date"),
-    [revision, setRevision] = useState(0),
-    [loaded, setLoaded] = useState<{
-      data: OperationsOverview | null;
-      loading: boolean;
-      error: boolean;
-    }>({ data: null, loading: !sample, error: false });
+    [revision, setRevision] = useState(0);
+  const [loaded, setLoaded] = useState<{
+    data: OperationsOverview | null;
+    loading: boolean;
+    error: boolean;
+  }>({ data: null, loading: true, error: false });
   useEffect(() => {
-    if (sample) return;
     const abort = new AbortController();
     void (async () => {
       setLoaded({ data: null, loading: true, error: false });
@@ -54,13 +57,13 @@ export function OperationsWorkspace({
       }
     })();
     return () => abort.abort();
-  }, [period, revision, sample]);
+  }, [period, revision]);
   const data = loaded.data;
   const money = (n: number) =>
     new Intl.NumberFormat(locale, {
       style: "currency",
       currency: market === "latam" ? "MXN" : "USD",
-      maximumFractionDigits: 2,
+      maximumFractionDigits: 0,
     }).format(n);
   const compactMoney = (n: number) =>
     new Intl.NumberFormat(locale, {
@@ -69,216 +72,193 @@ export function OperationsWorkspace({
       notation: "compact",
       maximumFractionDigits: 1,
     }).format(n);
-  const blue = "var(--viz-blue)",
-    green = "var(--viz-green)",
-    amber = "var(--viz-amber)";
-  let rows: ChartRow[] = [],
-    series: ChartSeries[] = [],
-    metrics: {
-      label: string;
-      value: number | null;
-      format?: (n: number) => string;
-    }[] = [];
-  let secondary: ChartRow[] = [],
-    secondaryTitle = "";
-  const titles = {
-    properties: e("occupancyByType"),
-    leasing: e("leasingFunnel"),
-    maintenance: e("workByCategory"),
-    accounting: e("incomeExpenses"),
-  };
-  if (view === "properties") {
-    const p = derivePropertyTotals(sampleData.properties.list),
-      o = data?.portfolio.occupancy;
+  const pct = (n: number) => `${n.toFixed(1)}%`;
+  const occupancyRows: ChartRow[] = (data?.portfolio.unitMix ?? []).map(
+    (r) => ({
+      label: r.label,
+      values: { occupied: r.occupied, vacant: r.units - r.occupied },
+    }),
+  );
+  const occupancySeries = [
+    { key: "occupied", label: e("occupied"), color: palette[0] },
+    { key: "vacant", label: e("unoccupied"), color: palette[3] },
+  ];
+  const funnelRows = (data?.leasing.funnel ?? []).map((s) => ({
+    label: e(`stages.${s.stage}`),
+    values: { count: s.reached },
+  }));
+  const categories = (data?.maintenance.byCategory ?? []).map((r) => ({
+    label: e(`categories.${r.category}`),
+    values: { count: r.count },
+  }));
+  const pnl = data?.accounting.profitAndLoss;
+  const pnlRows: ChartRow[] = (data?.accounting.byProperty ?? []).map((p) => ({
+    label: p.propertyName ?? c("unassigned"),
+    values: {
+      income: p.incomeCents / 100,
+      expense: p.operatingExpenseCents / 100,
+      noi: p.noiCents / 100,
+    },
+  }));
+  if (!pnlRows.length && pnl)
+    pnlRows.push({
+      label: e("portfolio"),
+      values: {
+        income: pnl.incomeCents / 100,
+        expense: pnl.operatingExpenseCents / 100,
+        noi: pnl.noiCents / 100,
+      },
+    });
+  const cashSeries: ChartSeries[] = [
+    { key: "income", label: e("income"), color: palette[1] },
+    { key: "expense", label: e("expenses"), color: palette[3] },
+    { key: "noi", label: e("noi"), color: palette[2] },
+  ];
+  const timeline = data?.accounting.timeline;
+  const dateLabel = (date: string) =>
+    new Intl.DateTimeFormat(locale, {
+      month: "short",
+      ...(timeline?.granularity === "day"
+        ? { day: "numeric" as const }
+        : { year: "2-digit" as const }),
+      timeZone: "UTC",
+    }).format(new Date(date));
+  const cashRows: ChartRow[] = (timeline?.rows ?? []).map((r) => ({
+    label: dateLabel(r.start),
+    values: {
+      income: r.incomeCents / 100,
+      expense: r.expenseCents / 100,
+      noi: r.noiCents / 100,
+    },
+  }));
+  const incomeRows: ChartRow[] = (timeline?.rows ?? []).map((r) => ({
+    label: dateLabel(r.start),
+    values: Object.fromEntries(
+      Object.entries(r.income).map(([k, v]) => [k, v / 100]),
+    ),
+  }));
+  const incomeSeries = (timeline?.incomeSeries ?? []).map((s, i) => ({
+    ...s,
+    label: s.label ?? c("otherIncome"),
+    color: palette[i % palette.length],
+  }));
+  let metrics: {
+    label: string;
+    value: number | null;
+    format?: (n: number) => string;
+  }[] = [];
+  if (view === "overview")
+    metrics = [
+      {
+        label: e("noi"),
+        value:
+          data?.headline.noiCents == null ? null : data.headline.noiCents / 100,
+        format: money,
+      },
+      {
+        label: c("physicalOccupancy"),
+        value: data?.headline.physicalOccupancyPct ?? null,
+        format: pct,
+      },
+      {
+        label: e("collectionRate"),
+        value: data?.headline.collectionRatePct ?? null,
+        format: pct,
+      },
+      { label: e("open"), value: data?.headline.openWorkOrders ?? null },
+    ];
+  else if (view === "properties")
     metrics = [
       {
         label: t("Nav.properties"),
-        value: sample ? p.properties : (data?.portfolio.propertyCount ?? null),
+        value: data?.portfolio.propertyCount ?? null,
       },
-      { label: e("units"), value: sample ? p.units : (o?.totalUnits ?? null) },
+      {
+        label: e("units"),
+        value: data?.portfolio.occupancy.totalUnits ?? null,
+      },
       {
         label: e("occupied"),
-        value: sample ? p.occupied : (o?.occupiedUnits ?? null),
+        value: data?.portfolio.occupancy.occupiedUnits ?? null,
       },
       {
         label: e("available"),
-        value: sample ? p.readyForLeasing : (o?.availableToLeaseUnits ?? null),
+        value: data?.portfolio.occupancy.availableToLeaseUnits ?? null,
       },
     ];
-    series = [
-      { key: "occupied", label: e("occupied"), color: blue },
-      { key: "vacant", label: e("unoccupied"), color: "var(--viz-amber)" },
-    ];
-    rows = sample
-      ? sampleData.properties.list.map((p) => ({
-          label: t(p.nameKey),
-          values: { occupied: p.occupied, vacant: p.units - p.occupied },
-        }))
-      : (data?.portfolio.unitMix ?? []).map((r) => ({
-          label: r.label,
-          values: { occupied: r.occupied, vacant: r.units - r.occupied },
-        }));
-  } else if (view === "leasing") {
-    const stages = sample
-      ? sampleData.funnel.stages.map((s) => ({
-          label: t(s.labelKey),
-          count: s.count,
-        }))
-      : (data?.leasing.funnel ?? []).map((s) => ({
-          label: e(`stages.${s.stage}`),
-          count: s.reached,
-        }));
-    rows = stages.map((s) => ({ label: s.label, values: { count: s.count } }));
-    series = [{ key: "count", label: e("leads"), color: blue }];
-    metrics = stages
+  else if (view === "leasing")
+    metrics = (data?.leasing.funnel ?? [])
       .slice(0, 4)
-      .map((s) => ({ label: s.label, value: s.count }));
-    secondaryTitle = e("leaseExpirations");
-    secondary = (data?.leasing.expirations.schedule ?? []).map((s) => ({
-      label: s.month,
-      values: { count: s.leaseCount },
-    }));
-  } else if (view === "maintenance") {
-    const m = data?.maintenance.summary;
+      .map((s) => ({ label: e(`stages.${s.stage}`), value: s.reached }));
+  else if (view === "maintenance")
     metrics = [
       {
         label: e("reported"),
-        value: sample
-          ? deriveMaintenanceReported(sampleData.maintenance.categories)
-          : (m?.totalWorkOrders ?? null),
+        value: data?.maintenance.summary.totalWorkOrders ?? null,
       },
-      {
-        label: e("open"),
-        value: sample
-          ? sampleData.openWorkOrders.value
-          : (m?.openCount ?? null),
-      },
+      { label: e("open"), value: data?.maintenance.summary.openCount ?? null },
       {
         label: e("completed"),
-        value: sample
-          ? sampleData.maintenance.completed
-          : (m?.completedCount ?? null),
+        value: data?.maintenance.summary.completedCount ?? null,
       },
       {
-        label: e(sample ? "urgent" : "emergency"),
-        value: sample
-          ? sampleData.openWorkOrders.urgent
-          : (m?.emergencyOpenCount ?? null),
+        label: e("emergency"),
+        value: data?.maintenance.summary.emergencyOpenCount ?? null,
       },
     ];
-    series = [{ key: "count", label: e("workOrders"), color: blue }];
-    rows = sample
-      ? sampleData.maintenance.categories.map((c) => ({
-          label: t(c.categoryKey),
-          values: { count: c.countsByMonth.reduce((a, b) => a + b, 0) },
-        }))
-      : (data?.maintenance.byCategory ?? []).map((c) => ({
-          label: e(`categories.${c.category}`),
-          values: { count: c.count },
-        }));
-  } else {
-    const c = data?.accounting.collections;
+  else
     metrics = [
       {
         label: e("billed"),
-        value: sample
-          ? sampleData.rentCollected.billed
-          : c
-            ? c.billedCents / 100
-            : null,
+        value: data?.accounting.collections
+          ? data.accounting.collections.billedCents / 100
+          : null,
         format: money,
       },
       {
         label: e("collected"),
-        value: sample
-          ? sampleData.rentCollected.value
-          : c
-            ? c.collectedCents / 100
-            : null,
+        value: data?.accounting.collections
+          ? data.accounting.collections.collectedCents / 100
+          : null,
         format: money,
       },
       {
         label: e("pastDue"),
-        value: sample
-          ? sampleData.rentCollected.billed - sampleData.rentCollected.value
-          : data?.accounting.aging
-            ? data.accounting.aging.totalPastDueCents / 100
-            : null,
+        value: data?.accounting.aging
+          ? data.accounting.aging.totalPastDueCents / 100
+          : null,
         format: money,
       },
       {
         label: e("collectionRate"),
-        value: sample
-          ? derivedSample.rentCollectedPct
-          : (c?.collectionRatePct ?? null),
-        format: (n) => `${n.toFixed(1)}%`,
+        value: data?.accounting.collections?.collectionRatePct ?? null,
+        format: pct,
       },
     ];
-    series = [
-      { key: "income", label: e("income"), color: green },
-      { key: "expense", label: e("expenses"), color: amber },
-      { key: "noi", label: e("noi"), color: blue },
-    ];
-    const p = data?.accounting.profitAndLoss;
-    rows = sample
-      ? [
-          {
-            label: e("portfolio"),
-            values: {
-              income: sampleData.accounting.revenueSources.reduce(
-                (a, b) => a + b.amount,
-                0,
-              ),
-              expense: sampleData.accounting.expenses.reduce(
-                (a, b) => a + b.amount,
-                0,
-              ),
-              noi: sampleData.noi.value,
-            },
-          },
-        ]
-      : p
-        ? [
-            {
-              label: e("portfolio"),
-              values: {
-                income: p.incomeCents / 100,
-                expense: p.operatingExpenseCents / 100,
-                noi: p.noiCents / 100,
-              },
-            },
-          ]
-        : [];
-    secondaryTitle = e("receivablesAging");
-    secondary = data?.accounting.aging
-      ? Object.entries(data.accounting.aging.totals).map(([k, v]) => ({
-          label: e(`aging.${k}`),
-          values: { count: v / 100 },
-        }))
-      : [];
-  }
+  const common = { loading: loaded.loading, compact: view === "overview" };
+  const currency = { format: money, axisFormat: compactMoney };
   return (
     <div className="view-wrap operations-workspace">
+      {hero}
       <header className="app-header">
         <div>
           <p className="eyebrow">{e("operations")}</p>
-          <h1>{t(`Nav.${view}`)}</h1>
-          <p className="header-subtitle">{e("operationsDescription")}</p>
+          <h1>
+            {t(view === "overview" ? "Nav.portfolioOverview" : `Nav.${view}`)}
+          </h1>
+          <p className="header-subtitle">{c("description")}</p>
         </div>
         <button className="soft-button" onClick={openConnections}>
           {e("manageSources")}
         </button>
       </header>
       <div className="enterprise-toolbar">
-        <span className="enterprise-status">
-          {e(sample ? "sampleData" : "workspaceData")}
-        </span>
+        <span className="enterprise-status">{e("workspaceData")}</span>
         <label className="enterprise-period">
           {e("period")}
           <select
             className="enterprise-select"
             value={period}
-            disabled={sample}
             onChange={(event) => setPeriod(event.target.value)}
           >
             {[
@@ -296,14 +276,14 @@ export function OperationsWorkspace({
         </label>
         <button
           className="icon-button"
-          disabled={sample || loaded.loading}
+          disabled={loaded.loading}
           aria-label={e("refresh")}
           onClick={() => setRevision((r) => r + 1)}
         >
           <Refresh width={18} height={18} />
         </button>
       </div>
-      {loaded.error && !sample && (
+      {loaded.error && (
         <div className="enterprise-error" role="alert">
           {e("loadError")}
           <button
@@ -314,15 +294,23 @@ export function OperationsWorkspace({
           </button>
         </div>
       )}
+      {data?.isEmpty && (
+        <div className="operations-empty-note">
+          <p>{c("empty")}</p>
+          <button className="soft-button" onClick={openConnections}>
+            {e("manageSources")}
+          </button>
+        </div>
+      )}
       <section
         className="metric-grid compact-metrics"
-        aria-busy={loaded.loading && !sample}
+        aria-busy={loaded.loading}
       >
         {metrics.map((m) => (
           <article className="metric-card" key={m.label}>
             <span>{m.label}</span>
             <strong>
-              {loaded.loading && !sample
+              {loaded.loading
                 ? "…"
                 : m.value === null
                   ? "—"
@@ -331,37 +319,196 @@ export function OperationsWorkspace({
           </article>
         ))}
       </section>
-      <section className="panel operations-chart-panel">
-        <DataChart
-          key={`${view}-${period}`}
-          title={titles[view]}
-          subtitle={e(sample ? "sampleDescription" : "chartDescription")}
-          rows={rows}
-          series={series}
-          format={view === "accounting" ? money : undefined}
-          axisFormat={view === "accounting" ? compactMoney : undefined}
-        />
-      </section>
-      {secondary.length > 0 && (
-        <section className="panel">
-          <DataChart
-            title={secondaryTitle}
-            rows={secondary}
-            series={[
-              {
-                key: "count",
-                label: view === "accounting" ? e("balance") : e("leases"),
-                color: blue,
-              },
-            ]}
-            format={view === "accounting" ? money : undefined}
-            axisFormat={view === "accounting" ? compactMoney : undefined}
-          />
-        </section>
-      )}
-      {!sample && data?.accounting.notes && view === "accounting" && (
+      <div
+        className={
+          view === "overview" ? "portfolio-chart-grid" : "operations-chart-grid"
+        }
+      >
+        {(view === "overview" || view === "accounting") && (
+          <section className="panel chart-wide">
+            <DataChart
+              {...common}
+              {...currency}
+              chartId={`${view}.cash`}
+              title={c("cashFlow")}
+              subtitle={c("cashFlowNote")}
+              rows={cashRows}
+              series={cashSeries}
+              temporal
+              initialKind="area"
+            />
+          </section>
+        )}
+        {(view === "overview" || view === "properties") && (
+          <section className="panel">
+            <DataChart
+              {...common}
+              chartId={`${view}.occupancy`}
+              title={e("occupancyByType")}
+              subtitle={c("occupancyNote")}
+              rows={occupancyRows}
+              series={occupancySeries}
+              additive
+              initialKind="stacked"
+            />
+          </section>
+        )}
+        {(view === "overview" || view === "leasing") && (
+          <section className="panel">
+            <DataChart
+              {...common}
+              chartId={`${view}.funnel`}
+              title={e("leasingFunnel")}
+              subtitle={c("funnelNote")}
+              rows={funnelRows}
+              series={[{ key: "count", label: e("leads"), color: palette[0] }]}
+              initialKind="horizontal"
+            />
+          </section>
+        )}
+        {(view === "overview" || view === "maintenance") && (
+          <section className="panel">
+            <DataChart
+              {...common}
+              chartId={`${view}.maintenance`}
+              title={e("workByCategory")}
+              subtitle={e("chartDescription")}
+              rows={categories}
+              series={[
+                { key: "count", label: e("workOrders"), color: palette[2] },
+              ]}
+              initialKind="dots"
+            />
+          </section>
+        )}
+        {(view === "overview" || view === "leasing") && (
+          <section className="panel">
+            <DataChart
+              {...common}
+              chartId={`${view}.expirations`}
+              title={e("leaseExpirations")}
+              subtitle={c("expirationNote")}
+              rows={(data?.leasing.expirations.schedule ?? []).map((r) => ({
+                label: r.month,
+                values: { count: r.leaseCount },
+              }))}
+              series={[{ key: "count", label: e("leases"), color: palette[1] }]}
+              temporal
+              initialKind="steps"
+            />
+          </section>
+        )}
+        {view === "properties" && (
+          <section className="panel">
+            <DataChart
+              {...common}
+              {...currency}
+              chartId="properties.rents"
+              title={c("rentPosition")}
+              subtitle={c("rentPositionNote")}
+              rows={
+                data?.portfolio.occupancy.totalUnits
+                  ? [
+                      {
+                        label: c("marketRent"),
+                        values: {
+                          amount:
+                            data.portfolio.rentPosition
+                              .grossPotentialRentCents / 100,
+                        },
+                      },
+                      {
+                        label: c("contractRent"),
+                        values: {
+                          amount:
+                            data.portfolio.rentPosition.inPlaceRentCents / 100,
+                        },
+                      },
+                    ]
+                  : []
+              }
+              series={[
+                { key: "amount", label: c("monthlyRent"), color: palette[1] },
+              ]}
+              initialKind="horizontal"
+            />
+          </section>
+        )}
+        {view === "maintenance" && (
+          <section className="panel">
+            <DataChart
+              {...common}
+              {...currency}
+              chartId="maintenance.spend"
+              title={c("maintenanceSpend")}
+              rows={(data?.maintenance.spendByProperty ?? []).map((r) => ({
+                label: r.propertyName,
+                values: { cost: r.totalCostCents / 100 },
+              }))}
+              series={[
+                { key: "cost", label: e("expenses"), color: palette[3] },
+              ]}
+              initialKind="horizontal"
+            />
+          </section>
+        )}
+        {(view === "overview" || view === "accounting") && (
+          <section className="panel chart-wide">
+            <DataChart
+              {...common}
+              {...currency}
+              chartId={`${view}.incomeMix`}
+              title={c("incomeMix")}
+              subtitle={c("incomeMixNote")}
+              rows={incomeRows}
+              series={incomeSeries}
+              temporal
+              additive
+              initialKind="stackedArea"
+            />
+          </section>
+        )}
+        {view === "accounting" && (
+          <>
+            <section className="panel">
+              <DataChart
+                {...common}
+                {...currency}
+                chartId="accounting.properties"
+                title={e("incomeExpenses")}
+                subtitle={c("propertyProfitNote")}
+                rows={pnlRows}
+                series={cashSeries}
+              />
+            </section>
+            <section className="panel">
+              <DataChart
+                {...common}
+                {...currency}
+                chartId="accounting.aging"
+                title={e("receivablesAging")}
+                rows={
+                  data?.accounting.aging
+                    ? Object.entries(data.accounting.aging.totals).map(
+                        ([k, v]) => ({
+                          label: e(`aging.${k}`),
+                          values: { count: v / 100 },
+                        }),
+                      )
+                    : []
+                }
+                series={[
+                  { key: "count", label: e("balance"), color: palette[3] },
+                ]}
+                initialKind="horizontal"
+              />
+            </section>
+          </>
+        )}
+      </div>
+      {(view === "overview" || view === "accounting") && (
         <div className="operations-notes">
-          {data.accounting.notes.map((n) => (
+          {data?.accounting.notes.map((n) => (
             <p key={n}>{n}</p>
           ))}
         </div>

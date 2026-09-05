@@ -5,15 +5,13 @@ import { useEffect, useMemo, useState } from "react";
 import type { ComponentType, FormEvent, ReactNode } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import * as Dialog from "@radix-ui/react-dialog";
-import type { DateRange } from "react-day-picker";
-import { enUS, es } from "date-fns/locale";
 import {
-  Archive, Bell, Calendar, ChatLines, Check, CheckCircle, ClipboardCheck,
-  Coins, CoinsSwap, Dashboard, Database, Flash, Globe, HalfMoon, HomeSimpleDoor, Key,
+  Bell, Calendar, ChatLines, Check, ClipboardCheck,
+  CoinsSwap, Dashboard, Database, Flash, Globe, HalfMoon, HomeSimpleDoor, Key,
   Language, LogOut, NetworkLeft, NavArrowDown, NavArrowRight, Page,
-  Plus, ScaleFrameEnlarge, ScaleFrameReduce, Settings, ShieldCheck,
-  Refresh, SoundHigh, SoundOff, StatsUpSquare, SunLight, TaskList, Tools, User, WarningTriangle,
-  ViewColumns3, Xmark, XmarkCircle,
+  Plus, Settings,
+  Refresh, SoundHigh, SoundOff, SunLight, TaskList, Tools, User, WarningTriangle,
+  ViewColumns3, Xmark,
 } from "iconoir-react";
 import { AnimatedNumber, ExperienceProvider, useExperience, usePrefersReducedMotion } from "@/app/components/experience";
 import { useRouter, usePathname } from "./navigation";
@@ -22,29 +20,24 @@ import type { AuthMode } from "@/app/components/auth-gate";
 import { AskAvalTasksSection, useDraftJobs, type CreateDraftInput, type DraftJob } from "@/app/components/ask-aval-tasks";
 import { AppearanceProvider } from "@/app/components/appearance-provider";
 import { ProfileAvatar } from "@/app/components/character-avatar";
-import { DemoWorkspace } from "@/app/components/demo-workspace";
+import { UsageGrid, UsageRecorder } from "@/app/components/usage-activity";
 import { ConnectedInbox } from "@/app/components/connected-inbox";
-import type { WorkspaceMode } from "@/lib/workspace-mode";
 import { SettingsModule } from "@/app/components/settings-module";
 import { BrandMark } from "@/app/components/brand-mark";
 import { DesktopServiceBar } from "@/app/components/desktop-codex";
 import { ConnectionDialog, type Provider } from "@/app/components/connection-dialog";
 import { AutomationTimeline } from "@/app/components/automation-timeline";
 import { AgentTrace } from "@/app/components/agent-trace";
-import { activityIntensity, buildActivityYear, derivedSample, rankInsights, sampleData, type InsightCandidate, type InsightRecipient, type NotificationItem, type NotificationTarget, type ReviewStatus } from "@/app/data/sample";
-import { formatMoney } from "@/lib/finance/money";
+import type { NotificationItem } from "@/app/data/sample";
 import { AvalAgentAvatar } from "@/app/components/agent-avatar/AgentAvatar";
 import { DATA_SOURCE_NODES, PERSONA_IDS, PERSONA_PRESETS, PERSONA_TOOL_ACCESS, type PersonaId } from "@/app/components/agent-avatar/personas";
-import { buildingAssets, capitalForecast, complianceItems, fixtureLoad, FIXTURE_UNIT_TABLE_CEILING, infrastructureSummary, preventiveTasks, totalAnnualReserveCents, type AssetCategory, type AssetCondition, type DueStatus } from "@/app/data/infrastructure-sample";
 import type { UtilityType } from "@/lib/infrastructure/types";
 import { DocumentUploader } from "@/app/components/document-uploader";
 import { IntegrationsCatalog } from "@/app/components/integrations-catalog";
 import { PlanningWorkspace } from "@/app/components/planning-workspace";
 import { OperationsWorkspace } from "@/app/components/operations-workspace";
-import { Calendar as RangeCalendar } from "@/components/ui/calendar-with-presets";
 
 type View = "calendar" | "projects" | "teams" | "overview" | "tasks" | "reviewCenter" | "inbox" | "properties" | "leasing" | "maintenance" | "accounting" | "infrastructure" | "connections" | "documents" | "setup" | "settings";
-type DataMode = "sample" | "empty" | "live";
 type IconComponent = ComponentType<{ width?: number; height?: number; className?: string }>;
 type T = ReturnType<typeof useTranslations>;
 
@@ -108,262 +101,6 @@ function formatMinutesAgo(minutesAgo: number, locale: string): string {
 
 function AppHeader({ title, subtitle, actions }: { title: string; subtitle?: string; actions?: ReactNode }) { const t = useTranslations(); return <header className="app-header"><div><p className="eyebrow">{t("DesktopApp.avalWorkspaceEyebrow")}</p><h1>{title}</h1>{subtitle && <p className="header-subtitle">{subtitle}</p>}</div><div className="header-actions">{actions}<button className="icon-button" onClick={() => window.dispatchEvent(new Event("aval:notifications"))} aria-label={t("DesktopApp.notificationsLabel")}><Bell width={20} height={20}/><span className="notification-dot"/></button></div></header>; }
 
-const metricTiles = [
-  {
-    key: "noi", labelKey: sampleData.noi.labelKey, value: sampleData.noi.value, prefix: "$", suffix: "", decimals: 0,
-    deltaText: `+${derivedSample.noiDeltaPct.toFixed(1)}%`, detailKey: sampleData.noi.detailKey, detailParams: undefined as Record<string, number> | undefined, bars: sampleData.noi.bars,
-    emptyDescriptionKey: "Overview.noiEmptyDescription",
-  },
-  {
-    key: "economicOccupancy", labelKey: sampleData.economicOccupancy.labelKey, value: sampleData.economicOccupancy.value, prefix: "", suffix: "%", decimals: 1,
-    deltaText: `+${derivedSample.occupancyDeltaPct.toFixed(1)}%`, detailKey: sampleData.economicOccupancy.detailKey, detailParams: undefined as Record<string, number> | undefined, bars: sampleData.economicOccupancy.bars,
-    emptyDescriptionKey: "Overview.occupancyEmptyDescription",
-  },
-  {
-    key: "rentCollected", labelKey: sampleData.rentCollected.labelKey, value: sampleData.rentCollected.value, prefix: "$", suffix: "", decimals: 0,
-    deltaText: `${derivedSample.rentCollectedPct.toFixed(1)}%`, detailKey: sampleData.rentCollected.detailKey, detailParams: undefined as Record<string, number> | undefined, bars: sampleData.rentCollected.bars,
-    emptyDescriptionKey: "Overview.rentCollectedEmptyDescription",
-  },
-  {
-    key: "openWorkOrders", labelKey: sampleData.openWorkOrders.labelKey, value: sampleData.openWorkOrders.value, prefix: "", suffix: "", decimals: 0,
-    deltaText: `${sampleData.openWorkOrders.urgent} urgent`,
-    detailKey: sampleData.openWorkOrders.detailKey, detailParams: { days: sampleData.openWorkOrders.avgCloseDays },
-    bars: sampleData.openWorkOrders.bars,
-    emptyDescriptionKey: "Overview.workOrdersEmptyDescription",
-  },
-] as const;
-const funnelStageWidths: Record<typeof sampleData.funnel.stages[number]["key"], string> = {
-  contacted: "100%", viewed: "78%", applied: "56%", signed: "40%",
-};
-const funnelStages = sampleData.funnel.stages.map((stage) => ({ ...stage, width: funnelStageWidths[stage.key] }));
-
-// Which connected provider categories each Overview tile needs before it can show real data.
-// economicOccupancy needs both — it's computed from accounting revenue and leasing occupancy together.
-const TILE_SOURCES: Record<(typeof metricTiles)[number]["key"] | "funnel", string[]> = {
-  noi: ["Accounting"],
-  economicOccupancy: ["Accounting", "Leasing & PMS"],
-  rentCollected: ["Accounting"],
-  openWorkOrders: ["Leasing & PMS"],
-  funnel: ["Leasing & PMS"],
-};
-
-// Static for now — this is the seam where a connected model would draft the
-// actual review text instead. The numbers it references are always real
-// (moneyAtStake, the NOI delta), never invented for the draft. Shared by
-// Overview's insight queue and the Review Center so the exact same draft
-// text is shown wherever an insight is opened.
-function draftText(insight: InsightCandidate, t: T, money: (amount: number) => string): string {
-  if (!insight.draftKey) return "";
-  if (insight.id === "vacancy-pricing") return t(insight.draftKey, { amount: money(insight.moneyAtStake) });
-  if (insight.id === "noi-variance") return t(insight.draftKey, { delta: `+${derivedSample.noiDeltaPct.toFixed(1)}%` });
-  return t(insight.draftKey);
-}
-
-/**
- * The drafted-review dialog: NOI waterfall or evidence rows, the drafted
- * text, and Approve/Deny while pending — or a read-only status badge once
- * decided. Used both from Overview's insight queue (via a notification or
- * the queue itself) and from the Review Center, so a decision made in
- * either place is reflected identically in the other.
- */
-function ReviewDraftDialog({ insight, status, expanded, onToggleExpand, onOpenChange, onApprove, onDeny, t, money }: {
-  insight: InsightCandidate | null; status: ReviewStatus | undefined; expanded: boolean;
-  onToggleExpand: () => void; onOpenChange: (open: boolean) => void; onApprove: () => void; onDeny: () => void;
-  t: T; money: (amount: number) => string;
-}) {
-  return (
-    <Dialog.Root open={insight !== null} onOpenChange={onOpenChange}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="dialog-overlay"/>
-        <Dialog.Content className={`small-dialog review-draft-dialog${expanded ? " expanded" : ""}`}>
-          {insight && <>
-            <div className="dialog-top">
-              <div>
-                <p className="eyebrow">{status === "approved" ? t("Overview.approvedReviewEyebrow") : status === "denied" ? t("Overview.deniedReviewEyebrow") : t("Overview.draftedReviewEyebrow")}</p>
-                <Dialog.Title>{t(insight.titleKey)}</Dialog.Title>
-              </div>
-              <div className="dialog-top-actions">
-                <button className="icon-button" onClick={onToggleExpand} aria-label={expanded ? t("Overview.collapseDraft") : t("Overview.expandDraft")}>
-                  {expanded ? <ScaleFrameReduce width={19} height={19}/> : <ScaleFrameEnlarge width={19} height={19}/>}
-                </button>
-                <Dialog.Close className="icon-button" aria-label={t("Overview.close")}><Xmark width={20} height={20}/></Dialog.Close>
-              </div>
-            </div>
-            {insight.tileKey === "noi" && <NoiWaterfall t={t} money={money}/>}
-            {insight.evidence.length > 0 && <div className="evidence-rows">{insight.evidence.map((row) => <div className="evidence-row" key={row.labelKey}><div><strong>{t(row.labelKey)}</strong><small>{t(row.detailKey)}</small></div><span>{money(row.amount)}</span></div>)}</div>}
-            <p className="review-draft-text">{draftText(insight, t, money)}</p>
-            <div className="dialog-actions">
-              {status === "approved"
-                ? <span className="approved-badge"><CheckCircle width={15} height={15}/>{t("Overview.approvedBadge")}</span>
-                : status === "denied"
-                ? <span className="denied-badge"><XmarkCircle width={15} height={15}/>{t("Overview.deniedBadge")}</span>
-                : <>
-                    <button className="soft-button" onClick={onDeny}>{t("Overview.denyDraft")}</button>
-                    <Dialog.Close className="soft-button">{t("Overview.cancel")}</Dialog.Close>
-                    <button className="primary-button" onClick={onApprove}>{t("Overview.approveDraft")}</button>
-                  </>}
-            </div>
-          </>}
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
-  );
-}
-
-/** Read-only receipt for an already-sent reminder batch: who got it, via which channel, and the message they actually received. */
-function ReviewReceiptDialog({ insight, recipients, onOpenChange, t, money }: {
-  insight: InsightCandidate | null; recipients: InsightRecipient[]; onOpenChange: (open: boolean) => void; t: T; money: (amount: number) => string;
-}) {
-  const messageKey = insight?.action?.type === "sendReminders" ? insight.action.messageKey : undefined;
-  return (
-    <Dialog.Root open={insight !== null} onOpenChange={onOpenChange}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="dialog-overlay"/>
-        <Dialog.Content className="small-dialog">
-          {insight && <>
-            <div className="dialog-top">
-              <div><p className="eyebrow">{t("Overview.receiptEyebrow")}</p><Dialog.Title>{t(insight.titleKey)}</Dialog.Title></div>
-              <Dialog.Close className="icon-button" aria-label={t("Overview.close")}><Xmark width={20} height={20}/></Dialog.Close>
-            </div>
-            {messageKey && recipients[0] && <div className="review-message-preview">
-              <p className="eyebrow">{t("Overview.messageSentEyebrow")}</p>
-              <p>{t(messageKey, { name: recipients[0].name, amount: money(recipients[0].amount) })}</p>
-            </div>}
-            <div className="recipient-list">{recipients.map((recipient) => <div className="recipient-row" key={recipient.name}>
-              <BrandMark provider={recipient.channel} small/>
-              <div><strong>{recipient.name}</strong><small>{t(recipient.detailKey)}</small></div>
-              <span>{money(recipient.amount)}</span>
-              <CheckCircle className="receipt-sent-icon" width={16} height={16}/>
-            </div>)}</div>
-            <div className="dialog-actions"><Dialog.Close className="soft-button">{t("Overview.close")}</Dialog.Close></div>
-          </>}
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
-  );
-}
-
-/** The pending reminder-batch compose flow: remove a recipient from the batch, then Deny it outright or Send it. */
-function ReminderPreviewDialog({ insight, removedRecipients, onRemoveRecipient, onOpenChange, onSend, onDeny, t, money }: {
-  insight: InsightCandidate | null; removedRecipients: Set<string>; onRemoveRecipient: (name: string) => void;
-  onOpenChange: (open: boolean) => void; onSend: (recipients: InsightRecipient[]) => void; onDeny: () => void;
-  t: T; money: (amount: number) => string;
-}) {
-  return (
-    <Dialog.Root open={insight !== null} onOpenChange={onOpenChange}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="dialog-overlay"/>
-        <Dialog.Content className="small-dialog">
-          {insight && insight.action?.type === "sendReminders" && (() => {
-            const visible = insight.action.recipients.filter((recipient) => !removedRecipients.has(recipient.name));
-            return <>
-              <div className="dialog-top"><Dialog.Title>{t("Overview.sendRemindersTitle", { count: visible.length })}</Dialog.Title><Dialog.Close className="icon-button" aria-label={t("Overview.close")}><Xmark width={20} height={20}/></Dialog.Close></div>
-              <div className="recipient-list">{visible.map((recipient) => <div className="recipient-row" key={recipient.name}>
-                <BrandMark provider={recipient.channel} small/>
-                <div><strong>{recipient.name}</strong><small>{t(recipient.detailKey)}</small></div>
-                <span>{money(recipient.amount)}</span>
-                <button className="icon-button" onClick={() => onRemoveRecipient(recipient.name)} aria-label={t("Overview.removeRecipient")}><Xmark width={15} height={15}/></button>
-              </div>)}</div>
-              <div className="dialog-actions">
-                <button className="soft-button" onClick={onDeny}>{t("Overview.denyDraft")}</button>
-                <Dialog.Close className="soft-button">{t("Overview.cancel")}</Dialog.Close>
-                <button className="primary-button" disabled={visible.length === 0} onClick={() => onSend(visible)}>{t("Overview.sendRemindersConfirm", { count: visible.length })}</button>
-              </div>
-            </>;
-          })()}
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
-  );
-}
-
-// Fixed "today" for every date-range computation below — this app runs on
-// static sample data anchored to mid-August 2026 (the leasing trend's six
-// weeks, the history entries' relative timestamps), so presets and the
-// custom calendar's "no future dates" rule need a stable reference instead
-// of the real current date.
-const SAMPLE_TODAY = new Date(2026, 7, 18);
-function addDays(date: Date, amount: number): Date {
-  const result = new Date(date);
-  result.setDate(result.getDate() + amount);
-  return result;
-}
-function startOfQuarter(date: Date): Date {
-  return new Date(date.getFullYear(), Math.floor(date.getMonth() / 3) * 3, 1);
-}
-function formatDateRange(start: Date, end: Date, locale: string): string {
-  const monthFmt = new Intl.DateTimeFormat(locale, { month: "short" });
-  const dayFmt = new Intl.DateTimeFormat(locale, { day: "numeric" });
-  const sameMonth = start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear();
-  return sameMonth
-    ? `${monthFmt.format(start)} ${dayFmt.format(start)}–${dayFmt.format(end)}`
-    : `${monthFmt.format(start)} ${dayFmt.format(start)} – ${monthFmt.format(end)} ${dayFmt.format(end)}`;
-}
-// Real property-management calendar shapes, not arbitrary day counts: a
-// billing week, the same six-week window the leasing trend chart shows,
-// month-to-date, quarter-to-date, and year-to-date.
-const datePresets = (today: Date): { labelKey: string; range: [Date, Date] }[] => [
-  { labelKey: "Overview.periodThisWeek", range: [addDays(today, -6), today] },
-  { labelKey: "Overview.periodLast6Weeks", range: [addDays(today, -41), today] },
-  { labelKey: "Overview.periodThisMonth", range: [new Date(today.getFullYear(), today.getMonth(), 1), today] },
-  { labelKey: "Overview.periodThisQuarter", range: [startOfQuarter(today), today] },
-  { labelKey: "Overview.periodYearToDate", range: [new Date(today.getFullYear(), 0, 1), today] },
-];
-
-/** A reusable shadcn/DayPicker range calendar with operational presets. */
-function DateRangePicker({ period, onChange, t, locale }: { period: string; onChange: (label: string) => void; t: T; locale: string }) {
-  const [today] = useState(() => new Date());
-  const presets = datePresets(today);
-  const [open, setOpen] = useState(false);
-  const [month, setMonth] = useState(() => new Date(today.getFullYear(), today.getMonth() - 1, 1));
-  const [date, setDate] = useState<DateRange | undefined>({ from: addDays(today, -6), to: today });
-
-  const applyPreset = (preset: (typeof presets)[number]) => {
-    setDate({ from: preset.range[0], to: preset.range[1] });
-    setMonth(preset.range[0]);
-    onChange(formatDateRange(preset.range[0], preset.range[1], locale));
-    setOpen(false);
-  };
-
-  const selectRange = (next: DateRange | undefined) => {
-    setDate(next);
-    if (!next?.from || !next.to) return;
-    onChange(formatDateRange(next.from, next.to, locale));
-    setOpen(false);
-  };
-
-  return (
-    <details className="app-menu date-range-menu" open={open} onToggle={(event) => setOpen((event.target as HTMLDetailsElement).open)}>
-      <summary className="soft-button"><Calendar width={18} height={18}/>{period}<NavArrowDown width={16} height={16}/></summary>
-      <div className="menu-popover date-range-popover">
-        <aside className="date-preset-list" aria-label={t("Overview.periodCustomRange")}>
-          {presets.map((preset) => <button type="button" key={preset.labelKey} onClick={() => applyPreset(preset)}>{t(preset.labelKey)}</button>)}
-        </aside>
-        <div className="date-calendar-wrap">
-          <RangeCalendar
-            mode="range"
-            month={month}
-            onMonthChange={setMonth}
-            selected={date}
-            onSelect={selectRange}
-            numberOfMonths={2}
-            locale={locale.toLowerCase().startsWith("es") ? es : enUS}
-            labels={{
-              labelPrevious: () => t("Overview.previousMonth"),
-              labelNext: () => t("Overview.nextMonth"),
-            }}
-            disabled={{ after: today }}
-            endMonth={today}
-            fixedWeeks
-            className="date-calendar"
-          />
-          <p className="date-calendar-hint">{date?.from && !date.to ? t("Overview.selectEndDate") : t("Overview.selectStartDate")}</p>
-        </div>
-      </div>
-    </details>
-  );
-}
-
 /** The phrases the hero cycles through. Each is a full sentence, typed then cleared. */
 const HERO_PHRASE_KEYS = [
   "Overview.heroPhraseAllInOnePlace",
@@ -423,7 +160,7 @@ export function daysSince(createdAt: Date, now: Date): number {
  * The dashboard's opening block: who's here, how long they've been here, and
  * a typed line, over the year-of-activity heatmap.
  */
-function OverviewHero({ displayName, t, locale, sample }: { displayName: string; t: T; locale: string; sample: boolean }) {
+function OverviewHero({ displayName, t }: { displayName: string; t: T }) {
   const phrases = useMemo(() => HERO_PHRASE_KEYS.map((key) => t(key)), [t]);
   const { text, typing } = useTypewriter(phrases);
   const firstName = displayName.trim().split(/\s+/)[0] || displayName;
@@ -445,7 +182,7 @@ function OverviewHero({ displayName, t, locale, sample }: { displayName: string;
     return () => { cancelled = true; };
   }, []);
 
-  return <section className="overview-hero" data-reveal>
+  return <><UsageGrid/><section className="overview-hero" data-reveal>
     <div className="overview-hero-copy">
       <p className="eyebrow">{t("Overview.heroEyebrow")}</p>
       <h1>{t("Overview.heroWelcome", { name: firstName })}</h1>
@@ -460,313 +197,7 @@ function OverviewHero({ displayName, t, locale, sample }: { displayName: string;
           depending on the animation's current frame. */}
       <span className="visually-hidden">{phrases.join(". ")}</span>
     </div>
-    {sample && <ActivityHeatmap t={t} locale={locale} compact/>}
-  </section>;
-}
-
-/**
- * A year of daily activity as a heatmap. Reads the same class of work the
- * ledger and history drawer itemize — verified actions Aval completed — so the
- * three surfaces describe one underlying stream rather than three metrics.
- */
-function ActivityHeatmap({ t, locale, compact = false }: { t: T; locale: string; compact?: boolean }) {
-  const weeks = useMemo(() => buildActivityYear(SAMPLE_TODAY), []);
-  const weekdayFmt = useMemo(() => new Intl.DateTimeFormat(locale, { weekday: "short" }), [locale]);
-  const monthFmt = useMemo(() => new Intl.DateTimeFormat(locale, { month: "short" }), [locale]);
-  const dayFmt = useMemo(() => new Intl.DateTimeFormat(locale, { dateStyle: "long" }), [locale]);
-
-  // Sunday-first, matching the grid's own row order. Only every other label is
-  // shown — seven stacked labels at this row height reads as noise.
-  const weekdayLabels = Array.from({ length: 7 }, (_, index) => (index % 2 === 1 ? weekdayFmt.format(new Date(2026, 7, 9 + index)) : ""));
-
-  // One label per column, printed only where the month actually turns over.
-  // Keyed off the month the previous column already showed rather than off a
-  // "is there a day 1-7 in this week" test — a week straddling a boundary and
-  // the week after it both contain such a day, which double-prints the name.
-  // The leading column is usually a partial month whose label would sit off the
-  // left edge of its own run of weeks, so it stays blank.
-  const monthLabels = weeks.map((week, index) => {
-    if (index === 0) return "";
-    const last = week[week.length - 1].date;
-    const previousLast = weeks[index - 1][weeks[index - 1].length - 1].date;
-    return last.getMonth() === previousLast.getMonth() ? "" : monthFmt.format(last);
-  });
-
-  return <div className={`activity-heatmap${compact ? " is-compact" : ""}`}>
-    <div className="activity-heatmap-weekdays" aria-hidden="true">{weekdayLabels.map((label, index) => <span key={index}>{label}</span>)}</div>
-    <div className="activity-heatmap-body">
-      <div className="activity-heatmap-months" aria-hidden="true">{monthLabels.map((label, index) => <span key={index}>{label}</span>)}</div>
-      <div className="activity-heatmap-grid" role="img" aria-label={t("Overview.activityHeatmapAria")}>
-        {weeks.map((week, weekIndex) => <div className="activity-heatmap-week" key={weekIndex}>
-          {week.map((day) => <div
-            className="activity-heatmap-day"
-            key={day.date.toISOString()}
-            data-level={activityIntensity(day.count)}
-            title={day.count < 0 ? dayFmt.format(day.date) : t("Overview.activityDayTooltip", { date: dayFmt.format(day.date), count: day.count })}
-          />)}
-        </div>)}
-      </div>
-      <div className="activity-heatmap-legend">
-        <span>{t("Overview.activityLess")}</span>
-        {[0, 1, 2, 3, 4].map((level) => <div className="activity-heatmap-day" data-level={level} key={level}/>)}
-        <span>{t("Overview.activityMore")}</span>
-      </div>
-    </div>
-  </div>;
-}
-
-function Overview({ displayName, openConnections, dataMode, providers, pendingTarget, targetToken, reviewStatuses, sentReceipts, onApprove, onDeny, onSendReminders, onCreateDraft }: {
-  displayName: string;
-  openConnections: () => void; dataMode: DataMode; providers: Provider[];
-  pendingTarget: NotificationTarget | null; targetToken: number;
-  reviewStatuses: Record<string, ReviewStatus>; sentReceipts: Record<string, InsightRecipient[]>;
-  onApprove: (insight: InsightCandidate) => void; onDeny: (insight: InsightCandidate) => void;
-  onSendReminders: (insight: InsightCandidate, recipients: InsightRecipient[]) => void;
-  onCreateDraft: (input: CreateDraftInput) => void;
-}) {
-  const { market, notify } = useExperience();
-  const t = useTranslations();
-  const currentLocale = useLocale();
-  const currencyPrefix = market === "latam" ? "MX$" : "$";
-  const accountingProvider = market === "latam" ? "contpaqi" : "quickbooks";
-  const [period, setPeriod] = useState(() => formatDateRange(addDays(new Date(), -6), new Date(), currentLocale));
-  const [historyOpen, setHistoryOpen] = useState(false);
-  const [draftExpanded, setDraftExpanded] = useState(false);
-  const isSample = dataMode === "sample";
-  const connectedCategories = useMemo(() => new Set(providers.filter((provider) => provider.connection?.status === "connected").map((provider) => provider.category)), [providers]);
-  const isTileConnected = (key: keyof typeof TILE_SOURCES) => TILE_SOURCES[key].every((category) => connectedCategories.has(category));
-  const resolveCoverageProvider = (row: (typeof sampleData.coverage.rows)[number]) => row.provider === "quickbooks" ? accountingProvider : row.provider;
-  const isCoverageRowConnected = (row: (typeof sampleData.coverage.rows)[number]) => providers.find((provider) => provider.id === resolveCoverageProvider(row))?.connection?.status === "connected";
-  const connectedCount = sampleData.coverage.rows.filter(isCoverageRowConnected).length;
-  const [drillDown, setDrillDown] = useState<"noi" | "economicOccupancy" | "rentCollected" | "openWorkOrders" | null>(null);
-  const [reminderPreview, setReminderPreview] = useState<InsightCandidate | null>(null);
-  const [removedRecipients, setRemovedRecipients] = useState<Set<string>>(new Set());
-  const [reviewDraft, setReviewDraft] = useState<InsightCandidate | null>(null);
-  const [receiptFor, setReceiptFor] = useState<InsightCandidate | null>(null);
-  const rankedInsights = useMemo(() => rankInsights(sampleData.insights.candidates), []);
-  const money = (amount: number) => `${currencyPrefix}${Math.abs(amount).toLocaleString(currentLocale)}`;
-
-  // Deliberately not a useEffect: this reacts to a prop change by opening
-  // local state, so it's applied during render (React's documented pattern
-  // for "adjusting state when a prop changes") rather than after commit.
-  const [handledTargetToken, setHandledTargetToken] = useState(0);
-  if (pendingTarget && targetToken !== handledTargetToken) {
-    setHandledTargetToken(targetToken);
-    if (pendingTarget.kind === "reviewDraft" || pendingTarget.kind === "reminderReceipt") {
-      const insight = sampleData.insights.candidates.find((candidate) => candidate.id === pendingTarget.insightId);
-      if (insight) {
-        if (pendingTarget.kind === "reminderReceipt") setReceiptFor(insight);
-        else setReviewDraft(insight);
-      }
-    } else if (pendingTarget.kind === "history") {
-      setHistoryOpen(true);
-    }
-  }
-
-  const insightActionLabel = (insight: InsightCandidate) => {
-    if (!insight.action) return "";
-    switch (insight.action.type) {
-      case "sendReminders": return t("Overview.actionSendReminders", { count: insight.action.recipients.length });
-      case "escalateMaintenance": return t("Overview.actionEscalateMaintenance");
-      case "draftPricingReview": return t("Overview.actionDraftPricingReview");
-      case "openReview": return t("Overview.actionOpenReview");
-    }
-  };
-
-  // The single entry point for opening any insight, whatever its status:
-  // a pending reminder batch opens the compose flow, an already-sent batch
-  // opens its read-only receipt, and everything else opens the draft dialog
-  // (which shows Approve/Deny while pending, or a status badge once decided).
-  const openInsight = (insight: InsightCandidate) => {
-    const status = reviewStatuses[insight.id];
-    if (status === "sent") { setReceiptFor(insight); return; }
-    if (status === "pending" && insight.action?.type === "sendReminders") { setRemovedRecipients(new Set()); setReminderPreview(insight); return; }
-    setReviewDraft(insight);
-  };
-
-  // One-click weekly digest: reuses the exact draft/export pipeline Ask Aval
-  // Tasks already uses, so every figure still passes through the same
-  // tool-loop and faithfulness gate. Aval never assembles this from
-  // on-screen state directly.
-  const generateWeeklyReport = () => {
-    onCreateDraft({
-      title: `Weekly portfolio report: ${period}`,
-      instructions: "Compile this week's portfolio digest in five sections, in this order: (1) Net operating income, with the period-over-period change. (2) Occupancy, portfolio-wide and by property, naming any property below the portfolio average. (3) Rent collections and delinquency, naming past-due accounts and the total amount at risk. (4) Leasing funnel performance, the conversion rate at each stage from inquiry to signed lease. (5) Maintenance load, the volume and cost of open work orders by category. Close with one recommended next action grounded in the numbers above.",
-      format: "docx",
-      documentType: "Weekly report",
-    });
-    notify(t("Overview.weeklyReportStarted"), t("Overview.weeklyReportStartedDetail"));
-  };
-
-  return <div className="view-wrap">
-    <OverviewHero displayName={displayName} t={t} locale={currentLocale} sample={isSample}/>
-    <AppHeader
-      title={t("Overview.portfolioOverview")}
-      subtitle={dataMode === "live"
-        ? t("Overview.aCalmLiveReadOnLeasing")
-        : t("Overview.aCalmReadOnLeasingCash")}
-      actions={<>
-        <DateRangePicker period={period} onChange={setPeriod} t={t} locale={currentLocale}/>
-        <button className="soft-button" onClick={generateWeeklyReport}><Page width={18} height={18}/>{t("Overview.generateWeeklyReport")}</button>
-        <button className="primary-button" onClick={openConnections}><NetworkLeft width={18} height={18}/>{t("Overview.connectData")}</button>
-      </>}
-    />
-
-    {isSample && <section className="overview-intro" data-reveal>
-      <div><span className="presence-dot"/>{t("Overview.updatedMinutesAgo", { minutes: sampleData.updatedMinutesAgo })}</div>
-      <p>{t("Overview.unitsAcrossProperties", { units: sampleData.portfolio.units, properties: sampleData.portfolio.properties })}</p>
-    </section>}
-
-    <section className="metric-grid">{metricTiles.map((metric) => { const connected = !isSample && isTileConnected(metric.key); return <article className={`metric-card${isSample ? "" : " is-empty"}`} data-reveal data-sound-reveal key={metric.key}>
-      <div className="metric-top"><span>{t(metric.labelKey)}</span><StatsUpSquare width={18} height={18}/></div>
-      {isSample
-        ? <>
-            <strong><AnimatedNumber value={metric.value} prefix={metric.prefix === "$" ? currencyPrefix : metric.prefix} suffix={metric.suffix} decimals={metric.decimals}/></strong>
-            <div className="metric-meta"><span>{metric.deltaText}</span> {t(metric.detailKey, metric.detailParams)}</div>
-            <div className="mini-bars" aria-hidden="true">{metric.bars.map((height, index) => <i key={index} style={{ "--bar-height": `${height}%`, "--bar-delay": `${index * 65}ms` } as React.CSSProperties}/>)}</div>
-            <button className="metric-drilldown-trigger" onClick={() => setDrillDown(metric.key)}>{t("Overview.viewEvidence")}<NavArrowRight width={13} height={13}/></button>
-          </>
-        : connected
-        ? <>
-            <div className="empty-spark" aria-hidden="true"/>
-            <p className="empty-copy"><span className="presence-dot"/> {t("Overview.connectedAwaitingFirstSync")}</p>
-          </>
-        : <>
-            <div className="empty-spark" aria-hidden="true"/>
-            <p className="empty-copy">{t(metric.emptyDescriptionKey)}</p>
-            <button className="text-button" onClick={openConnections}>{t("Overview.connect")}<NavArrowRight width={14} height={14}/></button>
-          </>}
-    </article>; })}</section>
-
-    <section className="panel insights-panel" data-reveal>
-      <div className="panel-heading"><div><p className="eyebrow">{t("Overview.insightsEyebrow")}</p><h2>{t("Overview.insightsHeading")}</h2></div><Flash width={20} height={20}/></div>
-      {isSample
-        ? <div className="insight-list">{rankedInsights.map((insight, index) => <article className="insight-card" key={insight.id}>
-            <span className="insight-rank">{index + 1}</span>
-            <div className="insight-body">
-              <h3>{t(insight.titleKey)}</h3>
-              <p>{t(insight.detailKey)}</p>
-              <div className="insight-meta">
-                <span className="insight-stake"><Coins width={14} height={14}/>{t("Overview.moneyAtStake")}<b>{money(insight.moneyAtStake)}</b></span>
-                {insight.tileKey && <button className="text-button" onClick={() => setDrillDown(insight.tileKey)}>{t("Overview.viewEvidence")}<NavArrowRight width={14} height={14}/></button>}
-              </div>
-            </div>
-            <button className="insight-action" onClick={() => openInsight(insight)}>
-              {(() => {
-                const status = reviewStatuses[insight.id];
-                if (status === "denied") return <><XmarkCircle width={16} height={16}/>{t("Overview.deniedBadge")}</>;
-                if (status === "sent") return <><CheckCircle width={16} height={16}/>{t("Overview.remindersSentBadge")}</>;
-                if (status === "approved") return <><CheckCircle width={16} height={16}/>{t("Overview.approvedBadge")}</>;
-                return insightActionLabel(insight);
-              })()}
-            </button>
-          </article>)}</div>
-        : <p className="empty-copy">{t("Overview.insightsEmptyDescription")}</p>}
-    </section>
-
-    <Dialog.Root open={drillDown !== null} onOpenChange={(open) => !open && setDrillDown(null)}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="dialog-overlay"/>
-        <Dialog.Content className="small-dialog evidence-dialog">
-          {drillDown && <>
-            <div className="dialog-top"><Dialog.Title>{t(metricTiles.find((metric) => metric.key === drillDown)!.labelKey)}</Dialog.Title><Dialog.Close className="icon-button" aria-label={t("Overview.close")}><Xmark width={20} height={20}/></Dialog.Close></div>
-            {drillDown === "noi"
-              ? <NoiWaterfall t={t} money={money}/>
-              : <div className="evidence-rows">{(drillDown === "economicOccupancy" ? sampleData.economicOccupancy.evidenceRows : drillDown === "rentCollected" ? sampleData.rentCollected.evidenceRows : sampleData.openWorkOrders.evidenceRows).map((row) => <div className="evidence-row" key={row.labelKey}><div><strong>{t(row.labelKey)}</strong><small>{t(row.detailKey)}</small></div><span>{money(row.amount)}</span></div>)}</div>}
-          </>}
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
-
-    <ReminderPreviewDialog
-      insight={reminderPreview}
-      removedRecipients={removedRecipients}
-      onRemoveRecipient={(name) => setRemovedRecipients((current) => new Set(current).add(name))}
-      onOpenChange={(open) => !open && setReminderPreview(null)}
-      onSend={(recipients) => { onSendReminders(reminderPreview!, recipients); setReminderPreview(null); }}
-      onDeny={() => { onDeny(reminderPreview!); setReminderPreview(null); }}
-      t={t} money={money}
-    />
-
-    <ReviewDraftDialog
-      insight={reviewDraft}
-      status={reviewDraft ? reviewStatuses[reviewDraft.id] : undefined}
-      expanded={draftExpanded}
-      onToggleExpand={() => setDraftExpanded((current) => !current)}
-      onOpenChange={(open) => { if (!open) { setReviewDraft(null); setDraftExpanded(false); } }}
-      onApprove={() => { onApprove(reviewDraft!); setReviewDraft(null); }}
-      onDeny={() => { onDeny(reviewDraft!); setReviewDraft(null); }}
-      t={t} money={money}
-    />
-
-    <ReviewReceiptDialog
-      insight={receiptFor}
-      recipients={receiptFor ? sentReceipts[receiptFor.id] ?? [] : []}
-      onOpenChange={(open) => !open && setReceiptFor(null)}
-      t={t} money={money}
-    />
-
-    <Dialog.Root open={historyOpen} onOpenChange={setHistoryOpen}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="dialog-overlay subtle"/>
-        <Dialog.Content className="notification-drawer">
-          <div className="drawer-heading">
-            <div><p className="eyebrow">{t("Overview.historyCount", { count: sampleData.history.entries.length })}</p><Dialog.Title>{t("Overview.historyTitle")}</Dialog.Title></div>
-            <Dialog.Close className="icon-button" aria-label={t("Overview.close")}><Xmark width={20} height={20}/></Dialog.Close>
-          </div>
-          <div className="notification-list history-list">
-            {sampleData.history.entries.map((entry) => (
-              <div className="history-row" key={entry.id}>
-                <BrandMark provider={entry.provider} small/>
-                <span><strong>{t(entry.textKey)}</strong><small>{formatMinutesAgo(entry.minutesAgo, currentLocale)}</small></span>
-              </div>
-            ))}
-          </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
-
-    <section className="overview-grid" data-reveal>
-      <article className="panel funnel-panel">
-        <div className="panel-heading"><div><p className="eyebrow">{t("Overview.leasing")}</p><h2>{t("Overview.leadToLeaseFunnel")}</h2></div><span className="quiet-label">{period}</span></div>
-        {isSample
-          ? <>
-              <div className="funnel-stage-labels">{funnelStages.map((stage) => <div key={stage.key}><strong><AnimatedNumber value={stage.count}/></strong><span>{t(stage.labelKey)}</span></div>)}</div>
-              <div className="funnel-graphic">{funnelStages.map((stage, index) => <div className="funnel-band" style={{ "--band-width": stage.width, "--band-delay": `${index * 110}ms` } as React.CSSProperties} key={stage.key}/>)}</div>
-              <div className="funnel-footer">
-                <span><strong>{derivedSample.contactedToViewedPct.toFixed(1)}%</strong> {t("Overview.contactedViewed")}</span>
-                <span><strong>{derivedSample.contactedToSignedPct.toFixed(1)}%</strong> {t("Overview.contactedSigned")}</span>
-                <button className="text-button" onClick={openConnections}>{t("Overview.configureSource")}<NavArrowRight width={16} height={16}/></button>
-              </div>
-            </>
-          : isTileConnected("funnel")
-          ? <>
-              <div className="funnel-stage-labels">{funnelStages.map((stage) => <div key={stage.key}><div className="empty-spark" aria-hidden="true"/><span>{t(stage.labelKey)}</span></div>)}</div>
-              <p className="empty-copy"><span className="presence-dot"/> {t("Overview.connectedAwaitingFirstSync")}</p>
-            </>
-          : <>
-              <div className="funnel-stage-labels">{funnelStages.map((stage) => <div key={stage.key}><div className="empty-spark" aria-hidden="true"/><span>{t(stage.labelKey)}</span></div>)}</div>
-              <p className="empty-copy">{t("Overview.contactedViewedAppliedAndSignedCounts")}</p>
-              <button className="text-button" onClick={openConnections}>{t("Overview.configureSource")}<NavArrowRight width={16} height={16}/></button>
-            </>}
-      </article>
-      <article className="panel coverage-panel">
-        <div className="panel-heading"><div><p className="eyebrow">{t("Overview.dataCoverage")}</p><h2>{t("Overview.connectedCount", { connected: connectedCount, total: sampleData.coverage.rows.length })}</h2></div><ShieldCheck width={22} height={22}/></div>
-        {sampleData.coverage.rows.map((row) => { const rowConnected = isCoverageRowConnected(row); return <div className="source-row" key={row.provider}><BrandMark provider={resolveCoverageProvider(row)} small/><div><strong>{t(row.labelKey)}</strong><span>{row.provider === "quickbooks" && market === "latam" ? t("Overview.coverageAccountingDetailLatam") : t(row.detailKey)}</span></div><span className={`status-pill ${rowConnected ? "" : "optional"}`}>{rowConnected ? t("Overview.connected") : row.required ? t("Overview.required") : t("Overview.optional")}</span></div>; })}
-        <button className="wide-button" onClick={openConnections}>{t("Overview.openConnections")}<NavArrowRight width={17} height={17}/></button>
-      </article>
-    </section>
-
-    <section className="panel activity-panel" data-reveal>
-      <div className="panel-heading">
-        <div><p className="eyebrow">Aval, now</p><h2>{t("Overview.workMovingThroughTheSystem")}</h2></div>
-        {isSample && <button className="soft-button" onClick={() => setHistoryOpen(true)}><Archive width={17} height={17}/>{t("Overview.history")}</button>}
-      </div>
-      {isSample
-        ? <div className="activity-flow">{sampleData.ledger.steps.map((step, index) => <span className="activity-segment" key={step.provider}>{index > 0 && <i className="flow-arrow">→</i>}<span className={`activity-card ${step.provider === "complete" ? "complete" : ""}`}><span>{step.provider === "complete" ? <CheckCircle width={24} height={24}/> : <BrandMark provider={step.provider} small/>}</span><p>{t(step.textKey)}</p></span></span>)}</div>
-        : <p className="empty-copy">{t("Overview.noVerifiedActionsYetAvalWill")}</p>}
-    </section>
-  </div>;
+  </section></>;
 }
 
 function TasksView({ draftJobs, onCreateDraft, onPauseDraft, onResumeDraft, onRetryDraft, onSendDraft, onRemoveDrafts, loading }: {
@@ -981,173 +412,22 @@ function DocumentsView({ isGuest }: { isGuest: boolean }) {
   </div>;
 }
 
-function OperationsView({ view, openConnections, dataMode }: { view: View; openConnections: () => void; dataMode: DataMode; providers: Provider[] }) {
-  return <OperationsWorkspace view={view as "properties" | "leasing" | "maintenance" | "accounting"} sample={dataMode === "sample"} openConnections={openConnections}/>;
+function OperationsView({ view, openConnections }: { view: View; openConnections: () => void; providers: Provider[] }) {
+  return <OperationsWorkspace view={view as "properties" | "leasing" | "maintenance" | "accounting"} openConnections={openConnections}/>;
 }
 
 // Not gated behind a Provider connection like OperationsView's tabs — meters
 // and bills are native Aval data (lib/infrastructure/), not synced from an
 // upstream PMS/accounting system, so there's no "connect a source" story
-// here. Sample mode shows the real derived rows from
-// app/data/infrastructure-sample.ts; anything else is "no meters yet".
+// here. This surface stays empty until native meter data is available.
 const UTILITY_LABEL_KEY: Record<UtilityType, string> = {
   electricity: "InfrastructureView.electricity",
   water: "InfrastructureView.water",
   gas: "InfrastructureView.gas",
 };
-const ASSET_CATEGORY_LABEL_KEY: Record<AssetCategory, string> = {
-  hvac: "InfrastructureView.categoryHvac",
-  plumbing: "InfrastructureView.categoryPlumbing",
-  electrical: "InfrastructureView.categoryElectrical",
-  envelope: "InfrastructureView.categoryEnvelope",
-  safety: "InfrastructureView.categorySafety",
-  conveyance: "InfrastructureView.categoryConveyance",
-};
-
-const DUE_STATUS_LABEL_KEY: Record<DueStatus, string> = {
-  current: "InfrastructureView.statusCurrent",
-  dueSoon: "InfrastructureView.statusDueSoon",
-  overdue: "InfrastructureView.statusOverdue",
-};
-
-const ASSET_CONDITION_LABEL_KEY: Record<AssetCondition, string> = {
-  good: "InfrastructureView.conditionGood",
-  monitor: "InfrastructureView.conditionMonitor",
-  plan: "InfrastructureView.conditionPlan",
-  urgent: "InfrastructureView.conditionUrgent",
-};
-
-function InfrastructureView({ dataMode, onAddMeter }: { dataMode: DataMode; onAddMeter: () => void }) {
+function InfrastructureView({ onAddMeter }: { onAddMeter: () => void }) {
   const t = useTranslations();
-  const currentLocale = useLocale();
-  const isSample = dataMode === "sample";
-  const [assetFilter, setAssetFilter] = useState<AssetCategory | "all">("all");
-
-  const dueFmt = useMemo(() => new Intl.DateTimeFormat(currentLocale, { month: "short", day: "numeric", year: "numeric" }), [currentLocale]);
-  const assets = assetFilter === "all" ? buildingAssets : buildingAssets.filter((asset) => asset.category === assetFilter);
-  const annualReserve = formatMoney(totalAnnualReserveCents(), "USD");
-  const overdueCompliance = complianceItems.filter((item) => item.status === "overdue").length;
-  const overduePm = preventiveTasks.filter((task) => task.status === "overdue").length;
-  const atRiskAssets = buildingAssets.filter((asset) => asset.condition === "plan" || asset.condition === "urgent").length;
-  const forecastPeak = Math.max(...capitalForecast.map((year) => year.totalCents), 1);
-
-  return <div className="view-wrap infra-view">
-    <AppHeader title={t("InfrastructureView.infrastructure")} subtitle={t("InfrastructureView.infrastructureSubtitle")} actions={<button className="primary-button" onClick={onAddMeter}><Flash width={18} height={18}/>{t("InfrastructureView.addMeter")}</button>}/>
-    {!isSample
-      ? <section className="panel locked-panel" data-reveal><div className="locked-visual"><div className="locking-lines"><i/><i/><i/></div><span><Flash width={23} height={23}/></span></div><div><p className="eyebrow">{t("InfrastructureView.infrastructure")}</p><h2>{t("InfrastructureView.emptyDescription")}</h2><button className="primary-button" onClick={onAddMeter}>{t("InfrastructureView.addMeter")}<NavArrowRight width={17} height={17}/></button></div></section>
-      : <>
-        <section className="metric-grid">
-          {infrastructureSummary.map((row) => <article className="metric-card" data-reveal key={row.utilityType}>
-            <div className="metric-top"><span>{t(UTILITY_LABEL_KEY[row.utilityType])}</span><Flash width={18} height={18}/></div>
-            <strong>{row.totalCostFormatted}</strong>
-            <div className="metric-meta"><span className={row.usageVariancePct >= 0 ? "negative" : "positive"}>{row.usageVariancePct >= 0 ? "+" : ""}{row.usageVariancePct.toFixed(1)}%</span> {t("InfrastructureView.vsPriorPeriod")}</div>
-            <p className="empty-copy">{row.totalUsage.toLocaleString(currentLocale)} {row.unitOfMeasure} · {t("InfrastructureView.metersCount", { count: row.meterCount })} · {t("InfrastructureView.billsCount", { count: row.billCount })}</p>
-          </article>)}
-          <article className="metric-card" data-reveal>
-            <div className="metric-top"><span>{t("InfrastructureView.annualReserve")}</span><Tools width={18} height={18}/></div>
-            <strong>{annualReserve}</strong>
-            <div className="metric-meta">{t("InfrastructureView.acrossTrackedAssets", { count: buildingAssets.length })}</div>
-            <p className="empty-copy">{t("InfrastructureView.reserveExplainer")}</p>
-          </article>
-          <article className="metric-card" data-reveal>
-            <div className="metric-top"><span>{t("InfrastructureView.needsAttention")}</span><WarningTriangle width={18} height={18}/></div>
-            <strong>{overdueCompliance + overduePm}</strong>
-            <div className="metric-meta">{t("InfrastructureView.overdueBreakdown", { compliance: overdueCompliance, tasks: overduePm })}</div>
-            <p className="empty-copy">{t("InfrastructureView.assetsNearingEndOfLife", { count: atRiskAssets })}</p>
-          </article>
-        </section>
-
-        <section className="panel" data-reveal>
-          <div className="panel-heading">
-            <div><p className="eyebrow">{t("InfrastructureView.assetRegister")}</p><h2>{t("InfrastructureView.equipmentAndServiceLife")}</h2></div>
-            <div className="segmented text infra-filter">
-              <button className={assetFilter === "all" ? "active" : ""} onClick={() => setAssetFilter("all")}>{t("InfrastructureView.filterAll")}</button>
-              {(Object.keys(ASSET_CATEGORY_LABEL_KEY) as AssetCategory[]).map((category) => <button key={category} className={assetFilter === category ? "active" : ""} onClick={() => setAssetFilter(category)}>{t(ASSET_CATEGORY_LABEL_KEY[category])}</button>)}
-            </div>
-          </div>
-          <div className="infra-table-scroll">
-            <table className="infra-table">
-              <thead><tr>
-                <th>{t("InfrastructureView.colAsset")}</th>
-                <th>{t("InfrastructureView.colProperty")}</th>
-                <th>{t("InfrastructureView.colAge")}</th>
-                <th>{t("InfrastructureView.colLifeUsed")}</th>
-                <th>{t("InfrastructureView.colReplace")}</th>
-                <th>{t("InfrastructureView.colCost")}</th>
-                <th>{t("InfrastructureView.colReserve")}</th>
-              </tr></thead>
-              <tbody>
-                {assets.map((asset) => <tr key={asset.id}>
-                  <td><strong>{t(asset.labelKey)}</strong><small>{t(ASSET_CATEGORY_LABEL_KEY[asset.category])} · {t(asset.locationKey)}</small></td>
-                  <td>{t(asset.propertyKey)}</td>
-                  <td>{t("InfrastructureView.yearsOf", { age: asset.ageYears, life: asset.expectedLifeYears })}</td>
-                  <td>
-                    <div className="life-bar" title={`${asset.lifeConsumedPct.toFixed(0)}%`}><i style={{ width: `${Math.min(asset.lifeConsumedPct, 100)}%` }} data-condition={asset.condition}/></div>
-                    <small className={`condition-label ${asset.condition}`}>{t(ASSET_CONDITION_LABEL_KEY[asset.condition])}</small>
-                  </td>
-                  <td>{asset.replacementYear}</td>
-                  <td>{asset.replacementCostFormatted}</td>
-                  <td>{asset.annualReserveFormatted}<small>{t("InfrastructureView.perYear")}</small></td>
-                </tr>)}
-              </tbody>
-            </table>
-          </div>
-          {assets.length === 0 && <p className="empty-copy">{t("InfrastructureView.noAssetsInCategory")}</p>}
-        </section>
-
-        <section className="overview-grid" data-reveal>
-          <article className="panel">
-            <div className="panel-heading"><div><p className="eyebrow">{t("InfrastructureView.compliance")}</p><h2>{t("InfrastructureView.inspectionsAndCertificates")}</h2></div><ShieldCheck width={22} height={22}/></div>
-            {complianceItems.map((item) => <div className="source-row" key={item.id}>
-              <div><strong>{t(item.labelKey)}</strong><span>{t(item.authorityKey)} · {t(item.propertyKey)}</span></div>
-              <div className="infra-due">
-                <span className={`status-pill ${item.status}`}>{t(DUE_STATUS_LABEL_KEY[item.status])}</span>
-                <small>{item.status === "overdue" ? t("InfrastructureView.overdueByDays", { days: Math.abs(item.daysUntilDue) }) : t("InfrastructureView.dueOn", { date: dueFmt.format(item.dueDate) })}</small>
-              </div>
-            </div>)}
-          </article>
-          <article className="panel">
-            <div className="panel-heading"><div><p className="eyebrow">{t("InfrastructureView.preventiveMaintenance")}</p><h2>{t("InfrastructureView.recurringWork")}</h2></div><Tools width={22} height={22}/></div>
-            {preventiveTasks.map((task) => <div className="source-row" key={task.id}>
-              <div><strong>{t(task.labelKey)}</strong><span>{t(ASSET_CATEGORY_LABEL_KEY[task.category])} · {t("InfrastructureView.everyDays", { days: task.cadenceDays })}</span></div>
-              <div className="infra-due">
-                <span className={`status-pill ${task.status}`}>{t(DUE_STATUS_LABEL_KEY[task.status])}</span>
-                <small>{task.daysUntilDue < 0 ? t("InfrastructureView.overdueByDays", { days: Math.abs(task.daysUntilDue) }) : t("InfrastructureView.inDays", { days: task.daysUntilDue })}</small>
-              </div>
-            </div>)}
-          </article>
-        </section>
-
-        <section className="panel" data-reveal>
-          <div className="panel-heading"><div><p className="eyebrow">{t("InfrastructureView.capitalPlanning")}</p><h2>{t("InfrastructureView.replacementForecast")}</h2></div><span className="quiet-label">{t("InfrastructureView.tenYearHorizon")}</span></div>
-          <div className="capital-forecast">
-            {capitalForecast.map((year) => <div className="capital-year" key={year.year}>
-              <div className="capital-bar-track"><i style={{ height: `${(year.totalCents / forecastPeak) * 100}%` }} data-empty={year.totalCents === 0 ? "true" : undefined}/></div>
-              <strong>{year.totalCents === 0 ? "—" : year.totalFormatted}</strong>
-              <span>{year.year}</span>
-            </div>)}
-          </div>
-          <p className="empty-copy">{t("InfrastructureView.forecastExplainer")}</p>
-        </section>
-
-        <section className="panel" data-reveal>
-          <div className="panel-heading"><div><p className="eyebrow">{t("InfrastructureView.plumbingLoad")}</p><h2>{t("InfrastructureView.fixtureUnitLoad")}</h2></div><span className="quiet-label">{t("InfrastructureView.wsfuTotal", { units: fixtureLoad.totalUnits })}</span></div>
-          <div className="fixture-grid">
-            {fixtureLoad.fixtures.map((fixture) => <div className="fixture-row" key={fixture.type}>
-              <span>{t(`InfrastructureView.fixture_${fixture.type}`)}</span>
-              <b>{fixture.count}</b>
-              <small>{t("InfrastructureView.wsfuEach", { units: fixture.unitsEach })}</small>
-              <strong>{fixture.unitsTotal.toFixed(1)}</strong>
-            </div>)}
-          </div>
-          <p className={`empty-copy${fixtureLoad.beyondTableRange ? " infra-caveat" : ""}`}>
-            {fixtureLoad.beyondTableRange
-              ? t("InfrastructureView.pipeSizeBeyondTable", { units: fixtureLoad.totalUnits, ceiling: FIXTURE_UNIT_TABLE_CEILING })
-              : t("InfrastructureView.pipeSizeEstimate", { size: fixtureLoad.estimatedPipeSizeInches })}
-          </p>
-        </section>
-      </>}
-  </div>;
+  return <div className="view-wrap infra-view"><AppHeader title={t("InfrastructureView.infrastructure")} subtitle={t("InfrastructureView.infrastructureSubtitle")} actions={<button className="primary-button" onClick={onAddMeter}><Flash width={18} height={18}/>{t("InfrastructureView.addMeter")}</button>}/><section className="panel locked-panel"><div><h2>{t("InfrastructureView.emptyDescription")}</h2><button className="primary-button" onClick={onAddMeter}>{t("InfrastructureView.addMeter")}<NavArrowRight width={17} height={17}/></button></div></section></div>;
 }
 
 /** Where a chosen agent's answers land — fixed, since every persona routes the same way. */
@@ -1180,12 +460,12 @@ const PREFERENCE_TOPIC_LABEL_KEY: Record<string, string> = {
  *     system prompt by getPreferenceContext(). Teaching here writes the same
  *     rows the assistant learns from mid-conversation corrections.
  */
-function SetupView({ dataMode, openConnections, demo = false }: { dataMode: DataMode; openConnections: () => void; demo?: boolean }) {
+function SetupView({ openConnections }: { openConnections: () => void }) {
   const t = useTranslations();
   const { notify } = useExperience();
   const [selected, setSelected] = useState<PersonaId>("general");
   const [saving, setSaving] = useState(false);
-  const [loaded, setLoaded] = useState(demo);
+  const [loaded, setLoaded] = useState(false);
   const [taught, setTaught] = useState<TaughtPreference[]>([]);
   const [options, setOptions] = useState<PreferenceOption[]>([]);
   const [teaching, setTeaching] = useState<string | null>(null);
@@ -1196,7 +476,6 @@ function SetupView({ dataMode, openConnections, demo = false }: { dataMode: Data
   const [suggestionSeed, setSuggestionSeed] = useState(0);
 
   useEffect(() => {
-    if (demo) return;
     let cancelled = false;
     Promise.all([
       fetch("/api/agents/default").then((r) => (r.ok ? r.json() as Promise<{ defaultPersonaId?: string | null }> : null)).catch(() => null),
@@ -1209,7 +488,7 @@ function SetupView({ dataMode, openConnections, demo = false }: { dataMode: Data
       setLoaded(true);
     });
     return () => { cancelled = true; };
-  }, [demo]);
+  }, []);
 
   const preset = PERSONA_PRESETS[selected];
   const access = PERSONA_TOOL_ACCESS[selected];
@@ -1218,7 +497,6 @@ function SetupView({ dataMode, openConnections, demo = false }: { dataMode: Data
   const taughtByTopic = useMemo(() => new Map(taught.map((row) => [row.topic, row])), [taught]);
 
   async function choose(next: PersonaId) {
-    if (demo) { setSelected(next); return; }
     if (next === selected) return;
     const previous = selected;
     setSelected(next);
@@ -1338,7 +616,7 @@ function SetupView({ dataMode, openConnections, demo = false }: { dataMode: Data
         </div>
       </div>
 
-      {dataMode !== "sample" && <p className="empty-copy">{t("SetupView.connectSourcesNote")}</p>}
+      <p className="empty-copy">{t("SetupView.connectSourcesNote")}</p>
     </section>
 
     <section className="panel" data-reveal>
@@ -1364,7 +642,7 @@ function SetupView({ dataMode, openConnections, demo = false }: { dataMode: Data
       <p className="empty-copy">{t("SetupView.swapExplainer")}</p>
     </section>
 
-    {!demo && (<section className="panel" data-reveal>
+    {(<section className="panel" data-reveal>
       <div className="panel-heading">
         <div><p className="eyebrow">{t("SetupView.memory")}</p><h2>{t("SetupView.whatAvalRemembers")}</h2></div>
         <span className="quiet-label">{t("SetupView.appliesEverywhere")}</span>
@@ -1459,78 +737,11 @@ function SettingsView({ openConnections, displayName, email }: { openConnections
   return <SettingsModule header={<AppHeader title={t("SettingsView.settings")} subtitle={t("SettingsModule.subtitle")}/>} openConnections={openConnections} displayName={displayName} email={email}/>;
 }
 
-function NoiWaterfall({ t, money }: { t: ReturnType<typeof useTranslations>; money: (amount: number) => string }) {
-  const { value, priorValue, attribution } = sampleData.noi;
-  const steps = [
-    { key: "prior", labelKey: "Overview.waterfallPrior", kind: "total" as const, delta: 0 },
-    ...attribution.map((row) => ({ key: row.driverKey, labelKey: row.driverKey, kind: "delta" as const, delta: row.amount })),
-    { key: "current", labelKey: "Overview.waterfallCurrent", kind: "total" as const, delta: 0 },
-  ];
-
-  let running = priorValue;
-  const bars = steps.map((step, index) => {
-    const from = step.kind === "total" ? 0 : running;
-    const to = step.kind === "total" ? (index === 0 ? priorValue : value) : running + step.delta;
-    if (step.kind === "delta") running = to;
-    return { ...step, from, to, index };
-  });
-
-  const peak = Math.max(...bars.map((bar) => Math.max(bar.from, bar.to)));
-  const chartHeight = 132;
-  // Reserved space above the tallest bar for its value label (previously 0 —
-  // the label for the tallest bar rendered above y=0 and got clipped by the
-  // SVG's own edge) and below the chart for the category labels.
-  const topMargin = 24;
-  const bottomMargin = 34;
-  const scale = chartHeight / (peak * 1.08);
-  const barWidth = 68;
-  const gap = 18;
-  const chartWidth = bars.length * barWidth + (bars.length - 1) * gap;
-
-  return (
-    <div className="waterfall" data-reveal data-sound-reveal>
-      <svg viewBox={`0 0 ${chartWidth} ${topMargin + chartHeight + bottomMargin}`} width="100%" role="img" aria-label={t("Overview.waterfallAriaLabel")}>
-        {bars.map((bar) => {
-          const x = bar.index * (barWidth + gap);
-          const topValue = Math.max(bar.from, bar.to);
-          const bottomValue = Math.min(bar.from, bar.to);
-          const y = topMargin + (chartHeight - topValue * scale);
-          const barHeight = Math.max(2, (topValue - bottomValue) * scale);
-          const isPositive = bar.kind === "total" || bar.delta >= 0;
-          return (
-            <g key={bar.key} className="waterfall-bar" style={{ "--bar-delay": `${bar.index * 90}ms` } as React.CSSProperties}>
-              {bar.index > 0 && bar.kind === "delta" && (
-                <line
-                  x1={x - gap} x2={x}
-                  y1={topMargin + (chartHeight - bar.from * scale)} y2={topMargin + (chartHeight - bar.from * scale)}
-                  className="waterfall-connector"
-                />
-              )}
-              <rect x={x} y={y} width={barWidth} height={barHeight} rx={4} className={`waterfall-rect ${bar.kind} ${isPositive ? "positive" : "negative"}`} />
-              <text x={x + barWidth / 2} y={y - 8} textAnchor="middle" className="waterfall-value">
-                {bar.kind === "total" ? money(bar.to) : `${bar.delta >= 0 ? "+" : "−"}${money(bar.delta)}`}
-              </text>
-              <text x={x + barWidth / 2} y={topMargin + chartHeight + 20} textAnchor="middle" className="waterfall-label">
-                {t(bar.labelKey)}
-              </text>
-            </g>
-          );
-        })}
-      </svg>
-    </div>
-  );
-}
 
 const UTILITY_TYPE_OPTIONS: UtilityType[] = ["electricity", "water", "gas"];
 const DEFAULT_UNIT_BY_UTILITY: Record<UtilityType, string> = { electricity: "kWh", water: "gal", gas: "therm" };
 
-/**
- * Creates a real utility_meters row via POST /api/infrastructure/meters.
- * Sample mode's KPI tiles (app/data/infrastructure-sample.ts) won't reflect
- * a newly-added meter — the same is true of every "Connect data" flow
- * elsewhere in this file, where sample-mode tiles are driven by
- * dataMode, not by what's actually connected/created.
- */
+
 function AddMeterDialog({ onClose }: { onClose: () => void }) {
   const t = useTranslations();
   const { notify } = useExperience();
@@ -1596,69 +807,18 @@ function DesktopApp({ authMode, displayName, email, initialView }: { authMode: A
   // Everyone signed out shares one workspace, so anything saved here is
   // visible to the next visitor. Surfaces that store content say so.
   const isGuest = authMode === "guest";
-  const { market, setMarket, theme, setTheme, sounds, setSounds, celebrate, notify } = useExperience();
+  const { market, setMarket, theme, setTheme, sounds, setSounds, celebrate } = useExperience();
   const t = useTranslations();
   const currentLocale = useLocale();
   const { jobs: draftJobs, createJob: createDraftJob, pauseJob: pauseDraftJob, resumeJob: resumeDraftJob, retryJob: retryDraftJob, sendJob: sendDraftJob, removeJobs: removeDraftJobs, loading: draftsLoading } = useDraftJobs(currentLocale);
   const router = useRouter();
   const pathname = usePathname();
-  const switchLocale = (nextLocale: "en" | "es-mx") => router.replace(pathname, { locale: nextLocale }); const [view, setView] = useState<View>(initialView); const dataMode: DataMode = "live"; const [providers, setProviders] = useState<Provider[]>(fallbackProviders); const [loading, setLoading] = useState(true); const [selectedProvider, setSelectedProvider] = useState<Provider | null>(null); const [addMeterOpen, setAddMeterOpen] = useState(false); const [collapsed, setCollapsed] = useState(false); const [profile, setProfile] = useState(false); const [notifications, setNotifications] = useState(false); const [notificationItems, setNotificationItems] = useState<NotificationItem[]>([]); const [pendingTarget, setPendingTarget] = useState<NotificationTarget | null>(null); const [targetToken, setTargetToken] = useState(0); const unreadCount = notificationItems.filter((item) => !item.read).length; const accountingProviderId = market === "latam" ? "contpaqi" : "quickbooks";
-  const [reviewStatuses, setReviewStatuses] = useState<Record<string, ReviewStatus>>({});
-  const [sentReceipts, setSentReceipts] = useState<Record<string, InsightRecipient[]>>({});
+  const switchLocale = (nextLocale: "en" | "es-mx") => router.replace(pathname, { locale: nextLocale }); const [view, setView] = useState<View>(initialView); const [providers, setProviders] = useState<Provider[]>(fallbackProviders); const [loading, setLoading] = useState(true); const [selectedProvider, setSelectedProvider] = useState<Provider | null>(null); const [addMeterOpen, setAddMeterOpen] = useState(false); const [collapsed, setCollapsed] = useState(false); const [profile, setProfile] = useState(false); const [notifications, setNotifications] = useState(false); const [notificationItems, setNotificationItems] = useState<NotificationItem[]>([]); const unreadCount = notificationItems.filter((item) => !item.read).length; const accountingProviderId = market === "latam" ? "contpaqi" : "quickbooks";
   const pendingReviewCount = 0;
-  const listFormatter = useMemo(() => new Intl.ListFormat(currentLocale, { style: "long", type: "conjunction" }), [currentLocale]);
-  const providerTitle = (id: string) => providers.find((provider) => provider.id === id)?.title ?? id;
   const loadProviders = async () => { try { const response = await fetch("/api/integrations"); const data = await response.json() as { providers?: Provider[] }; if (data.providers?.length) setProviders(data.providers); } catch { /* local preview stays usable */ } setLoading(false); };
   useEffect(() => { queueMicrotask(() => void loadProviders()); const show = () => setNotifications(true); window.addEventListener("aval:notifications", show); const connected = new URLSearchParams(window.location.search).get("connected"); if (connected) { window.setTimeout(() => celebrate(t("DesktopApp.connectionAuthorized"), connected), 250); const url = new URL(window.location.href); url.searchParams.delete("connected"); window.history.replaceState({}, "", url); } return () => window.removeEventListener("aval:notifications", show); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const setActiveView = (next: View) => { setView(next); setProfile(false); const url = new URL(window.location.href); url.searchParams.set("view", next); window.history.replaceState({}, "", url); window.scrollTo({ top: 0, behavior: "smooth" }); }; const openConnections = () => setActiveView("connections"); const openProvider = (id: string) => setSelectedProvider(providers.find((provider) => provider.id === id) ?? null); const titleKey = useMemo<string>(() => navGroups.flatMap((group) => group.items).find((item) => item.id === view)?.labelKey ?? "DesktopApp.avalFallback", [view]);
   const resolveNotificationProvider = (item: NotificationItem) => item.provider === "quickbooks" && market === "latam" ? accountingProviderId : item.provider;
-  const pushNotification = (item: Omit<NotificationItem, "id" | "minutesAgo" | "read">) => setNotificationItems((current) => [{ ...item, id: `live-${current.length}-${Date.now()}`, minutesAgo: 0, read: false }, ...current]);
-  // Fire-and-forget: persists the decision so Ask Aval can learn from real
-  // usage over time (lib/ask-aval/usage-patterns.ts). Never blocks the UI
-  // and never surfaces its own failure — reviewStatuses above is still the
-  // source of truth for what the user sees right now.
-  const recordInsightDecision = (insightId: string, decision: "approved" | "denied" | "sent") => {
-    fetch("/api/insights/decision", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ insightId, decision }) }).catch(() => {});
-  };
-  // Single source of truth for every review decision — called from both
-  // Overview's insight queue and the Review Center, so a decision made in
-  // either place is reflected identically in the other.
-  const approveInsight = (insight: InsightCandidate) => {
-    setReviewStatuses((current) => ({ ...current, [insight.id]: "approved" }));
-    recordInsightDecision(insight.id, "approved");
-    notify(t(insight.titleKey), t("Overview.insightPrepared"));
-    window.setTimeout(() => pushNotification({
-      provider: "aval",
-      titleKey: insight.titleKey,
-      detailKey: "Overview.notifApprovedDetail",
-      target: { kind: "reviewDraft", insightId: insight.id },
-    }), 1100);
-  };
-  const denyInsight = (insight: InsightCandidate) => {
-    setReviewStatuses((current) => ({ ...current, [insight.id]: "denied" }));
-    recordInsightDecision(insight.id, "denied");
-    notify(t(insight.titleKey), t("Overview.insightDenied"));
-    window.setTimeout(() => pushNotification({
-      provider: "aval",
-      titleKey: insight.titleKey,
-      detailKey: "Overview.notifDeniedDetail",
-      target: { kind: "reviewDraft", insightId: insight.id },
-    }), 1100);
-  };
-  const sendReminderBatch = (insight: InsightCandidate, recipients: InsightRecipient[]) => {
-    setReviewStatuses((current) => ({ ...current, [insight.id]: "sent" }));
-    recordInsightDecision(insight.id, "sent");
-    setSentReceipts((current) => ({ ...current, [insight.id]: recipients }));
-    const channels = listFormatter.format([...new Set(recipients.map((recipient) => providerTitle(recipient.channel)))]);
-    notify(t(insight.titleKey), t("Overview.remindersSentDetail", { count: recipients.length, channels }));
-    window.setTimeout(() => pushNotification({
-      provider: recipients[0]?.channel ?? "whatsapp",
-      titleKey: insight.titleKey,
-      detailKey: "Overview.remindersSentDetail",
-      detailParams: { count: recipients.length, channels },
-      target: { kind: "reminderReceipt", insightId: insight.id },
-    }), 1100);
-  };
   const openNotification = (item: NotificationItem) => {
     setNotificationItems((current) => current.map((entry) => entry.id === item.id ? { ...entry, read: true } : entry));
     setNotifications(false);
@@ -1669,8 +829,6 @@ function DesktopApp({ authMode, displayName, email, initialView }: { authMode: A
       return;
     }
     setActiveView(target.kind === "inboxThread" ? "inbox" : "overview");
-    setPendingTarget(target);
-    setTargetToken((token) => token + 1);
   };
   const navCounts: Partial<Record<View, number>> = { reviewCenter: pendingReviewCount };
   const signOutOfPasswordAccount = () => { fetch("/api/auth/logout", { method: "POST" }).finally(() => { window.location.href = "/"; }); };
@@ -1679,12 +837,10 @@ function DesktopApp({ authMode, displayName, email, initialView }: { authMode: A
         ? <button type="button" onClick={signOutOfPasswordAccount}><LogOut width={17} height={17}/>{t("DesktopApp.signOut")}</button>
         // eslint-disable-next-line @next/next/no-html-link-for-pages -- external platform sign-out route, not part of this app router
         : <a href="/signout-with-chatgpt?return_to=/"><LogOut width={17} height={17}/>{t("DesktopApp.signOut")}</a>}
-      </div>}</aside><section className="content-shell" aria-label={t(titleKey)}><DesktopServiceBar/>{(view === "calendar" || view === "projects" || view === "teams") && <PlanningWorkspace key={view} view={view} isGuest={isGuest}/>} {view === "overview" && <Overview displayName={displayName} openConnections={openConnections} dataMode={dataMode} providers={providers} pendingTarget={pendingTarget} targetToken={targetToken} reviewStatuses={reviewStatuses} sentReceipts={sentReceipts} onApprove={approveInsight} onDeny={denyInsight} onSendReminders={sendReminderBatch} onCreateDraft={createDraftJob}/>} {view === "tasks" && <TasksView onRemoveDrafts={removeDraftJobs} loading={draftsLoading} draftJobs={draftJobs} onCreateDraft={createDraftJob} onPauseDraft={pauseDraftJob} onResumeDraft={resumeDraftJob} onRetryDraft={retryDraftJob} onSendDraft={sendDraftJob}/>} {view === "reviewCenter" && <div className="view-wrap"><AppHeader title={t("Nav.reviewCenter")} subtitle={t("DemoMode.realDataOnly")}/><AgentTrace/></div>} {view === "inbox" && <ConnectedInbox/>} {view === "connections" && <ConnectionsView providers={providers} loading={loading} onOpen={openProvider}/>} {view === "settings" && <SettingsView openConnections={openConnections} displayName={displayName} email={email}/>} {view === "infrastructure" && <InfrastructureView dataMode={dataMode} onAddMeter={() => setAddMeterOpen(true)}/>} {view === "setup" && <SetupView dataMode={dataMode} openConnections={openConnections}/>} {view === "documents" && <DocumentsView isGuest={isGuest}/>} {(["properties", "leasing", "maintenance", "accounting"] as View[]).includes(view) && <OperationsView view={view} openConnections={openConnections} dataMode={dataMode} providers={providers}/>}</section>{selectedProvider && <ConnectionDialog provider={selectedProvider} onClose={() => setSelectedProvider(null)} onRefresh={loadProviders}/>}{addMeterOpen && <AddMeterDialog onClose={() => setAddMeterOpen(false)}/>}<Dialog.Root open={notifications} onOpenChange={setNotifications}><Dialog.Portal><Dialog.Overlay className="dialog-overlay subtle"/><Dialog.Content className="notification-drawer"><div className="drawer-heading"><div><p className="eyebrow">{t("DesktopApp.liveWorkspace")}</p><Dialog.Title>{t("DesktopApp.notifications")}</Dialog.Title></div><Dialog.Close className="icon-button" aria-label={t("Overview.close")}><Xmark width={20} height={20}/></Dialog.Close></div><div className="notification-list">{notificationItems.map((item) => <button key={item.id} className={item.read ? "" : "unread"} onClick={() => openNotification(item)}><BrandMark provider={resolveNotificationProvider(item)} small/><span><strong>{t(item.titleKey)}</strong><small>{t(item.detailKey, item.detailParams)}</small></span><span className="notif-trailing">{!item.read && <i className="unread-dot"/>}<time>{formatMinutesAgo(item.minutesAgo, currentLocale)}</time></span></button>)}</div><button className="wide-button" onClick={() => setNotificationItems((current) => current.map((item) => ({ ...item, read: true })))}><Check width={17} height={17}/>{unreadCount ? t("DesktopApp.markAllAsRead") : t("DesktopApp.allCaughtUp")}</button></Dialog.Content></Dialog.Portal></Dialog.Root><AvalAssistant view={view} onCreateDraft={createDraftJob}/></main>;
+      </div>}</aside><section className="content-shell" aria-label={t(titleKey)}><UsageRecorder enabled={!isGuest}/><DesktopServiceBar/>{(view === "calendar" || view === "projects" || view === "teams") && <PlanningWorkspace key={view} view={view} isGuest={isGuest}/>} {view === "overview" && <OperationsWorkspace view="overview" openConnections={openConnections} hero={<OverviewHero displayName={displayName} t={t}/>}/>} {view === "tasks" && <TasksView onRemoveDrafts={removeDraftJobs} loading={draftsLoading} draftJobs={draftJobs} onCreateDraft={createDraftJob} onPauseDraft={pauseDraftJob} onResumeDraft={resumeDraftJob} onRetryDraft={retryDraftJob} onSendDraft={sendDraftJob}/>} {view === "reviewCenter" && <div className="view-wrap"><AppHeader title={t("Nav.reviewCenter")} subtitle={t("Workspace.realDataOnly")}/><AgentTrace/></div>} {view === "inbox" && <ConnectedInbox/>} {view === "connections" && <ConnectionsView providers={providers} loading={loading} onOpen={openProvider}/>} {view === "settings" && <SettingsView openConnections={openConnections} displayName={displayName} email={email}/>} {view === "infrastructure" && <InfrastructureView onAddMeter={() => setAddMeterOpen(true)}/>} {view === "setup" && <SetupView openConnections={openConnections}/>} {view === "documents" && <DocumentsView isGuest={isGuest}/>} {(["properties", "leasing", "maintenance", "accounting"] as View[]).includes(view) && <OperationsView view={view} openConnections={openConnections} providers={providers}/>}</section>{selectedProvider && <ConnectionDialog provider={selectedProvider} onClose={() => setSelectedProvider(null)} onRefresh={loadProviders}/>}{addMeterOpen && <AddMeterDialog onClose={() => setAddMeterOpen(false)}/>}<Dialog.Root open={notifications} onOpenChange={setNotifications}><Dialog.Portal><Dialog.Overlay className="dialog-overlay subtle"/><Dialog.Content className="notification-drawer"><div className="drawer-heading"><div><p className="eyebrow">{t("DesktopApp.liveWorkspace")}</p><Dialog.Title>{t("DesktopApp.notifications")}</Dialog.Title></div><Dialog.Close className="icon-button" aria-label={t("Overview.close")}><Xmark width={20} height={20}/></Dialog.Close></div><div className="notification-list">{notificationItems.map((item) => <button key={item.id} className={item.read ? "" : "unread"} onClick={() => openNotification(item)}><BrandMark provider={resolveNotificationProvider(item)} small/><span><strong>{t(item.titleKey)}</strong><small>{t(item.detailKey, item.detailParams)}</small></span><span className="notif-trailing">{!item.read && <i className="unread-dot"/>}<time>{formatMinutesAgo(item.minutesAgo, currentLocale)}</time></span></button>)}</div><button className="wide-button" onClick={() => setNotificationItems((current) => current.map((item) => ({ ...item, read: true })))}><Check width={17} height={17}/>{unreadCount ? t("DesktopApp.markAllAsRead") : t("DesktopApp.allCaughtUp")}</button></Dialog.Content></Dialog.Portal></Dialog.Root><AvalAssistant view={view} onCreateDraft={createDraftJob}/></main>;
 }
 
-export function AvalDashboard({ authMode, displayName, email, mode = "live", requestedView }: { authMode: AuthMode; displayName: string; email: string; mode?: WorkspaceMode; requestedView?: string }) {
-  const initialView = navGroups.some((g) => g.items.some((item) => item.id === requestedView)) ? requestedView as View : "overview";
-  return <ExperienceProvider><AppearanceProvider key={`${mode}:${authMode}:${email}`} isGuest={mode === "demo" || authMode === "guest"}>{mode === "demo"
-    ? <DemoWorkspace navigation={navGroups} providers={fallbackProviders} initialView={initialView} isGuest={authMode === "guest"} setup={(openConnections) => <SetupView demo dataMode="sample" openConnections={openConnections}/>} infrastructure={(onAddMeter) => <InfrastructureView dataMode="sample" onAddMeter={onAddMeter}/>}/>
-    : <DesktopApp authMode={authMode} displayName={displayName} email={email} initialView={initialView}/>}</AppearanceProvider></ExperienceProvider>;
+export function AvalDashboard({ authMode, displayName, email, requestedView }: { authMode: AuthMode; displayName: string; email: string; requestedView?: string }) {
+  const initialView = navGroups.some(g => g.items.some(item => item.id === requestedView)) ? requestedView as View : "overview";
+  return <ExperienceProvider><AppearanceProvider key={`${authMode}:${email}`} isGuest={authMode === "guest"}><DesktopApp authMode={authMode} displayName={displayName} email={email} initialView={initialView}/></AppearanceProvider></ExperienceProvider>;
 }

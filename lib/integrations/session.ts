@@ -77,31 +77,7 @@ export async function getApiIdentity(request: Request): Promise<ApiIdentity | nu
   const email = request.headers.get("oai-authenticated-user-email") ?? (local ? "preview@aval.local" : null);
 
   if (!userId || !email) {
-    // Open access: a visitor with no account still reaches the app, in a
-    // single shared demo workspace.
-    //
-    // The org id is a fixed constant, NOT derived from anything about the
-    // visitor, which is what keeps this safe: every real account's org id is
-    // a hash of its own user id (organizationIdForUser), so no anonymous
-    // visitor can ever land in one. They see the demo org and only the demo
-    // org, no matter what they do.
-    //
-    // The tradeoff is inherent to open access rather than a flaw in it: every
-    // anonymous visitor shares this one workspace, so anything one of them
-    // saves is visible to the next. Surfaces that store third-party content
-    // (Documents especially) warn about that — see PUBLIC_DEMO_ORGANIZATION_ID
-    // usages.
-    return {
-      userId: PUBLIC_DEMO_USER_ID,
-      email: "guest@aval.app",
-      displayName: "Guest",
-      organizationId: PUBLIC_DEMO_ORGANIZATION_ID,
-      // Nominal only. Every guest is the same subject in a shared workspace,
-      // so policy.ts denies mutation to guests outright — this role never
-      // widens what one of them can do.
-      role: "member",
-      source: "guest",
-    };
+    return null;
   }
 
   const encodedName = request.headers.get("oai-authenticated-user-full-name");

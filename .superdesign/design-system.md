@@ -12,7 +12,7 @@ The Settings → Intelligence surface lets an operator choose which provider pow
 - Preserve Aval's monochrome Apple-grey shell: `#f5f5f7` canvas, white surfaces, `#1d1d1f` ink, `#6e6e73` muted text, and subtle translucent lines.
 - Use the semantic accent colors only for data/status. Orange is warning; green is successful/active; red is destructive/error.
 - Controls are compact, quiet, and tactile: 9–11px supporting type, 11–13px controls, 38–42px control heights, 9–14px control radii, 16–24px card/shell radii.
-- Use restrained shadows and 160–200ms snap-eased motion. Never add gradients, decorative display type, glassmorphism, neon colors, or oversized marketing typography.
+- Use restrained shadows and 160–200ms snap-eased motion. Keep gradients inside analytical marks: blue, mint, lilac, and amber translucent fills, optional diagonal hatching, and exact-value dot textures. Keep the shell neutral; avoid decorative display type, glassmorphism, neon colors, or oversized marketing typography.
 - Provider identity must use the real `BrandMark` implementation. Never replace the OpenAI knot, Anthropic mark, or Aval mark with initials or generic icons.
 
 ## Layout and component rules
@@ -58,3 +58,9 @@ The packaged desktop app reuses Aval's existing dashboard shell and adds one tru
 - Allow long model/provider names to truncate, but let explanatory prose wrap naturally.
 - At narrow widths, stack provider/model triggers without horizontal overflow and keep the popover within `80vw`.
 - Honor reduced-motion preferences.
+
+## Analytics and activity
+
+- Operations and Portfolio Overview share live reporting data and configurable chart representations. Categorical comparisons use columns, horizontal bars, or dot silhouettes. Time series additionally allow lines, stepped areas, and gradient areas. Stack only additive, complete, non-negative values.
+- Header dividers have 24px clearance before following cards. Shared inbox uses two panes and a flexible message thread; short timeline durations have separate readable captions.
+- Aval use tracker sits above the greeting. It records only authenticated active minutes, isolated per user/workspace, with UTC day labels and no seeded history. There is no demo mode.

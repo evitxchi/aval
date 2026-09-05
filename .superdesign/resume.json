@@ -133,6 +133,36 @@
         }
       },
       "updatedAt": "2026-09-05T07:18:02.552322+00:00"
+    },
+    "analytics:charts": {
+      "targetKind": "existing-ui",
+      "projectId": "d0d8e392-c082-412b-af30-d332521675c2",
+      "activeDraftId": "8acc510c-cb12-4c1f-b159-b20952d06ac1",
+      "designSystemPath": ".superdesign/design-system.md",
+      "referenceIds": [
+        "7d8035a1-ac7e-4dfc-b64b-4117f6b71f95"
+      ],
+      "contextFiles": [
+        "app/components/data-chart.tsx",
+        "app/components/operations-workspace.tsx",
+        ".superdesign/design-system.md",
+        "app/enterprise.css:621:712"
+      ],
+      "fingerprints": {
+        "app/components/data-chart.tsx": "302604282cc8951c49e866f138f8042cca4953ba70eb4998b3ba64f3fb71a963",
+        "app/components/operations-workspace.tsx": "ff47857e2b901c08fefc7abf5ae6a777b73a9689f9d20efb980caa8c21ea243e",
+        ".superdesign/design-system.md": "8585099fe271d3e94470a636384cebb291d4302c8e5fa17b41c5990bdd9dd220",
+        "app/enterprise.css": "8ec26278607e4c0f0b4c103a6568be24c7e5f1afff351d83fdc374c9755e5aec"
+      },
+      "components": [],
+      "drafts": {
+        "8acc510c-cb12-4c1f-b159-b20952d06ac1": {
+          "title": "Aval Analytics Component Refinement",
+          "visualDirection": "Neutral cards with gradient/hatched data, dot silhouettes and configurable analytic representations",
+          "currentVersion": 1
+        }
+      },
+      "updatedAt": "2026-09-05T22:52:55.977853+00:00"
     }
   }
 }

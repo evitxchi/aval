@@ -444,12 +444,10 @@ function DraftJobCard({
   onSend,
   onDelete,
   deleting,
-  demo,
 }: {
   job: DraftJob;
   onDelete: (id: string) => void;
   deleting: boolean;
-  demo: boolean;
   onPause: (id: string) => void;
   onResume: (id: string) => void;
   onRetry: (id: string) => void;
@@ -468,7 +466,7 @@ function DraftJobCard({
   const done = job.status === "done";
 
   const runExport = async (kind: "native" | "pdf") => {
-    if (!done || demo) return;
+    if (!done) return;
     setExporting(kind);
     try {
       const draft = {
@@ -583,7 +581,7 @@ function DraftJobCard({
             {t("AskAvalTasks.retry")}
           </button>
         )}
-        {done && !demo && (
+        {done && (
           <>
             <button
               type="button"
@@ -612,7 +610,7 @@ function DraftJobCard({
           </>
         )}
       </div>
-      {done && !demo && !job.sentTo && (
+      {done && !job.sentTo && (
         <div className="draft-task-send">
           <input
             value={recipient}
@@ -649,12 +647,10 @@ export function AskAvalTasksSection({
   onSend,
   onRemove,
   loading = false,
-  demo = false,
 }: {
   jobs: DraftJob[];
   onRemove: (ids: string[]) => Promise<void>;
   loading?: boolean;
-  demo?: boolean;
   onCreate: (input: CreateDraftInput) => void;
   onPause: (id: string) => void;
   onResume: (id: string) => void;
@@ -743,7 +739,6 @@ export function AskAvalTasksSection({
               onSend={onSend}
               onDelete={(id) => void remove([id])}
               deleting={removing}
-              demo={demo}
             />
           ))}
         </div>

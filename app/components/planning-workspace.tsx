@@ -5,7 +5,6 @@ import {
   useState,
   type FormEvent,
   type ReactNode,
-  type SetStateAction,
 } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import * as Dialog from "@radix-ui/react-dialog";
@@ -63,14 +62,10 @@ export function PlanningWorkspace({
   view,
   isGuest,
   activity,
-  demoData,
-  onDemoChange,
 }: {
   view: "calendar" | "projects" | "teams" | "tasks";
   isGuest: boolean;
   activity?: ReactNode;
-  demoData?: PlanningData;
-  onDemoChange?: (data: PlanningData) => void;
 }) {
   const t = useTranslations("Planning"),
     e = useTranslations("Enterprise"),
@@ -80,15 +75,11 @@ export function PlanningWorkspace({
       items: [],
       members: [],
     }),
-    [loading, setLoading] = useState(!isGuest && !demoData),
+    [loading, setLoading] = useState(!isGuest),
     [error, setError] = useState(""),
     [revision, setRevision] = useState(0);
-  const data = demoData ?? storedData;
-  const setData = (update: SetStateAction<PlanningData>) => {
-    if (demoData && onDemoChange)
-      onDemoChange(typeof update === "function" ? update(demoData) : update);
-    else setStoredData(update);
-  };
+  const data = storedData;
+  const setData = setStoredData;
   const [anchor, setAnchor] = useState(() => startOfDay(new Date())),
     [layout, setLayout] = useState<"calendar" | "timeline" | "list" | "board">(
       view === "tasks"
@@ -113,7 +104,7 @@ export function PlanningWorkspace({
     [formError, setFormError] = useState(""),
     [confirmDelete, setConfirmDelete] = useState(false);
   useEffect(() => {
-    if (isGuest || demoData) return;
+    if (isGuest) return;
     const abort = new AbortController();
     void (async () => {
       setLoading(true);
@@ -133,7 +124,7 @@ export function PlanningWorkspace({
       }
     })();
     return () => abort.abort();
-  }, [revision, isGuest, t, demoData]);
+  }, [revision, isGuest, t]);
   const filtered = useMemo(
     () =>
       data.items.filter(
@@ -205,29 +196,6 @@ export function PlanningWorkspace({
               ...form,
               ...(editing ? { id: editing.id, version: editing.version } : {}),
             };
-      if (demoData) {
-        if (editor === "project") {
-          const project = {
-            ...projectForm,
-            id: `demo-${crypto.randomUUID()}`,
-            createdAt: Date.now(),
-          };
-          setData((d) => ({ ...d, projects: [project, ...d.projects] }));
-          setProjectFilter(project.id);
-        } else {
-          const item = {
-            ...form,
-            id: editing?.id ?? `demo-${crypto.randomUUID()}`,
-            version: (editing?.version ?? 0) + 1,
-          };
-          setData((d) => ({
-            ...d,
-            items: [...d.items.filter((i) => i.id !== item.id), item],
-          }));
-        }
-        setEditor(null);
-        return;
-      }
       const response = await fetch("/api/planning", {
         method: editor === "item" && editing ? "PUT" : "POST",
         headers: { "content-type": "application/json" },
@@ -267,14 +235,6 @@ export function PlanningWorkspace({
     setSaving(true);
     setFormError("");
     try {
-      if (demoData) {
-        setData((d) => ({
-          ...d,
-          items: d.items.filter((i) => i.id !== editing.id),
-        }));
-        setEditor(null);
-        return;
-      }
       const r = await fetch("/api/planning", {
         method: "DELETE",
         headers: { "content-type": "application/json" },
@@ -398,7 +358,7 @@ export function PlanningWorkspace({
                   })}
                 </div>
               </section>
-              {!demoData && <WorkspaceMembers />}
+              <WorkspaceMembers />
             </>
           ) : (
             <>
@@ -778,17 +738,32 @@ export function PlanningWorkspace({
                           <div className="timeline-track">
                             <button
                               className={`timeline-event ${item.status}`}
+                              title={`${item.title} · ${fmt.format(item.startsAt)} – ${fmt.format(item.endsAt)}`}
                               aria-label={`${item.title}, ${fmt.format(item.startsAt)} – ${fmt.format(item.endsAt)}`}
                               style={
                                 {
                                   left: `${start}%`,
-                                  width: `${Math.max(1.3, end - start)}%`,
+                                  width: `${Math.max(0, end - start)}%`,
                                   "--event-color": itemColor(item),
                                 } as React.CSSProperties
                               }
                               onClick={() => openItem(item)}
                             >
-                              <span>{item.title}</span>
+                              <span className="sr-only">{item.title}</span>
+                            </button>
+                            <button
+                              className={`timeline-caption ${start > 72 ? "align-end" : ""}`}
+                              style={{ left: `${Math.min(98, start)}%` }}
+                              onClick={() => openItem(item)}
+                              title={`${item.title} · ${fmt.format(item.startsAt)} – ${fmt.format(item.endsAt)}`}
+                            >
+                              <strong>{item.title}</strong>
+                              <small>
+                                {new Intl.DateTimeFormat(locale, {
+                                  hour: "numeric",
+                                  minute: "2-digit",
+                                }).format(item.startsAt)}
+                              </small>
                             </button>
                           </div>
                         </div>

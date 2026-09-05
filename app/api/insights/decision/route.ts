@@ -2,7 +2,7 @@ import { getDb } from "@/db";
 import { insightDecisions } from "@/db/schema";
 import { getApiIdentity } from "@/lib/integrations/session";
 import { ensureOrganization } from "@/lib/integrations/organizations";
-import { sampleData } from "@/app/data/sample";
+import { buildOperationsOverview } from "@/lib/operations/summary";
 
 const VALID_DECISIONS = new Set(["approved", "denied", "sent"]);
 
@@ -15,15 +15,21 @@ const VALID_DECISIONS = new Set(["approved", "denied", "sent"]);
  */
 export async function POST(request: Request) {
   const identity = await getApiIdentity(request);
-  if (!identity) return Response.json({ error: "Authentication required" }, { status: 401 });
+  if (!identity)
+    return Response.json({ error: "Authentication required" }, { status: 401 });
 
-  const body = (await request.json().catch(() => ({}))) as { insightId?: string; decision?: string };
+  const body = (await request.json().catch(() => ({}))) as {
+    insightId?: string;
+    decision?: string;
+  };
   const insightId = typeof body.insightId === "string" ? body.insightId : "";
   const decision = typeof body.decision === "string" ? body.decision : "";
-  if (!sampleData.insights.candidates.some((candidate) => candidate.id === insightId)) {
+  const { insights } = await buildOperationsOverview(identity.organizationId);
+  if (!insights.some((candidate) => candidate.id === insightId)) {
     return Response.json({ error: "Unknown insight id" }, { status: 400 });
   }
-  if (!VALID_DECISIONS.has(decision)) return Response.json({ error: "Unknown decision" }, { status: 400 });
+  if (!VALID_DECISIONS.has(decision))
+    return Response.json({ error: "Unknown decision" }, { status: 400 });
 
   await ensureOrganization(identity);
   await getDb().insert(insightDecisions).values({

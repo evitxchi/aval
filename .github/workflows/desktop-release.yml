@@ -159,8 +159,8 @@ jobs:
           Automated build of \`${GITHUB_SHA:0:7}\` on \`${GITHUB_REF_NAME}\`.
 
           The matching website deployment was verified before this release.
-          Includes the isolated demo workspace, Aval Tasks draft deletion and
-          Clear all, and the agent picker directly below Wiring.
+          Includes customizable live-data charts, the authenticated Aval usage
+          tracker, inbox and timeline layout fixes, and removal of demo mode.
 
           Includes a bundled Codex runtime, so the app works without a separate
           Codex CLI install, and adopts an existing Codex login if you have one.

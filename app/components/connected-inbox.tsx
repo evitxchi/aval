@@ -18,7 +18,7 @@ interface Conversation {
 }
 export function ConnectedInbox() {
   const t = useTranslations("InboxView"),
-    d = useTranslations("DemoMode"),
+    d = useTranslations("Workspace"),
     locale = useLocale();
   const [conversations, setConversations] = useState<Conversation[]>([]),
     [selected, setSelected] = useState<string | null>(null);

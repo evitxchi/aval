@@ -1305,3 +1305,9 @@ export const planningItems = sqliteTable("planning_items", {
   projectId: text("project_id").references(()=>planningProjects.id), assigneeId: text("assignee_id"), startsAt: integer("starts_at").notNull(), endsAt: integer("ends_at").notNull(),
   version: integer("version").notNull().default(1), createdBy: text("created_by").notNull(), updatedAt: integer("updated_at").notNull(),
 }, (t)=>[index("planning_items_org_date_idx").on(t.organizationId,t.startsAt)]);
+
+// One record per authenticated active minute; uniqueness prevents double counting across tabs.
+export const workspaceUsage = sqliteTable("workspace_usage", {
+  id: text("id").primaryKey(), organizationId: text("organization_id").notNull().references(() => organizations.id),
+  userId: text("user_id").notNull(), minute: integer("minute").notNull(),
+}, t => [uniqueIndex("workspace_usage_subject_minute").on(t.organizationId, t.userId, t.minute)]);

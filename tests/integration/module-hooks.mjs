@@ -64,6 +64,7 @@ registerHooks({
       const path = fileURLToPath(url);
       const { code } = transformSync(readFileSync(path, "utf8"), {
         loader: url.endsWith(".tsx") ? "tsx" : "ts",
+        jsx: "automatic",
         format: "esm",
         target: "es2022",
         sourcefile: path,

@@ -1,3 +1,4 @@
+import { financialTimeline } from "@/lib/charts/financial-timeline";
 /**
  * The books Aval reads: a chart of accounts, posted GL amounts, and the
  * per-lease receivables ledger that delinquency is computed from.
@@ -214,6 +215,7 @@ export interface DelinquentAccountWithContext extends DelinquentAccount {
 }
 
 export interface AccountingReport {
+  timeline: ReturnType<typeof financialTimeline>;
   profitAndLoss: ProfitAndLoss | null;
   byProperty: (PropertyProfitAndLoss & { propertyName: string | null })[];
   expenseLines: ExpenseLineRow[];
@@ -338,6 +340,7 @@ export async function summarizeAccounting(
 
   return {
     profitAndLoss: statement,
+    timeline: hasGl ? financialTimeline(transactions, accounts, periodStart, periodEnd) : null,
     byProperty: hasGl
       ? profitAndLossByProperty(transactions, accounts, periodStart, periodEnd, unitCounts).map((row) => ({
           ...row,
