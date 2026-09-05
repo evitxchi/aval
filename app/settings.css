@@ -36,6 +36,19 @@
 .settings-content .billing-usage-row, .settings-content .billing-plan-card > strong, .settings-content .workspace-identity strong, .settings-content .financial-control-fields label { font-size: .875rem; }
 .settings-content .billing-usage-detail, .settings-content .billing-plan-features li, .settings-content .workspace-identity small { font-size: .8125rem; }
 .settings-content .billing-plan-card.is-recommended { box-shadow: none; }
+.settings-content .financial-policy-form label, .settings-content .financial-policy-form input, .settings-content .financial-policy-form textarea,
+.settings-content .provider-row-summary, .settings-content .intelligence-model-picker-trigger, .settings-content .intelligence-search input,
+.settings-content .workspace-redeem label, .settings-content .workspace-redeem input { font-size: .875rem; }
+.settings-content .financial-policy-form label small, .settings-content .financial-policy-invariant p, .settings-content .provider-row-description,
+.settings-content .provider-row-badge, .settings-content .connection-status, .settings-content .financial-policy-status,
+.settings-content .intelligence-model-row-label, .settings-content .workspace-feedback, .settings-content .workspace-invitations li { font-size: .75rem; line-height: 1.6; }
+.settings-content .financial-policy-invariant strong, .settings-content .intelligence-configure-header h3 { font-size: .875rem; }
+.settings-content .financial-policy-form input { min-height: 42px; }
+.settings-content .provider-row-list { gap: 0; border-top: 1px solid var(--line); }
+.settings-content .provider-row { border: 0; border-bottom: 1px solid var(--line); border-radius: 0; box-shadow: none; background: transparent; }
+.settings-content .provider-row.active { background: var(--surface-soft); }
+.settings-content .provider-row-summary { min-height: 64px; padding: 8px 12px; }
+.settings-content .financial-policy-scope, .settings-content .financial-policy-activation { grid-template-columns: minmax(0, 1fr); }
 .settings-muted { color: var(--muted); font-size: .8125rem; line-height: 1.7; }
 .settings-error { color: var(--viz-red); }
 .settings-feedback { padding: 18px; border: 1px solid var(--line); border-radius: 10px; font-size: .875rem; }
@@ -139,4 +152,6 @@
   .appearance-save-bar > div:last-child { width: 100%; }
   .appearance-save-bar button { flex: 1; }
   .settings-choice-group button { padding: 8px 10px; }
+  .settings-content .financial-policy-limits { grid-template-columns: 1fr; }
+  .settings-content .provider-row-summary { flex-wrap: wrap; }
 }
