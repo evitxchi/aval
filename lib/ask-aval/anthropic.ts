@@ -22,6 +22,7 @@
 
 import AnthropicSDK, { APIError, APIConnectionTimeoutError } from "@anthropic-ai/sdk";
 import type { MessageCreateParamsNonStreaming } from "@anthropic-ai/sdk/resources/messages/messages";
+import { anthropicFailure } from "./anthropic-errors.ts";
 
 export interface AskAvalEnv {
   DB: D1Database;
@@ -128,10 +129,10 @@ export async function callClaude(
       throw new AnthropicError("Model call timed out", 504, true);
     }
     if (err instanceof APIError) {
-      // Never echo the response body to the client — it can contain request context.
-      console.error("anthropic_error", err.status, JSON.stringify(err.error ?? {}).slice(0, 500));
       const status = err.status ?? 502;
-      throw new AnthropicError(`Anthropic request failed (${status})`, status, status === 429 || status >= 500);
+      const failure = anthropicFailure(status, err.error, err.requestID);
+      console.error("anthropic_error", failure);
+      throw new AnthropicError(failure.message, status, failure.retryable);
     }
     throw new AnthropicError("Model call failed", 502, true);
   }
