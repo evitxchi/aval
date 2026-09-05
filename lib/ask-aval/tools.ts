@@ -192,6 +192,16 @@ const ALL_DATA_TOOLS: ToolSchema[] = [...DATA_TOOLS, ...OPERATIONS_TOOLS];
 
 /** Tools for a quick chat answer — `render_answer`'s `document` is optional. */
 export const TOOLS: ToolSchema[] = [...ALL_DATA_TOOLS, RENDER_ANSWER_TOOL];
+
+/**
+ * The same schemas, indexed for server-side validation
+ * (lib/agents/tool-schema.ts). One source of truth on purpose: a second copy
+ * on the registry descriptor would drift from the one the model actually
+ * reads, and the copy that drifts is the one nobody looks at.
+ */
+export const TOOL_SCHEMAS: ReadonlyMap<string, ToolSchema["input_schema"]> = new Map(
+  [...ALL_DATA_TOOLS, RENDER_ANSWER_TOOL, COMPOSE_DOCUMENT_TOOL].map((tool) => [tool.name, tool.input_schema]),
+);
 /** Tools for a drafting request — `compose_document`'s `document` is required. */
 export const DRAFT_TOOLS: ToolSchema[] = [...ALL_DATA_TOOLS, COMPOSE_DOCUMENT_TOOL];
 

@@ -20,7 +20,9 @@
  * mean to and fail open.
  */
 
-import { runTool } from "@/lib/ask-aval/tools";
+import { runTool, TOOL_SCHEMAS } from "@/lib/ask-aval/tools";
+import { validateToolArguments } from "./tool-schema.ts";
+import { boundToolResult } from "./output-bounds.ts";
 import { digestPayload, type AuditEvent } from "@/lib/audit/chain";
 import { evaluate, type DenyCode, type PolicyContext, type PolicySubject } from "./policy.ts";
 import { idempotencyKey } from "./financial.ts";
@@ -66,7 +68,7 @@ export async function executeTool(request: ExecutionRequest): Promise<ExecutionO
   audit.push({
     kind: "policy_decision",
     label: `${request.toolName}:${decision.effect}`,
-    payloadDigest: await digestPayload(redactArguments(request.args)),
+    payloadDigest: await digestPayload(redactArguments(request.args, TOOL_SCHEMAS.get(request.toolName))),
     count: 0,
   });
 
@@ -75,6 +77,23 @@ export async function executeTool(request: ExecutionRequest): Promise<ExecutionO
   }
 
   const tool = decision.tool;
+
+  // Policy decided *whether* this agent may call the tool. This decides whether
+  // the call is even well formed. Both run before anything executes, and both
+  // run against the backend's own declarations rather than the model's word.
+  const shape = validateToolArguments(TOOL_SCHEMAS.get(tool.name), request.args);
+  if (!shape.ok) {
+    audit.push({
+      kind: "policy_decision",
+      label: `${tool.name}:invalid_arguments`,
+      payloadDigest: await digestPayload(shape.problems),
+      count: shape.problems.length,
+    });
+    return {
+      result: { status: "denied", code: "invalid_arguments", reason: shape.problems.join(" ") },
+      audit,
+    };
+  }
 
   const financialDecision = tool.financial
     ? await evaluateFinancialProposal(request.subject.organizationId, tool, request.args)
@@ -148,7 +167,7 @@ async function reserveThenRun(
       stepIndex: request.task.stepIndex,
       toolName: tool.name,
       idempotencyKey: key,
-      argsDigest: await digestPayload(redactArguments(request.args)),
+      argsDigest: await digestPayload(redactArguments(request.args, TOOL_SCHEMAS.get(tool.name))),
       riskLevel: tool.riskLevel,
     });
     if (!reserved) {
@@ -230,16 +249,23 @@ async function runWithRetries(
         tool.name,
       );
       const durationMs = Date.now() - started;
+      // Bounded before anything else reads it: the financial recorder, the
+      // audit digest and the model all see the same value, and a tenant-sized
+      // document cannot spend a whole task budget in one step.
+      const bounded = boundToolResult(out.json);
+      if (bounded.truncated) {
+        audit.push({ kind: "tool_call", label: `${tool.name}:truncated`, payloadDigest: await digestPayload(bounded.originalChars), count: bounded.originalChars });
+      }
       if (financialOperationId) {
-        const recorded = await recordFinancialToolResult(financialOperationId, request.subject.organizationId, out.json);
+        const recorded = await recordFinancialToolResult(financialOperationId, request.subject.organizationId, bounded.json);
         if (!recorded.ok) {
           audit.push({ kind: "tool_error", label: `${tool.name}:reconciliation_required`, payloadDigest: await digestPayload(recorded.reason), count: attempt });
           return { result: { status: "failed", reason: `${recorded.reason} The operation is marked unknown and requires reconciliation; it will not be retried.`, attempts: attempt, tool }, audit };
         }
       }
-      audit.push({ kind: "tool_call", label: tool.name, payloadDigest: await digestPayload(out.json), count: out.numbers.length });
+      audit.push({ kind: "tool_call", label: tool.name, payloadDigest: await digestPayload(bounded.json), count: out.numbers.length });
       return {
-        result: { status: "ok", json: out.json, numbers: out.numbers, durationMs, attempts: attempt, tool },
+        result: { status: "ok", json: bounded.json, numbers: out.numbers, durationMs, attempts: attempt, tool },
         audit,
       };
     } catch (err) {

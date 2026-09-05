@@ -71,7 +71,12 @@ test("an authorized tool executes and a denied one is recorded, not thrown", asy
 
 test("the shared demo workspace is read-only to agents", async () => {
   const { tasks, runtime } = await setup();
-  const preference = { statement: "prefer monthly rollups", scope: "portfolio" };
+  // Real enum values from the taxonomy: the executor validates arguments
+  // against the schema the model is shown, so an invented shape is refused
+  // before the guest check is ever reached and would prove nothing.
+  const { PREFERENCE_TOPICS } = await import("../../lib/ask-aval/preference-taxonomy.ts");
+  const topic = Object.keys(PREFERENCE_TOPICS)[0];
+  const preference = { topic, statement: PREFERENCE_TOPICS[topic][0] };
 
   scriptModel(useTool("record_preference", preference), conclude("Noted"));
   const guest = await newTask(tasks, "Remember this", "org_public_demo", "guest");

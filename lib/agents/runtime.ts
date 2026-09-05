@@ -27,7 +27,7 @@
 import type { AskAvalEnv, ContentBlock, Message, ToolSchema, ToolUseBlock } from "@/lib/ask-aval/anthropic";
 import { AnthropicError } from "@/lib/ask-aval/anthropic";
 import { callModel } from "@/lib/ask-aval/model-router";
-import { TOOLS } from "@/lib/ask-aval/tools";
+import { TOOLS, TOOL_SCHEMAS } from "@/lib/ask-aval/tools";
 import { personaTools, resolvePersona } from "@/lib/ask-aval/personas";
 import { checkFaithfulness, withDerivedNumbers, round2 } from "@/lib/ask-aval/faithfulness";
 import { stripDashes } from "@/lib/ask-aval/style";
@@ -342,7 +342,7 @@ export async function advanceTask(
             // Bind the human decision to this exact model proposal. Tool name
             // alone is insufficient because one assistant message may contain
             // two calls to the same financial tool with different arguments.
-            evidence: { toolUseId: use.id, goal: task.goal, agent: task.agentId, arguments: redactArguments(use.input), reason: result.reason },
+            evidence: { toolUseId: use.id, goal: task.goal, agent: task.agentId, arguments: redactArguments(use.input, TOOL_SCHEMAS.get(use.name)), reason: result.reason },
             amountCents: typeof use.input.amount_cents === "number" ? use.input.amount_cents : undefined,
             currency: typeof use.input.currency === "string" ? use.input.currency : undefined,
             tier: result.tier,
