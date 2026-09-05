@@ -1,4 +1,4 @@
-import { getApiIdentity } from "@/lib/integrations/session";
+import { getApiIdentity, isGuestIdentity } from "@/lib/integrations/session";
 import { ensureOrganization } from "@/lib/integrations/organizations";
 import { deleteDocument, listDocuments, saveDocument } from "@/lib/documents/store";
 import { isDocumentKind, MAX_DOCUMENT_CHARS } from "@/lib/documents/types";
@@ -23,7 +23,10 @@ export async function POST(request: Request) {
   if (!identity) return Response.json({ error: "Authentication required" }, { status: 401 });
   await ensureOrganization(identity);
 
-  const body = (await request.json().catch(() => ({}))) as { title?: string; kind?: string; contentText?: string };
+  const body = (await request.json().catch(() => ({}))) as { title?: string; kind?: string; contentText?: string; requestId?: string };
+  if (!body || typeof body !== "object" || Array.isArray(body)) return Response.json({ error: "Invalid document request." }, { status: 400 });
+  if (body.requestId !== undefined && (typeof body.requestId !== "string" || !/^[0-9a-f-]{36}$/i.test(body.requestId))) return Response.json({ error: "Invalid upload request." }, { status: 400 });
+  if (body.requestId && isGuestIdentity(identity)) return Response.json({ error: "Sign in to upload files." }, { status: 401 });
   const contentText = typeof body.contentText === "string" ? body.contentText : "";
   if (!contentText.trim()) return Response.json({ error: "Document text is required" }, { status: 400 });
   const kind = typeof body.kind === "string" && isDocumentKind(body.kind) ? body.kind : "other";
@@ -31,6 +34,7 @@ export async function POST(request: Request) {
   const saved = await saveDocument({
     organizationId: identity.organizationId,
     uploadedBy: identity.userId,
+    requestId: body.requestId,
     title: typeof body.title === "string" ? body.title : "",
     kind,
     contentText,

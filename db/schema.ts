@@ -1293,3 +1293,15 @@ export const agentWorkerRuns = sqliteTable(
   },
   (table) => [index("agent_worker_runs_started_idx").on(table.startedAt)],
 );
+
+// Native workspace planning. Dates are UTC instants; UI uses the viewer's time zone.
+export const planningProjects = sqliteTable("planning_projects", {
+  id: text("id").primaryKey(), organizationId: text("organization_id").notNull().references(()=>organizations.id),
+  title: text("title").notNull(), description: text("description").notNull().default(""), color: text("color").notNull().default("blue"), createdAt: integer("created_at").notNull(),
+}, (t)=>[index("planning_projects_org_idx").on(t.organizationId)]);
+export const planningItems = sqliteTable("planning_items", {
+  id: text("id").primaryKey(), organizationId: text("organization_id").notNull().references(()=>organizations.id),
+  title: text("title").notNull(), description: text("description").notNull().default(""), kind: text("kind").notNull().default("task"), status: text("status").notNull().default("planned"),
+  projectId: text("project_id").references(()=>planningProjects.id), assigneeId: text("assignee_id"), startsAt: integer("starts_at").notNull(), endsAt: integer("ends_at").notNull(),
+  version: integer("version").notNull().default(1), createdBy: text("created_by").notNull(), updatedAt: integer("updated_at").notNull(),
+}, (t)=>[index("planning_items_org_date_idx").on(t.organizationId,t.startsAt)]);

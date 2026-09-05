@@ -18,7 +18,7 @@ export function Foldout({ summary, children, className }: { summary: string; chi
         {summary}
         <NavArrowDown width={12} height={12} className={open ? "foldout-chevron open" : "foldout-chevron"} />
       </button>
-      <div className="foldout-body" style={{ gridTemplateRows: open ? "1fr" : "0fr" }}>
+      <div className="foldout-body" inert={!open} aria-hidden={!open} style={{ gridTemplateRows: open ? "1fr" : "0fr" }}>
         <div className="foldout-body-inner">{children}</div>
       </div>
     </div>

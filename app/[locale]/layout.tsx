@@ -5,6 +5,7 @@ import localFont from "next/font/local";
 import { NextIntlClientProvider } from "next-intl";
 import { getMessages } from "next-intl/server";
 import "../globals.css";
+import "../enterprise.css";
 import { routing } from "./routing";
 
 // Inter's variable font — one file covers the full 100-900 weight range

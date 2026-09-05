@@ -11,6 +11,7 @@ import { MAX_DOCUMENT_CHARS, MAX_DOCUMENT_TITLE_CHARS, type DocumentKind, type S
 export interface SaveDocumentInput {
   organizationId: string;
   uploadedBy: string;
+  requestId?: string;
   title: string;
   kind: DocumentKind;
   contentText: string;
@@ -33,7 +34,9 @@ export async function saveDocument(input: SaveDocumentInput): Promise<SavedDocum
   const title = input.title.trim().slice(0, MAX_DOCUMENT_TITLE_CHARS) || "Untitled document";
   const full = input.contentText.trim();
   const contentText = full.slice(0, MAX_DOCUMENT_CHARS);
-  const id = crypto.randomUUID();
+  const id = input.requestId
+    ? "upload_" + Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify([input.organizationId,input.uploadedBy,input.requestId]))))).map(b=>b.toString(16).padStart(2,"0")).join("")
+    : crypto.randomUUID();
   const createdAt = new Date();
 
   await getDb().insert(documents).values({
@@ -45,7 +48,13 @@ export async function saveDocument(input: SaveDocumentInput): Promise<SavedDocum
     charCount: contentText.length,
     uploadedBy: input.uploadedBy,
     createdAt,
-  });
+  }).onConflictDoNothing();
+
+  if (input.requestId) {
+    const stored = await getDocument(input.organizationId, id);
+    if (!stored || stored.contentText !== contentText || stored.title !== title || stored.kind !== input.kind) throw new Error("Upload request was reused with different content");
+    return { id: stored.id, title: stored.title, kind: stored.kind, charCount: stored.charCount, createdAt: stored.createdAt, truncated: full.length > contentText.length };
+  }
 
   return { id, title, kind: input.kind, charCount: contentText.length, createdAt, truncated: full.length > contentText.length };
 }

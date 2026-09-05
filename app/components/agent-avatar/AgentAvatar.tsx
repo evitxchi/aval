@@ -57,15 +57,15 @@ export function AvalAgentAvatar({ shape, theme: themeId, size = 40, selected = f
   const customAvatar = personaId ? preferences?.appearance.agents[personaId] : undefined;
   const geometry = SHAPES[shape];
   const theme = THEMES[themeId];
+  const iconContainerClassName = ["aval-agent-avatar", "aval-agent-avatar-icon", interactive && "aval-agent-avatar-interactive", selected && "aval-agent-avatar-selected", className].filter(Boolean).join(" ");
 
-  if (customAvatar) return <CharacterAvatar avatar={customAvatar} size={size} label={label} className={className}/>;
+  if (customAvatar) return <CharacterAvatar avatar={customAvatar} size={size} label={label} className={iconContainerClassName}/>;
   const originalId = icon?.match(/^\/personas\/([a-z-]+)\.webp$/)?.[1];
   if (originalId && (CHARACTER_IDS as readonly string[]).includes(originalId)) {
     const avatar: AvatarSelection = { kind: "character", id: originalId, background: "paper" };
-    return <CharacterAvatar avatar={avatar} size={size} label={label} className={className}/>;
+    return <CharacterAvatar avatar={avatar} size={size} label={label} className={iconContainerClassName}/>;
   }
 
-  const iconContainerClassName = ["aval-agent-avatar", "aval-agent-avatar-icon", interactive && "aval-agent-avatar-interactive", selected && "aval-agent-avatar-selected", className].filter(Boolean).join(" ");
   if (icon) {
     return (
       <div className={iconContainerClassName} style={{ width: size, height: size }} role={label ? "img" : undefined} aria-label={label}>

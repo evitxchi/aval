@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent, MouseEvent as ReactMouseEvent } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { ChatLines, CheckCircle, Database, NavArrowRight, Page, Search, SendDiagonal, StatsUpSquare, ViewGrid, WarningTriangle, Xmark } from "iconoir-react";
+import { ChatLines, CheckCircle, Database, NavArrowRight, Page, Search, SendDiagonal, StatsUpSquare, ViewGrid, WarningTriangle, Xmark, Minus, ScaleFrameEnlarge, ScaleFrameReduce, ControlSlider } from "iconoir-react";
 import { useExperience } from "@/app/components/experience";
 import type { CreateDraftInput, DraftFormat } from "@/app/components/ask-aval-tasks";
 import { MarkdownPreview } from "@/app/components/markdown-preview";
@@ -100,6 +100,9 @@ function AvalChatChart({ chart }: { chart: AnswerChart }) {
 }
 
 const viewNameKeys: Record<string, string> = {
+  calendar: "Nav.calendar",
+  projects: "Nav.projects",
+  teams: "Nav.teams",
   overview: "Nav.portfolioOverview",
   tasks: "Nav.avalTasks",
   inbox: "Nav.sharedInbox",
@@ -221,6 +224,9 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
   const t = useTranslations();
   const locale = useLocale();
   const [open, setOpen] = useState(false);
+  const [minimized, setMinimized] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const toolsRef = useRef<HTMLDetailsElement>(null);
   const [input, setInput] = useState("");
   const [thinking, setThinking] = useState(false);
   const [thinkingPhraseKey, setThinkingPhraseKey] = useState(THINKING_PHRASE_KEYS[0]);
@@ -325,7 +331,7 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
       text: t("AvalAssistant.welcomeMessage"),
     },
   ]);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const streamRef = useRef<HTMLDivElement>(null);
   const selectedElementRef = useRef<HTMLElement | null>(null);
   const nextId = useRef(2);
@@ -396,6 +402,7 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
   useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
+      if (toolsRef.current?.open) { toolsRef.current.open = false; toolsRef.current.querySelector("summary")?.focus(); return; }
       if (pickingModule) {
         setPickingModule(false);
         return;
@@ -519,7 +526,7 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
 
   const toggleAssistant = () => {
     if (open) closeAssistant();
-    else setOpen(true);
+    else { setMinimized(false); setOpen(true); }
   };
 
   const promptSuggestions = selectedModule ? focusedSuggestionKeys : messages.length === 1 ? suggestionKeys : [];
@@ -527,7 +534,7 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
   return (
     <div className={`aval-assistant ${open ? "is-open" : ""}`}>
       {open && (
-        <section className="aval-assistant-panel" role="dialog" aria-label={t("AvalAssistant.avalAssistant")}>
+        <section className="aval-assistant-panel" data-minimized={minimized} data-expanded={expanded} role="dialog" aria-label={t("AvalAssistant.avalAssistant")}>
           <header className="aval-assistant-header">
             <div className="aval-assistant-identity">
               {personaId === "general" ? (
@@ -537,18 +544,12 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
               )}
               <span><strong>{activePersona.label}</strong><small><i />{t("AvalAssistant.liveDashboardContext")}</small></span>
             </div>
-            <button className="aval-assistant-close" type="button" onClick={closeAssistant} aria-label={t("AvalAssistant.closeAssistant")}><Xmark width={19} height={19} /></button>
+            <div className="aval-window-controls"><button type="button" className="icon-button" onClick={()=>setMinimized(!minimized)} aria-label={t(minimized?"ChatPolish.restore":"ChatPolish.minimize")}>{minimized?<ScaleFrameEnlarge width={17} height={17}/>:<Minus width={17} height={17}/>}</button><button type="button" className="icon-button" onClick={()=>{setExpanded(!expanded);setMinimized(false);}} aria-label={t(expanded?"ChatPolish.compact":"ChatPolish.expand")}>{expanded?<ScaleFrameReduce width={17} height={17}/>:<ScaleFrameEnlarge width={17} height={17}/>}</button><button className="aval-assistant-close" type="button" onClick={closeAssistant} aria-label={t("AvalAssistant.closeAssistant")}><Xmark width={19} height={19} /></button></div>
           </header>
 
           <div className="aval-assistant-context">
             <div className="aval-chat-context-row">
-              <span className="aval-chat-scope"><Database width={15} height={15} /><span>{currentContext}</span><span>·</span><span>Acme Residential</span></span>
-              <button className={`aval-module-picker ${pickingModule ? "active" : ""}`} type="button" onClick={() => setPickingModule((current) => !current)} aria-pressed={pickingModule}>
-                <ViewGrid width={15} height={15} />{selectedModule ? t("AvalAssistant.changeModule") : t("AvalAssistant.selectModule")}
-              </button>
-              <button className={`aval-module-picker ${draftPanelOpen ? "active" : ""}`} type="button" onClick={() => setDraftPanelOpen((current) => !current)} aria-pressed={draftPanelOpen}>
-                <Page width={15} height={15} />{t("AvalAssistant.draftDocument")}
-              </button>
+              <span className="aval-chat-scope"><Database width={15} height={15} /><span>{currentContext}</span><span>·</span><span>{t("ChatPolish.workspace")}</span></span>
               <button className={`aval-module-picker ${pickingPersona ? "active" : ""}`} type="button" onClick={() => setPickingPersona((current) => !current)} aria-pressed={pickingPersona}>
                 <AvalAgentAvatar personaId={personaId} shape={activePersona.shape} theme={activePersona.theme} icon={activePersona.icon} size={17} />
                 {personaId === "general" ? t("AvalAssistant.selectAgent") : activePersona.label}
@@ -719,10 +720,19 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
           )}
 
           <form className="aval-chat-composer" onSubmit={onSubmit}>
-            <input ref={inputRef} value={input} onChange={(event) => setInput(event.target.value)} placeholder={selectedModule ? t("AvalAssistant.askAboutModulePlaceholder", { module: selectedModule.label }) : t("AvalAssistant.askAboutYourPortfolio")} aria-label={t("AvalAssistant.askAval")} />
+            <textarea ref={inputRef} rows={2} value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={event=>{if(event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing){event.preventDefault(); if(input.trim()&&!thinking)void submitQuestion(input);}}} placeholder={selectedModule ? t("AvalAssistant.askAboutModulePlaceholder", { module: selectedModule.label }) : t("AvalAssistant.askAboutYourPortfolio")} aria-label={t("AvalAssistant.askAval")} />
+            <div className="aval-composer-toolbar"><details ref={toolsRef} className="aval-tools-menu" onBlur={event=>{if(!event.currentTarget.contains(event.relatedTarget as Node))event.currentTarget.open=false;}}>
+              <summary><ControlSlider width={16} height={16}/>{t("ChatPolish.tools")}</summary>
+              <div className="aval-tools-popover" role="group" aria-label={t("ChatPolish.tools")}>
+                <button type="button" onClick={()=>{setPickingModule(true);if(toolsRef.current)toolsRef.current.open=false;}}><ViewGrid width={18} height={18}/><span>{t("AvalAssistant.selectModule")}<small>{t("ChatPolish.moduleHelp")}</small></span></button>
+                <button type="button" onClick={()=>{setDraftPanelOpen(true);if(toolsRef.current)toolsRef.current.open=false;}}><Page width={18} height={18}/><span>{t("AvalAssistant.draftDocument")}<small>{t("ChatPolish.draftHelp")}</small></span></button>
+                <button type="button" onClick={()=>{setPickingPersona(true);if(toolsRef.current)toolsRef.current.open=false;}}><AvalAgentAvatar personaId={personaId} shape={activePersona.shape} theme={activePersona.theme} icon={activePersona.icon} size={20}/><span>{t("AvalAssistant.selectAgent")}<small>{t("ChatPolish.agentHelp")}</small></span></button>
+              </div>
+            </details><span className="aval-enter-hint">{t("ChatPolish.newLine")}</span>
             {thinking && desktop.bridge && desktop.state?.active
-              ? <button type="button" onClick={() => void desktop.bridge?.cancelTurn("ask-aval")} aria-label={t("AvalAssistant.cancelAnswer")}><Xmark width={18} height={18} /></button>
-              : <button type="submit" disabled={!input.trim() || thinking} aria-label={t("AvalAssistant.sendMessage")}><SendDiagonal width={18} height={18} /></button>}
+              ? <button className="aval-composer-send" type="button" onClick={() => void desktop.bridge?.cancelTurn("ask-aval")} aria-label={t("AvalAssistant.cancelAnswer")}><Xmark width={18} height={18} /></button>
+              : <button className="aval-composer-send" type="submit" disabled={!input.trim() || thinking} aria-label={t("AvalAssistant.sendMessage")}><SendDiagonal width={18} height={18} /></button>}
+            </div>
           </form>
           <p className="aval-chat-disclaimer">{t("AvalAssistant.avalShowsItsEvidenceAndAsks")}</p>
         </section>
