@@ -3,7 +3,7 @@ import { agentChecks, agentModelContexts } from '@/db/schema';
 import { semanticPacket } from './semantic-evidence';
 import { SEMANTIC_REVIEW_SYSTEM, SEMANTIC_REVIEW_TOOL, parseSemanticVerdict, type ReviewPacket } from './semantic-review';
 import { assembleContext, byteCount, MAX_CONTEXT_BYTES } from './context';
-import { planReadiness, goalPlan } from './goal-plan';
+import { planReadiness, goalPlan, validateGoalPlanProposal } from './goal-plan';
 import { getTool } from './registry';
 import { checkTask, failedCheckCount, MAX_CHECK_REPAIRS, parseTaskCheck } from './checks';
 /**
@@ -238,6 +238,10 @@ Task completion condition: ${task.checkJson}. The harness verifies it independen
   };
 
   const review = async (phase: ReviewPacket['phase'], proposal: unknown, stepIndex: number) => {
+    if (phase === 'plan') {
+      try { await validateGoalPlanProposal(task!, (proposal as { tasks?: unknown })?.tasks); }
+      catch (error) { return { phase, reviewer: 'structural-preflight', exitCode: 1, problems: [error instanceof Error ? error.message : 'Invalid goal plan.'] }; }
+    }
     const packet = await semanticPacket(task!, messages, phase, proposal);
     const params = { system: SEMANTIC_REVIEW_SYSTEM, messages: [{ role: 'user' as const, content: JSON.stringify(packet) }], tools: [SEMANTIC_REVIEW_TOOL], tool_choice: { type: 'tool' as const, name: 'semantic_verdict' }, max_tokens: 1800 };
     const proposalDigest = await digestPayload(proposal);

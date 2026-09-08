@@ -152,3 +152,23 @@ test('plan persistence requires a matching review and reserves budgets after rev
   assert.equal(root.maxTokens + child.max_tokens, task.maxTokens);
   await assert.rejects(() => writeGoalPlan('org_1', task.id, [{ ...nodes[0], goal: 'Changed goal' }], 'altered'), /matching independent/);
 });
+
+test('invented plan evidence tools fail before reviewer calls or child allocation', async () => {
+  const { sqlite, run } = await setup('plan');
+  scriptModel(modelTool('plan_goal', { tasks: [{ key: 'inspect', goal: 'Inspect revenue.', dependsOn: [], check: { kind: 'evidence', tools: ['get_portfolio_summary'] } }] }));
+  let reviews = 0;
+  globalThis.__SEMANTIC_MODEL__ = async () => { reviews++; throw Error('Must not review an impossible plan.'); };
+  assert.equal((await run()).status, 'FAILED');
+  assert.equal(reviews, 0);
+  assert.equal(sqlite.prepare('SELECT count(*) n FROM agent_tasks').get().n, 1);
+  const checks = sqlite.prepare('SELECT output_json FROM agent_checks').all().map(r => JSON.parse(r.output_json));
+  assert.equal(checks.length, 3);
+  assert.ok(checks.every(c => c.reviewer === 'structural-preflight' && c.exitCode === 1));
+  const { HARNESS_TOOLS } = await import('../../lib/agents/harness-tools.ts');
+  const { validateToolArguments } = await import('../../lib/agents/tool-schema.ts');
+  const schema = HARNESS_TOOLS.find(t => t.name === 'plan_goal').input_schema;
+  const proposed = { tasks: [{ key: 'inspect', goal: 'Inspect revenue.', dependsOn: [], check: { kind: 'evidence', tools: ['get_portfolio_summary'] } }] };
+  assert.equal(validateToolArguments(schema, proposed).ok, false);
+  proposed.tasks[0].check.tools = ['get_portfolio_metrics'];
+  assert.equal(validateToolArguments(schema, proposed).ok, true);
+});

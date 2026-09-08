@@ -16,7 +16,9 @@
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate",
     "start:local": "node scripts/local-server.mjs",
-    "validate:providers": "node scripts/validate-live-providers.mjs"
+    "validate:providers": "node scripts/validate-live-providers.mjs",
+    "evaluate:semantic:codex": "node scripts/evaluate-codex-semantic.mjs docs/audit/codex-semantic-evaluation.json",
+    "validate:runtime:codex": "node --import ./tests/integration/module-hooks.mjs scripts/validate-codex-runtime.mjs docs/audit/codex-runtime-validation.json"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.123.0",

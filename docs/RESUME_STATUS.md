@@ -31,7 +31,7 @@ server running while using this installer. Production signing requirements are u
 
 ## Verification
 
-**612 tests pass:** 486 unit/render/desktop tests and 126 runtime integration tests.
+**613 tests pass:** 486 unit/render/desktop tests and 127 runtime integration tests.
 TypeScript passes and 1,554 translation keys match. Lint reports zero errors and five
 existing image-element warnings. The final production build passes.
 
@@ -132,3 +132,23 @@ before publishing. No new signed/notarized release was published. The refreshed 
 DMG remains available and verified. Restore Anthropic API funding, then rerun the
 production validation and desktop release; business-provider validation separately
 requires usable connected provider accounts.
+
+
+## Codex live validation follow-up
+
+The user requested Codex for live agent validation. The local ChatGPT-authenticated
+Codex App Server (`gpt-6-astra`) passed all 16 labeled semantic cases and a complete
+durable root/child task run on isolated synthetic SQLite data. Actor and reviewer
+calls were live; business providers and the hosted router were not exercised.
+
+A baseline failed on an invented evidence tool. The planner now receives explicit
+check schemas and real tool names, and structural preflight rejects invalid plans
+before invoking the reviewer. Production budgets and provider selection are unchanged.
+See `CODEX_LIVE_VALIDATION.md` for reproduction, latency, usage and remaining limits.
+
+The final full suite passes 613 tests (486 unit/render/desktop plus 127 runtime),
+with a successful production build and no lint errors (five existing image warnings).
+The local DMG was refreshed and passed disk-image integrity, checksum, signature
+and startup checks. It still targets http://127.0.0.1:3010 and is not notarized.
+This follow-up is delivered on `fix/codex-live-validation`; it does not publish new
+production code or bypass the hosted live-validation requirement.
