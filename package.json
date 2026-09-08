@@ -14,7 +14,9 @@
     "typecheck": "tsc --noEmit",
     "i18n:check": "node scripts/check-i18n-parity.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "start:local": "node scripts/local-server.mjs",
+    "validate:providers": "node scripts/validate-live-providers.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.123.0",

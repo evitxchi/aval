@@ -6,7 +6,7 @@ const { app, BrowserWindow, ipcMain, shell, session } = require("electron");
 const { CodexAppServerService } = require("./codex-app-server.cjs");
 
 const DEFAULT_APP_URL = "https://aval.evalxnder.workers.dev";
-const appUrl = new URL(process.env.AVAL_DESKTOP_URL || DEFAULT_APP_URL);
+const appUrl = new URL(process.env.AVAL_DESKTOP_URL || require("./package.json").avalDesktopUrl || DEFAULT_APP_URL);
 const allowedOrigin = appUrl.origin;
 let mainWindow = null;
 let service = null;

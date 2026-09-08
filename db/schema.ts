@@ -1,5 +1,15 @@
 import { index, integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
+export const userOnboarding = sqliteTable("user_onboarding", {
+  userId: text("user_id").notNull(),
+  organizationId: text("organization_id").notNull(),
+  preferences: text("preferences").notNull(),
+  step: integer("step").notNull().default(0),
+  completed: integer("completed", { mode: "boolean" }).notNull().default(false),
+  revision: integer("revision").notNull().default(1),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+}, (table) => [uniqueIndex("user_onboarding_user_org_uq").on(table.userId, table.organizationId)]);
+
 // Supports both password accounts and platform identities, which need not
 // have a row in users. The API always derives user_id from the session.
 export const userAppearance = sqliteTable("user_appearance", {
@@ -185,6 +195,20 @@ export const syncRuns = sqliteTable(
   },
   (table) => [index("sync_runs_connection_started_idx").on(table.connectionId, table.startedAt)],
 );
+
+/** Durable, opt-in import scheduling and per-connection worker lease. */
+export const integrationSyncState = sqliteTable("integration_sync_state", {
+  connectionId: text("connection_id").primaryKey().references(() => integrationConnections.id),
+  organizationId: text("organization_id").notNull().references(() => organizations.id),
+  externalAccountId: text("external_account_id").notNull(),
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  cursorJson: text("cursor_json").notNull().default("{}"),
+  nextRunAt: integer("next_run_at", { mode: "timestamp_ms" }).notNull(),
+  leaseToken: text("lease_token"),
+  leaseExpiresAt: integer("lease_expires_at", { mode: "timestamp_ms" }),
+  attempts: integer("attempts").notNull().default(0),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+}, (table) => [index("integration_sync_due_idx").on(table.enabled, table.nextRunAt)]);
 
 export const conversations = sqliteTable(
   "conversations",

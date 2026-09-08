@@ -21,7 +21,7 @@
 
 import { registerHooks } from "node:module";
 import { pathToFileURL } from "node:url";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { transformSync } from "esbuild";
 
@@ -39,14 +39,14 @@ registerHooks({
     if (specifier.startsWith("@/")) {
       const base = `${ROOT}/${specifier.slice(2)}`;
       for (const candidate of [base, `${base}.ts`, `${base}/index.ts`, `${base}.tsx`]) {
-        if (existsSync(candidate)) return { url: pathToFileURL(candidate).href, shortCircuit: true };
+        if (existsSync(candidate) && statSync(candidate).isFile()) return { url: pathToFileURL(candidate).href, shortCircuit: true };
       }
       throw new Error(`debug harness could not resolve ${specifier}`);
     }
     // vite resolves extensionless relative imports; node does not.
     if (specifier.startsWith(".") && context.parentURL?.startsWith("file:")) {
       const base = new URL(specifier, context.parentURL);
-      if (!existsSync(base.pathname)) {
+      if (!existsSync(base.pathname) || statSync(base.pathname).isDirectory()) {
         for (const ext of [".ts", ".tsx", "/index.ts", ".js"]) {
           if (existsSync(base.pathname + ext)) return { url: base.href + ext, shortCircuit: true };
         }

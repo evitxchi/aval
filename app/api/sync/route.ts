@@ -1,17 +1,24 @@
-import { and, eq } from "drizzle-orm";
-import { getDb } from "@/db";
-import { integrationConnections, syncRuns } from "@/db/schema";
 import { getApiIdentity } from "@/lib/integrations/session";
+import { importStatus, scheduleImport, AUTOMATIC_IMPORT_PROVIDERS } from "@/lib/integrations/sync-worker";
 
+export async function GET(request: Request) {
+  const identity = await getApiIdentity(request);
+  if (!identity) return Response.json({ error: "Authentication required" }, { status: 401 });
+  const provider = new URL(request.url).searchParams.get("provider") ?? "";
+  if (!AUTOMATIC_IMPORT_PROVIDERS.has(provider)) return Response.json({ error: "Unsupported automatic import" }, { status: 400 });
+  try { return Response.json(await importStatus(identity.organizationId, provider), { headers: { "cache-control": "no-store" } }); }
+  catch { return Response.json({ error: "Import status could not be loaded" }, { status: 503 }); }
+}
 export async function POST(request: Request) {
   const identity = await getApiIdentity(request);
   if (!identity) return Response.json({ error: "Authentication required" }, { status: 401 });
-  const body = await request.json().catch(() => ({})) as { provider?: string };
-  if (!body.provider) return Response.json({ error: "Provider is required" }, { status: 400 });
-  const db = getDb();
-  const [connection] = await db.select().from(integrationConnections).where(and(eq(integrationConnections.organizationId, identity.organizationId), eq(integrationConnections.provider, body.provider))).limit(1);
-  if (!connection || connection.status !== "connected") return Response.json({ error: "Provider must be connected before sync" }, { status: 409 });
-  const run = { id: crypto.randomUUID(), organizationId: identity.organizationId, connectionId: connection.id, provider: connection.provider, status: "queued", cursorJson: "{}", countsJson: "{}", startedAt: new Date() };
-  await db.insert(syncRuns).values(run);
-  return Response.json({ run: { id: run.id, provider: run.provider, status: run.status }, note: "Queued for the provider worker; no data is marked fresh until normalization completes." }, { status: 202 });
+  if (identity.role !== "owner") return Response.json({ error: "Only the workspace owner can manage imports" }, { status: 403 });
+  const origin = request.headers.get("origin");
+  if (origin && origin !== new URL(request.url).origin) return Response.json({ error: "Invalid origin" }, { status: 403 });
+  const body: unknown = await request.json().catch(() => null);
+  if (!body || typeof body !== "object" || !("provider" in body) || typeof body.provider !== "string") return Response.json({ error: "Provider is required" }, { status: 400 });
+  if (!AUTOMATIC_IMPORT_PROVIDERS.has(body.provider)) return Response.json({ error: "Automatic import is not available for this connection yet.", code: "sync_unavailable" }, { status: 409 });
+  if ("enabled" in body && typeof body.enabled !== "boolean") return Response.json({ error: "Invalid import setting" }, { status: 400 });
+  try { return Response.json(await scheduleImport(identity.organizationId, body.provider, !("enabled" in body) || body.enabled === true), { status: 202 }); }
+  catch (error) { return Response.json({ error: error instanceof Error ? error.message : "Import could not be scheduled" }, { status: 409 }); }
 }

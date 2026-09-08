@@ -31,43 +31,36 @@ test("redirects the unlocalized root to the default locale", async () => {
   assert.match(pathname, /^\/en\/?$/);
 });
 
-test("server-renders the Aval connected operations dashboard", async () => {
+test("authenticated first render waits for saved onboarding state", async () => {
   const response = await render("/en");
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
-
   const html = await response.text();
-  assert.match(html, /Aval workspace/);
-  assert.match(html, /Portfolio overview/);
-  assert.match(html, /Lead-to-lease funnel/);
-  assert.match(visibleMain(html), /Aval use tracker/);
-  assert.match(visibleMain(html), /Chart type/);
-  assert.match(visibleMain(html), /Welcome back, Evan/);
-  assert.doesNotMatch(html, /codex-preview|react-loading-skeleton|Your site is taking shape/i);
+  assert.match(visibleMain(html), /onboarding-loading/);
+  assert.match(visibleMain(html), /Getting your workspace ready/);
+  assert.doesNotMatch(visibleMain(html), /data-workspace-mode|auth-gate/);
 });
 
-test("renders the es-mx locale with real translated content, not English fallback", async () => {
+test("onboarding loading is localized in Spanish without English fallback", async () => {
   const response = await render("/es-mx");
   assert.equal(response.status, 200);
-
-  const html = await response.text();
-  assert.match(html, /Resumen del portafolio/);
-  assert.match(html, /Embudo de prospecto a contrato/);
-  assert.doesNotMatch(html, /Portfolio overview/);
+  const main = visibleMain(await response.text());
+  assert.match(main, /Preparando tu espacio de trabajo/);
+  assert.doesNotMatch(main, /Getting your workspace ready/);
 });
 
 test("ships Inter typography, an off-white Apple-grey palette, integrations, and durable storage", async () => {
-  const [page, layout, css, packageJson, messagesEn] = await Promise.all([
-    readFile(new URL("../app/[locale]/dashboard-client.tsx", import.meta.url), "utf8"),
+  const [catalog, layout, css, packageJson, messagesEn] = await Promise.all([
+    readFile(new URL("../lib/integrations/catalog.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/[locale]/layout.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
     readFile(new URL("../messages/en.json", import.meta.url), "utf8"),
   ]);
 
-  assert.match(page, /WhatsApp Business/);
-  assert.match(page, /Apple Messages/);
-  assert.match(page, /QuickBooks Online/);
+  assert.match(catalog, /WhatsApp Business/);
+  assert.match(catalog, /Apple Messages/);
+  assert.match(catalog, /QuickBooks Online/);
   assert.match(messagesEn, /Connect two upstream systems/);
   assert.match(layout, /localFont/);
   assert.match(layout, /InterVariable\.woff2/);
@@ -85,12 +78,12 @@ function visibleMain(html) {
   return html.match(/<main[\s\S]*?<\/main>/)?.[0] ?? "";
 }
 
-test("legacy sample URLs render only authenticated live surfaces", async () => {
+test("legacy sample and view URLs cannot bypass onboarding", async () => {
   for (const view of ["overview", "settings", "setup", "tasks", "connections", "calendar", "projects", "teams", "inbox", "documents", "reviewCenter", "infrastructure", "leasing", "accounting", "maintenance"]) {
     const response = await render(`/en?data=sample&view=${view}`);
     assert.equal(response.status, 200, view);
     const main = visibleMain(await response.text());
-    assert.match(main, /data-workspace-mode="live"/, view);
+    assert.match(main, /onboarding-loading/, view);
     assert.doesNotMatch(main, /DEMO DATA|Exit demo|Demo workspace|Alex Morgan|fictional sample/i, view);
   }
 });
@@ -104,26 +97,4 @@ test("anonymous visits and legacy demo links require sign-in", async () => {
   }
 });
 
-test("returning to live tasks and inbox renders no fictional records", async () => {
-  for (const view of ["tasks", "inbox", "reviewCenter"]) {
-    const response = await render(`/en?data=live&view=${view}`);
-    const main = visibleMain(await response.text());
-    assert.match(main, /data-workspace-mode="live"/);
-    assert.doesNotMatch(main, /DEMO DATA|Portfolio briefing|Marcus Lee|Diana Ortiz|demo-member|Search tasks and events/);
-    if (view === "tasks") assert.match(main, /Aval Tasks/);
-  }
-});
-
-test("agent selection immediately follows Wiring, before Memory", async () => {
-  const main = visibleMain(await (await render("/en?data=live&view=setup")).text());
-  assert.ok(main.indexOf("What this agent can reach") < main.indexOf("Choose the center agent"));
-  assert.ok(main.indexOf("Choose the center agent") < main.indexOf("What Aval remembers"));
-});
-
-
-test("live overview does not display fictional activity as verified work", async () => {
-  const main = visibleMain(await (await render("/en?data=live&view=overview")).text());
-  assert.match(main, /Aval use tracker/);
-  assert.doesNotMatch(main, /activity-heatmap-grid|Aug 12–18/);
-  assert.ok(main.indexOf("Aval use tracker") < main.indexOf("Welcome back, Evan"));
-});
+// Returning-user workspace regressions run in integration/workspace-render.integration.mjs.

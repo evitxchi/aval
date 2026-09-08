@@ -266,7 +266,7 @@
     "customerBrings": "El cliente aporta",
     "encryptVerify": "Cifrar y verificar",
     "flow": "Flujo",
-    "identityVerifiedInitialSyncIsQueued": "Identidad verificada. Sincronización en cola.",
+    "identityVerifiedInitialSyncIsQueued": "Conexión verificada. La importación automática de datos aún no está disponible.",
     "linkDevice": "Ya lo escaneé, continuar",
     "modelOverrideHint": "Deja el modelo recomendado salvo que tengas una razón para cambiarlo. Un nivel de razonamiento más alto consume más tokens por respuesta.",
     "modelOverrideLabel": "Modelo",
@@ -288,7 +288,13 @@
     "twoWayChannel": "Canal de dos vías",
     "verify": "Verificar",
     "verifying": "Verificando…",
-    "waitingForScan": "Esperando escaneo…"
+    "waitingForScan": "Esperando escaneo…",
+    "connectionFailed": "No se pudo completar la conexión. Inténtalo de nuevo.",
+    "adapterUnavailableBody": "Esta conexión aún no está disponible. Puedes guardarla como preferencia de configuración.",
+    "webhookEvents": "Eventos de webhook",
+    "accessVerification": "Verificación de acceso",
+    "validateAccess": "Validar acceso en vivo",
+    "accessValidated": "Se verificaron la identidad y el acceso de lectura. No se importaron registros."
   },
   "ConnectionsView": {
     "aSecureExplicitBridgeToThe": "Un puente seguro y explícito hacia los sistemas donde ya vive tu trabajo.",
@@ -1424,7 +1430,8 @@
       "Leasing & PMS": "Sistemas inmobiliarios",
       "Communication": "Comunicación",
       "Knowledge": "Conocimiento",
-      "Model": "Inteligencia"
+      "Model": "Inteligencia",
+      "Marketing": "Mercadotecnia"
     }
   },
   "Uploads": {
@@ -1519,5 +1526,106 @@
     "selectConversation": "Selecciona una conversación",
     "emptyInbox": "Todavía no hay conversaciones conectadas",
     "realDataOnly": "Aquí solo aparecen datos de tu espacio y cuentas conectadas."
+  },
+  "Onboarding": {
+    "questions": {
+      "pms": "¿Qué software inmobiliario usas?",
+      "focus": "¿Por dónde empezamos?",
+      "chat": "¿Dónde conversa tu equipo?",
+      "documents": "¿Dónde guardas tus documentos?",
+      "calls": "¿Quieres que atienda llamadas y las dirija a tu equipo?",
+      "marketing": "¿Dónde anuncias tus propiedades?",
+      "autonomy": "Una última cosa. ¿Cuánto quieres que haga por mi cuenta?"
+    },
+    "step": "{current} de {total}",
+    "progress": "Progreso de configuración",
+    "chooseHint": "Elige las opciones que correspondan. Puedes omitir este paso.",
+    "callsHint": "Guardaré tu preferencia. Puedes conectar un número en Conexiones.",
+    "autonomyHint": "Elige cómo quieres que trabajemos. Se mantienen los permisos del espacio de trabajo.",
+    "settingsHint": "Tus opciones se guardan en tu cuenta. Cámbialas en Configuración → Preferencias.",
+    "control": "¿Cómo mantienes el control?",
+    "back": "Atrás",
+    "close": "Cerrar",
+    "saving": "Guardando…",
+    "save": "Guardar preferencias",
+    "finish": "Empezar con Aval",
+    "continue": "Continuar",
+    "skip": "Omitir por ahora",
+    "loadError": "No se pudieron cargar tus preferencias.",
+    "loading": "Preparando tu espacio de trabajo…",
+    "saveError": "No se pudieron guardar tus opciones. Inténtalo de nuevo.",
+    "conflict": "Tus preferencias cambiaron en otra pestaña. Recarga para ver las opciones actuales.",
+    "reload": "Recargar",
+    "retry": "Reintentar",
+    "preferencesTitle": "Cómo trabajas con Aval",
+    "preferencesDescription": "Tus aplicaciones, prioridades y nivel de independencia preferido.",
+    "notSelected": "Sin seleccionar",
+    "edit": "Editar preferencias",
+    "labels": {
+      "pms": "Software inmobiliario",
+      "focus": "Prioridad principal",
+      "chat": "Comunicación del equipo",
+      "documents": "Documentos",
+      "calls": "Gestión de llamadas",
+      "marketing": "Publicidad",
+      "autonomy": "Independencia"
+    },
+    "options": {
+      "all": "Todo",
+      "maintenance": "Mantenimiento",
+      "leasing": "Arrendamiento",
+      "delinquency": "Rentas vencidas",
+      "move_out": "Desocupación",
+      "accounting": "Contabilidad",
+      "reporting": "Reportes",
+      "rent_increase": "Aumento de renta",
+      "compliance": "Cumplimiento",
+      "yes": "Sí, configurarlo",
+      "later": "Quizás después",
+      "supervised": "Supervisado",
+      "assisted": "Asistido",
+      "autonomous": "Autónomo",
+      "other": "Otra opción",
+      "imessage": "iMessage",
+      "gmail": "Gmail / Correo"
+    },
+    "autonomy": {
+      "supervised": {
+        "visibilityTitle": "Sigue cada paso",
+        "visibility": "Revisa las comunicaciones y acciones propuestas antes de realizarlas.",
+        "control": "Solicitar aprobación antes de cada comunicación o acción."
+      },
+      "assisted": {
+        "visibilityTitle": "Empieza con un plan claro",
+        "visibility": "Revisa el enfoque que Aval propone para cada asunto.",
+        "control": "Prefiere aprobar un plan y seguir su progreso. Se mantienen las aprobaciones obligatorias."
+      },
+      "autonomous": {
+        "visibilityTitle": "Sigue el progreso en Aval",
+        "visibility": "Avanza con el trabajo rutinario y revisa la actividad en tu espacio.",
+        "control": "Prefiere menos consultas. Las acciones sensibles siguen las reglas de aprobación del espacio."
+      }
+    }
+  },
+  "Imports": {
+    "title": "Importaciones automáticas",
+    "scope": "Importa el catálogo de cuentas y los ajustes de diario en USD cada 15 minutos. No es el libro mayor completo. Los diarios modificados o eliminados requieren conciliación.",
+    "loading": "Cargando estado…",
+    "enabled": "Importaciones automáticas activadas. Se procesa una página cada minuto.",
+    "paused": "Importaciones automáticas pausadas.",
+    "loadError": "No se pudo cargar el estado. Reintenta.",
+    "saveError": "No se pudo cambiar la programación. Verifica la conexión y reintenta.",
+    "saving": "Guardando…",
+    "refresh": "Actualizar estado",
+    "enable": "Activar importaciones",
+    "pause": "Pausar importaciones",
+    "status": {
+      "completed": "Última importación completada.",
+      "page_completed": "Página importada. Quedan más páginas.",
+      "running": "Importando una página…",
+      "retrying": "Proveedor no disponible temporalmente. Reintento programado.",
+      "needs_review": "Importación pausada. Revisa el problema.",
+      "interrupted": "Se interrumpió el proceso. Se reintentará la página guardada."
+    }
   }
 }

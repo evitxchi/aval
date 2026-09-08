@@ -13,6 +13,7 @@ import { BillingSettings } from "./billing-settings";
 import { IntelligenceSettings } from "./intelligence-settings";
 import { FinancialAgentControls } from "./financial-agent-controls";
 import { WorkspaceMembers } from "./workspace-members";
+import { OnboardingPreferences } from "./onboarding";
 
 const GROUPS = [
   { id: "personal", sections: [{ id: "profile", icon: User }, { id: "appearance", icon: SunLight }, { id: "preferences", icon: ControlSlider }] },
@@ -55,6 +56,7 @@ export function SettingsModule({ header, openConnections, displayName, email }: 
         </Tabs.Content>
         <Tabs.Content value="appearance" forceMount hidden={section !== "appearance"}><AppearanceSettings displayName={displayName}/></Tabs.Content>
         <Tabs.Content value="preferences" forceMount hidden={section !== "preferences"}>
+          <OnboardingPreferences/>
           <section className="settings-section settings-inline-section"><div className="settings-section-label"><h3><Language width={19} height={19}/>{t("SettingsView.language")}</h3><p>{t("SettingsView.englishOrSpanishForLatinAmerica")}</p></div><select aria-label={t("SettingsView.language")} value={locale} onChange={(event) => router.replace(`${pathname}?view=settings&section=preferences`, { locale: event.target.value as "en" | "es-mx" })}><option value="en">English</option><option value="es-mx">Español (México)</option></select></section>
           <section className="settings-section settings-inline-section"><div className="settings-section-label"><h3><SoundHigh width={19} height={19}/>{t("SettingsView.tactileSounds")}</h3><p>{t("SettingsView.quietTapRevealNotificationAndSuccess")}</p></div><button type="button" className={`switch ${sounds ? "on" : ""}`} role="switch" aria-label={t("SettingsView.tactileSounds")} aria-checked={sounds} onClick={() => setSounds(!sounds)}><i/></button></section>
           <p className="settings-muted settings-preferences-note">{t("SettingsModule.devicePreferences")}</p>

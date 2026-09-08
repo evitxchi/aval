@@ -20,6 +20,7 @@ import { getPreferenceContext } from "./preferences";
 import { getUsagePatternContext } from "./usage-patterns";
 import { TOOLS } from "./tools";
 import { resolvePersona, personaTools } from "./personas";
+import { onboardingContext } from "@/lib/onboarding/storage";
 import { routeToPersona } from "./agent-router.ts";
 
 export type { AskAvalSession } from "./usage";
@@ -70,10 +71,11 @@ export async function handleAskAval(
   const route = personaId ? null : routeToPersona(question);
   const effectivePersonaId = personaId ?? route?.personaId;
 
-  const [persona, preferenceContext, usagePatternContext] = await Promise.all([
+  const [persona, preferenceContext, usagePatternContext, userContext] = await Promise.all([
     resolvePersona(effectivePersonaId, session.orgId),
     getPreferenceContext(session.orgId),
     getUsagePatternContext(session.orgId),
+    onboardingContext(session.userId, session.orgId),
   ]);
 
   // preferenceContext is appended for every persona, specialized or not — a
@@ -88,7 +90,7 @@ export async function handleAskAval(
   const response = await runAskAvalLoop(
     env,
     session,
-    SYSTEM + persona.systemPromptAddition + preferenceContext + usagePatternContext,
+    SYSTEM + persona.systemPromptAddition + preferenceContext + usagePatternContext + userContext,
     messages,
     personaTools(TOOLS, persona, "render_answer"),
     "render_answer",

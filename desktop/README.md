@@ -42,3 +42,19 @@ Cloudflare production workflow for the same commit to succeed before publishing
 `npm run package:mac` is the production path and fails unless a Developer ID identity is available. The GitHub release workflow imports the signing certificate, notarizes the app and DMG with an App Store Connect API key, staples both tickets, verifies them with `codesign`, `stapler`, and Gatekeeper, and publishes SHA-256 checksums. Required repository secrets are documented in `docs/AGENT_PRODUCTION_RUNBOOK.md`.
 
 When npm is unavailable, `npm run package:mac:offline` can create an Apple-silicon development DMG from an already-installed Electron 44 runtime. The resulting app is ad-hoc signed for local testing, not notarized for public distribution. The DMG uses the same 660×420 Aval-branded Finder layout as the normal electron-builder package, including a live `/Applications` link; eject any older Aval disk image before rebuilding.
+
+## Local app and DMG delivery
+
+From the repository root, run `npm run build` followed by `npm run start:local`.
+The latter applies local-only migrations and keeps the scheduled import worker running.
+Leave it running while using the local DMG at `http://127.0.0.1:3000`.
+
+A local installer can bake that URL into its own package metadata:
+
+```sh
+npm run package:mac:local -- --config.extraMetadata.avalDesktopUrl=http://127.0.0.1:3000 '--config.artifactName=Aval-${version}-local-arm64.${ext}'
+```
+
+This changes only the local artifact. The default release still opens the hosted app.
+Refresh the DMG when delivering application changes; do not distribute an older installer
+alongside a newer local build. Local installers are ad-hoc signed and not notarized.

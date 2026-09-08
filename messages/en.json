@@ -266,7 +266,7 @@
     "customerBrings": "Customer brings",
     "encryptVerify": "Encrypt & verify",
     "flow": "Flow",
-    "identityVerifiedInitialSyncIsQueued": "Identity verified. Initial sync is queued.",
+    "identityVerifiedInitialSyncIsQueued": "Connection verified. Automatic data import is not available yet.",
     "linkDevice": "I've scanned it, continue",
     "modelOverrideHint": "Leave on the recommended model unless you have a reason to change it. Higher reasoning effort costs more tokens per answer.",
     "modelOverrideLabel": "Model",
@@ -288,7 +288,13 @@
     "twoWayChannel": "Two-way channel",
     "verify": "Verify",
     "verifying": "Verifying…",
-    "waitingForScan": "Waiting for scan…"
+    "waitingForScan": "Waiting for scan…",
+    "connectionFailed": "The connection could not be completed. Please retry.",
+    "adapterUnavailableBody": "This connection is not available yet. You can still save it as an onboarding preference.",
+    "webhookEvents": "Webhook events",
+    "accessVerification": "Access verification",
+    "validateAccess": "Validate live access",
+    "accessValidated": "Live identity and read-access checks passed. No records were imported."
   },
   "ConnectionsView": {
     "aSecureExplicitBridgeToThe": "A secure, explicit bridge to the systems where your work already lives.",
@@ -1424,7 +1430,8 @@
       "Leasing & PMS": "Property systems",
       "Communication": "Communication",
       "Knowledge": "Knowledge",
-      "Model": "Intelligence"
+      "Model": "Intelligence",
+      "Marketing": "Marketing"
     }
   },
   "Uploads": {
@@ -1519,5 +1526,106 @@
     "selectConversation": "Select a conversation",
     "emptyInbox": "No connected conversations yet",
     "realDataOnly": "Only data from your workspace and connected accounts appears here."
+  },
+  "Onboarding": {
+    "questions": {
+      "pms": "What PMS do you use?",
+      "focus": "Where should I start?",
+      "chat": "Where does your team chat?",
+      "documents": "Where do you keep your documents?",
+      "calls": "Want me to answer calls and route them to your team?",
+      "marketing": "Where do you market your properties?",
+      "autonomy": "Last one. How much should I run on my own?"
+    },
+    "step": "{current} of {total}",
+    "progress": "Setup progress",
+    "chooseHint": "Choose any that apply. You can skip this for now.",
+    "callsHint": "I’ll remember your preference. You can connect a phone number in Connections.",
+    "autonomyHint": "Choose how you’d like to work together. Workspace permissions still apply.",
+    "settingsHint": "Your choices are saved to your account. Change them anytime in Settings → Preferences.",
+    "control": "How do you stay in control?",
+    "back": "Back",
+    "close": "Close",
+    "saving": "Saving…",
+    "save": "Save preferences",
+    "finish": "Start with Aval",
+    "continue": "Continue",
+    "skip": "Skip for now",
+    "loadError": "Your preferences couldn’t be loaded.",
+    "loading": "Getting your workspace ready…",
+    "saveError": "Your choices couldn’t be saved. Please try again.",
+    "conflict": "Your preferences changed in another tab. Reload to get the latest choices.",
+    "reload": "Reload",
+    "retry": "Try again",
+    "preferencesTitle": "How you work with Aval",
+    "preferencesDescription": "Your apps, focus areas, and preferred level of independence.",
+    "notSelected": "Not selected",
+    "edit": "Edit preferences",
+    "labels": {
+      "pms": "Property software",
+      "focus": "Primary focus",
+      "chat": "Team communication",
+      "documents": "Documents",
+      "calls": "Call handling",
+      "marketing": "Marketing",
+      "autonomy": "Independence"
+    },
+    "options": {
+      "all": "All of it",
+      "maintenance": "Maintenance",
+      "leasing": "Leasing",
+      "delinquency": "Rent delinquency",
+      "move_out": "Move out",
+      "accounting": "Accounting",
+      "reporting": "Reporting",
+      "rent_increase": "Rent increase",
+      "compliance": "Compliance",
+      "yes": "Yes, set that up",
+      "later": "Maybe later",
+      "supervised": "Supervised",
+      "assisted": "Assisted",
+      "autonomous": "Autonomous",
+      "other": "Something else",
+      "imessage": "iMessage",
+      "gmail": "Gmail / Email"
+    },
+    "autonomy": {
+      "supervised": {
+        "visibilityTitle": "Stay close to every step",
+        "visibility": "Review proposed communications and actions before they happen.",
+        "control": "Ask for approval before each outreach or action."
+      },
+      "assisted": {
+        "visibilityTitle": "Start with a clear plan",
+        "visibility": "Review the approach Aval proposes for each issue.",
+        "control": "Prefer approving a plan, then following its progress. Required approvals still apply."
+      },
+      "autonomous": {
+        "visibilityTitle": "Follow progress in Aval",
+        "visibility": "Keep routine work moving and review activity in your workspace.",
+        "control": "Prefer fewer check-ins. Sensitive actions still follow your workspace’s approval rules."
+      }
+    }
+  },
+  "Imports": {
+    "title": "Automatic imports",
+    "scope": "Imports USD chart-of-accounts data and journal adjustments every 15 minutes. This is not the complete general ledger. Changed or deleted journals pause for reconciliation.",
+    "loading": "Loading import status…",
+    "enabled": "Automatic imports enabled. New pages run each minute.",
+    "paused": "Automatic imports paused.",
+    "loadError": "Could not load import status. Retry.",
+    "saveError": "Could not change the import schedule. Verify the connection and retry.",
+    "saving": "Saving…",
+    "refresh": "Refresh status",
+    "enable": "Enable automatic imports",
+    "pause": "Pause imports",
+    "status": {
+      "completed": "Last import completed.",
+      "page_completed": "A page was imported. More pages remain.",
+      "running": "Importing a page…",
+      "retrying": "Provider temporarily unavailable. Retry scheduled.",
+      "needs_review": "Import paused. Review the issue below.",
+      "interrupted": "The worker was interrupted. The saved page will be retried."
+    }
   }
 }

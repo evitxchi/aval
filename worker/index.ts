@@ -56,6 +56,9 @@ const worker = {
     // durable continuation and crash-recovery path. Keep the import lazy: the
     // regular fetch bundle can be loaded by non-Workers render/test harnesses
     // without eagerly resolving the Cloudflare-only D1 environment module.
+    ctx.waitUntil(import("@/lib/integrations/sync-worker").then(({ runImportWorker }) =>
+      runImportWorker(env as unknown as Record<string, string | undefined>),
+    ));
     ctx.waitUntil(import("@/lib/agents/worker").then(({ runAgentWorkerBatch }) =>
       runAgentWorkerBatch(env as unknown as AgentWorkerEnv, "scheduled"),
     ));

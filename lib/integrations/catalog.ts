@@ -1,4 +1,6 @@
-export type ProviderId =
+import { additionalProviders, type AdditionalProviderId } from "./additional-providers";
+
+export type ProviderId = AdditionalProviderId
   | "quickbooks"
   | "xero"
   | "contpaqi"
@@ -35,7 +37,7 @@ export type ProviderId =
 export type IntegrationProvider = {
   id: ProviderId;
   title: string;
-  category: "Accounting" | "Leasing & PMS" | "Communication" | "Knowledge" | "Model";
+  category: "Accounting" | "Leasing & PMS" | "Communication" | "Knowledge" | "Model" | "Marketing";
   description: string;
   /** "oauth_subscription_paste" — see lib/integrations/subscription-oauth.ts's file comment for exactly why this can't be a normal server-redirect "oauth2" flow. */
   authMode: "oauth2" | "credentials" | "bot_token" | "api_key" | "msp" | "qr_link" | "oauth_subscription_paste";
@@ -45,6 +47,9 @@ export type IntegrationProvider = {
   webhook: boolean;
   readOnly: boolean;
   note: string;
+  /** Explicitly unavailable adapters must never become connected from a saved key. */
+  setupBlocker?: string;
+  documentationUrl?: string;
   /** Model providers only — the OpenAI-compatible chat-completions base URL lib/ask-aval/openai-compatible.ts calls. Absent for Anthropic (native Messages API) and every non-model provider. */
   baseUrl?: string;
   /** Model providers only — shown as the default model id; users can override per-connection later. */
@@ -68,6 +73,7 @@ export const MODEL_PROVIDER_IDS: ReadonlySet<ProviderId> = new Set([
 ]);
 
 export const integrationCatalog: IntegrationProvider[] = [
+  ...additionalProviders,
   {
     id: "quickbooks",
     title: "QuickBooks Online",
@@ -153,7 +159,7 @@ export const integrationCatalog: IntegrationProvider[] = [
   },
   {
     id: "yardi",
-    title: "Yardi",
+    title: "Yardi Voyager",
     category: "Leasing & PMS",
     description: "Normalize resident, lease, and general-ledger data from Yardi Voyager or Breeze.",
     authMode: "credentials",
@@ -530,5 +536,5 @@ export function getProvider(id: string) {
 }
 
 export function configuredEnvironment(provider: IntegrationProvider, bindings: Record<string, unknown>) {
-  return provider.env.length === 0 || provider.env.every((key) => Boolean(bindings[key]));
+  return !provider.setupBlocker && (provider.env.length === 0 || provider.env.every((key) => typeof bindings[key] === "string" && String(bindings[key]).trim().length > 0));
 }

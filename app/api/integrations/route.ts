@@ -1,3 +1,4 @@
+import { connectionBlocker, integrationReadiness } from "@/lib/integrations/readiness";
 import { env } from "cloudflare:workers";
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
@@ -26,14 +27,14 @@ export async function GET(request: Request) {
       activeModelProvider: organization.activeModelProvider ?? null,
       providers: integrationCatalog.map((provider) => ({
         ...provider,
-        configured: configuredEnvironment(provider, bindings),
+        setupBlocker: connectionBlocker(provider.id) ?? undefined, readiness: integrationReadiness(provider.id), configured: !connectionBlocker(provider.id) && configuredEnvironment(provider, bindings),
         connection: connectionByProvider.get(provider.id) ?? null,
       })),
     });
   } catch (error) {
     return Response.json({
       activeModelProvider: null,
-      providers: integrationCatalog.map((provider) => ({ ...provider, configured: configuredEnvironment(provider, bindings), connection: null })),
+      providers: integrationCatalog.map((provider) => ({ ...provider, setupBlocker: connectionBlocker(provider.id) ?? undefined, readiness: integrationReadiness(provider.id), configured: !connectionBlocker(provider.id) && configuredEnvironment(provider, bindings), connection: null })),
       storage: "unavailable",
       detail: error instanceof Error ? error.message : "D1 is unavailable",
     });

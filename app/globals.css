@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "./settings.css";
+@import "./onboarding.css";
 
 @theme inline {
   --color-background: var(--surface);

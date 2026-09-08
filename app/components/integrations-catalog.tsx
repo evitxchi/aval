@@ -1,4 +1,5 @@
 "use client";
+import { connectionBlocker } from "@/lib/integrations/readiness";
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { CheckCircle, NavArrowRight, Search, ShieldCheck } from "iconoir-react";
@@ -19,7 +20,7 @@ export function IntegrationsCatalog({
     [installed, setInstalled] = useState(false);
   const categories = [...new Set(providers.map((p) => p.category))];
   const connected = providers.filter(
-    (p) => p.connection?.status === "connected",
+    (p) => p.connection?.status === "connected" && !connectionBlocker(p.id),
   ).length;
   const filtered = useMemo(
     () =>
@@ -147,9 +148,11 @@ export function IntegrationsCatalog({
                   <strong>{p.title}</strong>
                   <small>{p.description}</small>
                   <span
-                    className={`catalog-state ${p.connection?.status === "connected" ? "connected" : ""}`}
+                    className={`catalog-state ${p.connection?.status === "connected" && !connectionBlocker(p.id) ? "connected" : ""}`}
                   >
-                    {p.connection?.status === "connected"
+                    {connectionBlocker(p.id)
+                      ? t("setupRequired")
+                      : p.connection?.status === "connected"
                       ? t("connected")
                       : p.connection
                         ? t("needsAttention")

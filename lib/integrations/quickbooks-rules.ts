@@ -69,6 +69,7 @@ export function signedAmountCents(
   if (Math.round(amount * 100) !== Number((amount * 100).toFixed(4))) return null;
 
   const cents = decimalToCents(amount);
+  if (!Number.isSafeInteger(cents)) return null;
   const naturallyCredit = CREDIT_NATURAL.has(accountType);
   const isCredit = postingType === "Credit";
   return naturallyCredit === isCredit ? cents : -cents;
@@ -114,10 +115,11 @@ export interface NormalizedQbo {
 export function normalizeQuickbooks(input: {
   accounts: QboAccount[];
   journalEntries: QboJournalEntry[];
+  knownAccountTypes?: ReadonlyMap<string, GlAccountType>;
 }): NormalizedQbo {
   const rejected: NormalizedQbo["rejected"] = [];
   const glAccounts: ImportGlAccount[] = [];
-  const typeById = new Map<string, GlAccountType>();
+  const typeById = new Map<string, GlAccountType>(input.knownAccountTypes);
 
   for (const account of input.accounts) {
     const accountType = mapAccountType(account.AccountType);
