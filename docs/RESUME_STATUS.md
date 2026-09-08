@@ -1,4 +1,4 @@
-# Aval resumption — September 7, 2026
+# Aval resumption — September 7–8, 2026
 
 ## Current delivery
 
@@ -65,12 +65,17 @@ scopes, account setup, public callback configuration, and live validation.
 
 ## Hosting
 
-The existing private Sites project is accessible again. The connector verifies owner-only
-access, and its source repository was fetched successfully. The validated source and Worker
-archive are prepared for private publication to the same project; the terminal delivery
-message and native deployment history record its final outcome. Its runtime currently has
-the existing integration encryption secret, without company provider credentials. Scheduled
-trigger registration on Sites has not been live-verified; local scheduling is enabled.
+The existing private Sites project is accessible again. Version 5 was published to
+https://portero-operations-mx.evalxnder.chatgpt.site from source commit
+`427b73f6ad530f3503d35952efa9c664768615d6`. Access remains owner-only.
+The hosted page returns HTTP 200; protected APIs return 401 without an Aval session.
+The missing `SESSION_SECRET` was generated directly into Sites as a secret, and
+`AVAL_PUBLIC_URL` was set to the private Site origin. The existing encryption secret was
+preserved. No local environment files were included in the deployment archive.
+
+Company provider credentials are still absent. Scheduled-trigger registration and an
+interactive signed-in hosted session have not been live-verified; local scheduling is enabled.
+The terminal handoff records the final configuration deployment result.
 
 The separate GitHub/Cloudflare deployment is unchanged. No push to GitHub `main` was made
 in this resumption, and its previously reported billing/spending-limit failure was not
