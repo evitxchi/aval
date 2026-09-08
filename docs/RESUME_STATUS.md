@@ -75,7 +75,10 @@ preserved. No local environment files were included in the deployment archive.
 
 Company provider credentials are still absent. Scheduled-trigger registration and an
 interactive signed-in hosted session have not been live-verified; local scheduling is enabled.
-The terminal handoff records the final configuration deployment result.
+The configuration deployment succeeded on September 8 at 16:41 UTC using environment
+revision 2. The hosted D1 inspection confirmed the new harness tables; this private Site
+currently has zero stored agent tasks and zero historical tasks without a check. This count
+does not cover the separate Cloudflare production database.
 
 The separate GitHub/Cloudflare deployment is unchanged. No push to GitHub `main` was made
 in this resumption, and its previously reported billing/spending-limit failure was not
