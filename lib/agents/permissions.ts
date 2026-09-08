@@ -21,6 +21,7 @@
  * model asked for.
  */
 export type Permission =
+  | "tasks.manage"
   // read
   | "portfolio.read"
   | "accounting.read"
@@ -117,5 +118,5 @@ export function permissionsFor(role: AgentRole): ReadonlySet<Permission> {
 }
 
 export function hasPermission(role: AgentRole, permission: Permission): boolean {
-  return AGENT_PERMISSIONS[role].includes(permission);
+  return permission === "tasks.manage" || AGENT_PERMISSIONS[role].includes(permission);
 }

@@ -90,6 +90,7 @@ test("service isolates Codex, opens only the validated login URL, and returns st
   let spawnOptions;
   let openedUrl = null;
   const requests = [];
+  const responses = [];
   const child = new EventEmitter();
   child.stdin = new PassThrough();
   child.stdout = new PassThrough();
@@ -107,6 +108,7 @@ test("service isolates Codex, opens only the validated login URL, and returns st
       if (!line) continue;
       const message = JSON.parse(line);
       if (!message.id) continue;
+      if (!message.method) { responses.push(message); continue; }
       requests.push(message);
       let result = {};
       if (message.method === "initialize") result = { userAgent: "fake" };
@@ -161,8 +163,33 @@ test("service isolates Codex, opens only the validated login URL, and returns st
   child.stdout.write(`${JSON.stringify({ method: "account/login/completed", params: { loginId: "login-1", success: true, error: null } })}\n`);
   await activated;
   assert.equal(service.getState().active, true);
+  await assert.rejects(() => service.ask({question:'x'.repeat(601)}), /too long/);
+  await assert.rejects(() => service.ask({question:'Review',context:{text:'x'.repeat(48000)}}), /too large/);
+  assert.equal(requests.filter(r=>r.method==='turn/start').length,0);
+  for (const [index,method] of ['item/commandExecution/requestApproval','item/fileChange/requestApproval','mcpServer/elicitation/request','item/tool/call','unregistered/capability'].entries()) {
+    child.stdout.write(`${JSON.stringify({id:`probe-${index}`,method,params:{path:'/outside-workspace/probe',url:'https://example.invalid'}})}\n`);
+  }
+  assert.equal(responses.find(r=>r.id==='probe-0').result.decision,'decline');
+  assert.equal(responses.find(r=>r.id==='probe-1').result.decision,'decline');
+  assert.equal(responses.find(r=>r.id==='probe-2').result.action,'decline');
+  assert.equal(responses.find(r=>r.id==='probe-3').result.success,false);
+  assert.equal(responses.find(r=>r.id==='probe-4').error.code,-32601);
   const answer = await service.ask({ conversationId: "test", question: "What changed?", locale: "en", context: { facts: { occupancy: 94 } } });
   assert.equal(answer.headline, "Verified");
+  assert.equal(requests.find(r=>r.method==='thread/start').params.ephemeral,true);
+  assert.deepEqual(requests.find(r=>r.method==='turn/start').params.sandboxPolicy,{type:'readOnly',networkAccess:false});
+  t.mock.timers.enable({apis:['setTimeout']});
+  // Direct RPC probes use an unresponsive pipe so no model or credentials are involved.
+  const stalled=new JsonLineRpc(new PassThrough(),new PassThrough(),{timeoutMs:30});
+  const pending=stalled.request('probe',{});const rejected=assert.rejects(pending,/timed out/i);
+  t.mock.timers.tick(31);await rejected;stalled.close();
+  t.mock.method(service.rpc,'request',async(method)=>method==='turn/start'?{turn:{id:'stalled-turn'}}:{});
+  const unanswered=service.ask({conversationId:'test',question:'Inspect again',context:{}});
+  const turnExpired=assert.rejects(unanswered,/too long|cancelled/i);
+  await assert.rejects(()=>service.ask({conversationId:'test',question:'Duplicate'}),/already answering/);
+  t.mock.timers.tick(120001);await turnExpired;
+  assert.equal(service.activeTurns.size,0);
+  t.mock.timers.reset();
   service.stop();
 });
 

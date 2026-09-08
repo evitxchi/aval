@@ -11,10 +11,10 @@ export const ENV = { ANTHROPIC_API_KEY: "test-key", ANTHROPIC_MODEL: "claude-opu
  * runtime at it. D1 is SQLite, so constraint and concurrency behaviour is
  * faithful; the networking is not exercised.
  */
-export async function bootRuntime() {
-  const sqlite = new DatabaseSync(":memory:");
+export async function bootRuntime(path = ":memory:") {
+  const sqlite = new DatabaseSync(path);
   sqlite.exec("PRAGMA foreign_keys = ON");
-  for (const file of readdirSync("drizzle").filter((name) => name.endsWith(".sql")).sort()) {
+  if(!sqlite.prepare("SELECT name FROM sqlite_master WHERE name='agent_tasks'").get()) for (const file of readdirSync("drizzle").filter((name) => name.endsWith(".sql")).sort()) {
     for (const statement of readFileSync(`drizzle/${file}`, "utf8").split("--> statement-breakpoint")) {
       const trimmed = statement.trim();
       if (trimmed) sqlite.exec(trimmed);
@@ -34,7 +34,7 @@ export async function bootRuntime() {
 
   const now = Date.now();
   for (const [id, name, owner] of [["org_1", "Test Org", "user_1"], ["org_public_demo", "Demo", "guest"]]) {
-    sqlite.prepare("INSERT INTO organizations (id, name, owner_user_id, created_at, updated_at) VALUES (?,?,?,?,?)")
+    sqlite.prepare("INSERT OR IGNORE INTO organizations (id, name, owner_user_id, created_at, updated_at) VALUES (?,?,?,?,?)")
       .run(id, name, owner, now, now);
   }
   return sqlite;

@@ -101,7 +101,7 @@ test("every tool a persona can be offered is registered", () => {
   }
 });
 
-test("the general agent can reach every implemented tool, and the risk analyst can mutate nothing", () => {
+test("the general agent can reach every implemented tool, and the risk analyst can only write task coordination state", () => {
   const general = new Set(allowedToolNames("general", { isGuest: false }));
   for (const tool of implementedTools()) {
     assert.ok(general.has(tool.name), `general agent cannot reach "${tool.name}"`);
@@ -109,7 +109,8 @@ test("the general agent can reach every implemented tool, and the risk analyst c
   // §17: the widest reader holds the least mutation authority.
   assert.equal(AGENT_PERMISSIONS.riskAnalyst.some((permission) => permission.endsWith(".write") || permission.endsWith(".execute")), false);
   for (const name of allowedToolNames("riskAnalyst", { isGuest: false })) {
-    assert.equal(TOOL_REGISTRY.get(name)!.mutates, false, `risk analyst may call mutating tool "${name}"`);
+    const tool = TOOL_REGISTRY.get(name)!;
+    if (tool.mutates) assert.ok(["plan_goal", "write_memory"].includes(name) && tool.requiredPermission === "tasks.manage", `risk analyst may mutate business data through "${name}"`);
   }
 });
 

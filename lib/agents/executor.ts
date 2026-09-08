@@ -312,7 +312,7 @@ async function runWithRetries(
   for (let attempt = 1; attempt <= tool.maxRetries + 1; attempt++) {
     try {
       const out = await withTimeout(
-        runTool(tool.name, request.args, request.subject.organizationId, request.task ? `${request.task.id}:${tool.name}:${await digestPayload(canonicalAction(request.args))}` : _key ?? undefined),
+        runTool(tool.name, request.args, request.subject.organizationId, request.task ? `${request.task.id}:${tool.name}:${await digestPayload(canonicalAction(request.args))}` : _key ?? undefined, request.task),
         tool.timeoutMs,
         tool.name,
       );

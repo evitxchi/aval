@@ -51,6 +51,8 @@ export async function delegate(parent: TaskRecord, toPersonaId: string, goal: st
     userId: parent.userId,
     agentId: toPersonaId,
     goal,
+    check: JSON.parse(parent.checkJson ?? "{}"),
+    deadlineAt: parent.deadlineAt ?? new Date(parent.createdAt.getTime()+30*60_000),
     maxSteps: budget.maxSteps,
     maxTokens: budget.maxTokens,
     parentTaskId: parent.id,

@@ -10,6 +10,9 @@ export async function taskBoundary(org:string,user:string,taskId:string,toolName
  while(task){
   if(seen.has(task.id)||seen.size>MAX_DELEGATION_DEPTH)return 'Invalid or excessive task ancestry.';
   seen.add(task.id);
+  if(task.id===taskId&&JSON.parse(task.checkJson??'{}').kind==='plan'&&!['plan_goal','get_goal_plan','read_memory','write_memory','read_task_history'].includes(toolName))return 'A root planner only manages its plan; operational work belongs in checked child tasks.';
+  if(['FAILED','COMPLETED','CANCELLED'].includes(task.status))return 'The task or its parent has stopped.';
+  if(Date.now()>=(task.deadlineAt?.getTime()??task.createdAt.getTime()+30*60_000))return 'The task or its parent reached its wall-clock limit.';
   if(task.cancelRequested)return 'The task or its parent was cancelled.';
   if(!hasPermission(roleForPersona(task.agentId),tool.requiredPermission))return 'The task ancestry does not grant this tool permission.';
   const scope=JSON.parse(task.executionScopeJson);

@@ -19,7 +19,7 @@ async function setup(mode='autonomous') {
 }
 const message={provider:'slack',to:'C_TEST',body:'Your maintenance request is being reviewed.'};
 const subject={organizationId:'org_1',userId:'user_1',isGuest:false};
-async function newTask(tasks,extra={}) {return tasks.createTask({organizationId:'org_1',userId:'user_1',agentId:'general',goal:'Respond to the maintenance inquiry.',...extra});}
+async function newTask(tasks,extra={}) {return tasks.createTask({check:{kind:"delivery",operation:"message",status:"accepted"},organizationId:'org_1',userId:'user_1',agentId:'general',goal:'Respond to the maintenance inquiry.',...extra});}
 test('a real provider send is reserved once, accepted accurately, and scoped by organization',async t=>{
  const {sqlite,store}=await setup();let calls=0;
  t.mock.method(globalThis,'fetch',async(url,init)=>{calls++;assert.equal(url,'https://slack.com/api/chat.postMessage');assert.equal(init.headers.authorization,'Bearer slack-test-token');assert.equal(JSON.parse(init.body).channel,'C_TEST');return Response.json({ok:true,ts:'171.001'});});
@@ -58,17 +58,44 @@ test('supervised tasks park, show exact content, and resume only after the human
  assert.equal((await approvals.decideApproval('org_1',approval.id,'approved','user_1','user_1','owner')).ok,true);
  const done=await runtime.advanceTask(ENV,'org_1',task.id,runtime.newWorkerId());assert.equal(done.status,'COMPLETED');assert.equal(calls,1);
 });
+test('an approved send cannot execute after its task deadline expires',async t=>{
+ const {sqlite,tasks,runtime,approvals}=await setup('supervised');let calls=0;
+ t.mock.method(globalThis,'fetch',async()=>{calls++;return Response.json({ok:true,ts:'unexpected'});});
+ scriptModel(useTool('send_external_message',message),conclude('Reply submitted'));
+ const task=await newTask(tasks);assert.equal((await runtime.advanceTask(ENV,'org_1',task.id,runtime.newWorkerId())).status,'WAITING_FOR_APPROVAL');
+ const approval=await approvals.latestApprovalForTask('org_1',task.id);await approvals.decideApproval('org_1',approval.id,'approved','user_1','user_1','owner');
+ sqlite.prepare('UPDATE agent_tasks SET deadline_at=0 WHERE id=?').run(task.id);
+ assert.equal((await runtime.advanceTask(ENV,'org_1',task.id,runtime.newWorkerId())).status,'FAILED');assert.equal(calls,0);
+});
+test('delivery checks bind the task, destination, channel, and required delivery status',async t=>{
+ const {sqlite,store,tasks}=await setup();const {checkTask}=await import('../../lib/agents/checks.ts');
+ const now=Date.now();sqlite.prepare("INSERT INTO conversations (id,organization_id,channel,external_thread_id,contact_display_name,last_message_at,created_at,updated_at) VALUES ('expected','org_1','slack','C_EXPECTED','Resident',?,?,?)").run(now,now,now);
+ const task=await newTask(tasks,{check:{kind:'delivery',operation:'message',status:'delivered',conversationId:'expected'}});
+ t.mock.method(globalThis,'fetch',async()=>Response.json({ok:true,ts:'receipt'}));
+ await store.deliver('org_1',{...message,to:'C_OTHER'},task.id+':send');
+ sqlite.prepare('UPDATE communication_deliveries SET status=?').run('delivered');
+ assert.equal((await checkTask(task,[],0)).exitCode,1);
+ sqlite.prepare("UPDATE communication_deliveries SET destination='C_EXPECTED'").run();
+ sqlite.prepare("UPDATE integration_connections SET provider='telegram' WHERE id='conn_1'").run();
+ assert.equal((await checkTask(task,[],1)).exitCode,1);
+ sqlite.prepare("UPDATE communication_deliveries SET status='accepted'").run();
+ sqlite.prepare("UPDATE integration_connections SET provider='slack' WHERE id='conn_1'").run();
+ assert.equal((await checkTask(task,[],2)).exitCode,1);
+ sqlite.prepare("UPDATE communication_deliveries SET status='delivered'").run();
+ assert.equal((await checkTask(task,[],3)).exitCode,0);
+});
 test('assisted mode executes an approved exact plan, refuses changed arguments, and deduplicates repeated sends',async t=>{
  const {tasks,runtime,approvals,executor}=await setup('assisted');let calls=0;
  t.mock.method(globalThis,'fetch',async()=>{calls++;return Response.json({ok:true,ts:'171.003'});});
  scriptModel(useTool('request_execution_plan',{summary:'Reply to the maintenance channel.',actions:[{tool:'send_external_message',args:message}]}),useTool('send_external_message',message),conclude('Plan carried out'));
  const task=await newTask(tasks);assert.equal((await runtime.advanceTask(ENV,'org_1',task.id,runtime.newWorkerId())).status,'WAITING_FOR_APPROVAL');
  const approval=await approvals.latestApprovalForTask('org_1',task.id);await approvals.decideApproval('org_1',approval.id,'approved','user_1','user_1','owner');
- assert.equal((await runtime.advanceTask(ENV,'org_1',task.id,runtime.newWorkerId())).status,'COMPLETED');assert.equal(calls,1);
+ assert.equal((await runtime.advanceTask(ENV,'org_1',task.id,runtime.newWorkerId(),{maxStepsThisInvocation:1})).status,'QUEUED');assert.equal(calls,1);
  const changed=await executor.executeTool({toolName:'send_external_message',args:{...message,to:'C_OTHER'},subject,task:{id:task.id,stepIndex:20}});
  assert.equal(changed.result.status,'needs_approval');
  const repeated=await executor.executeTool({toolName:'send_external_message',args:message,subject,task:{id:task.id,stepIndex:21}});
  assert.equal(repeated.result.status,'ok');assert.equal(repeated.result.json.duplicate,true);assert.equal(calls,1);
+ assert.equal((await runtime.advanceTask(ENV,'org_1',task.id,runtime.newWorkerId())).status,'COMPLETED');
 });
 test('autonomous runs routine sends without approval and a mode change takes effect before the next action',async t=>{
  const {tasks,executor,sqlite}=await setup();let calls=0;t.mock.method(globalThis,'fetch',async()=>{calls++;return Response.json({ok:true,ts:'171.004'});});

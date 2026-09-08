@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { bootRuntime, conclude, ENV, scriptModel, useTool } from "./harness.mjs";
+import { bootRuntime, conclude, ENV, scriptModel, useTool as modelTool } from "./harness.mjs";
 
 /**
  * The durable runtime, executed.
@@ -30,12 +30,12 @@ async function setup() {
   };
 }
 
-const newTask = (tasks, goal, organizationId = "org_1", userId = "user_1") =>
-  tasks.createTask({ organizationId, userId, agentId: "financial", goal });
+const newTask = (tasks, goal, organizationId = "org_1", userId = "user_1", check = {kind:"evidence",tools:["get_portfolio_metrics"]}) =>
+  tasks.createTask({ check, organizationId, userId, agentId: "financial", goal });
 
 test("a durable task runs to completion and persists its trace and provenance", async () => {
   const { tasks, runtime } = await setup();
-  scriptModel(conclude("Liquidity is stable"));
+  scriptModel(modelTool("get_portfolio_metrics"), conclude("Liquidity is stable"));
 
   const task = await newTask(tasks, "Summarize liquidity");
   const outcome = await runtime.advanceTask(ENV, "org_1", task.id, runtime.newWorkerId());
@@ -56,17 +56,17 @@ test("a durable task runs to completion and persists its trace and provenance", 
 test("an authorized tool executes and a denied one is recorded, not thrown", async () => {
   const { tasks, runtime } = await setup();
 
-  scriptModel(useTool("get_portfolio_metrics"), conclude("Portfolio reviewed"));
+  scriptModel(modelTool("get_portfolio_metrics"), conclude("Portfolio reviewed"));
   const allowed = await newTask(tasks, "Review the portfolio");
   assert.equal((await runtime.advanceTask(ENV, "org_1", allowed.id, runtime.newWorkerId())).status, "COMPLETED");
-  assert.equal(trace(await tasks.listSteps(allowed.id, "org_1")), "model_call tool_call:get_portfolio_metrics model_call");
+  assert.equal(trace(await tasks.listSteps(allowed.id, "org_1")), "model_call tool_call:get_portfolio_metrics model_call verification_check");
 
   // issue_payment is declared but unwired, so policy refuses it. The run adapts
   // instead of failing: a refusal is evidence, not an outage.
-  scriptModel(useTool("issue_payment", { amount_cents: 5000, currency: "USD", destination_account_id: "acct_x" }), conclude("Could not pay"));
-  const denied = await newTask(tasks, "Pay the vendor");
-  assert.equal((await runtime.advanceTask(ENV, "org_1", denied.id, runtime.newWorkerId())).status, "COMPLETED");
-  assert.equal(trace(await tasks.listSteps(denied.id, "org_1")), "model_call policy_deny:issue_payment model_call");
+  scriptModel(modelTool("issue_payment", { amount_cents: 5000, currency: "USD", destination_account_id: "acct_x" }), conclude("Could not pay"));
+  const denied = await newTask(tasks, "Pay the vendor", "org_1", "user_1", {kind:"delivery",operation:"message",status:"accepted"});
+  assert.equal((await runtime.advanceTask(ENV, "org_1", denied.id, runtime.newWorkerId())).status, "FAILED");
+  assert.match(trace(await tasks.listSteps(denied.id, "org_1")), /policy_deny:issue_payment.*verification_check/);
 });
 
 test("the shared demo workspace is read-only to agents", async () => {
@@ -78,20 +78,20 @@ test("the shared demo workspace is read-only to agents", async () => {
   const topic = Object.keys(PREFERENCE_TOPICS)[0];
   const preference = { topic, statement: PREFERENCE_TOPICS[topic][0] };
 
-  scriptModel(useTool("record_preference", preference), conclude("Noted"));
+  scriptModel(modelTool("record_preference", preference), conclude("Noted"));
   const guest = await newTask(tasks, "Remember this", "org_public_demo", "guest");
   await runtime.advanceTask(ENV, "org_public_demo", guest.id, runtime.newWorkerId());
   assert.match(trace(await tasks.listSteps(guest.id, "org_public_demo")), /policy_deny:record_preference/);
 
-  scriptModel(useTool("record_preference", preference), conclude("Noted"));
+  scriptModel(modelTool("record_preference", preference), conclude("Noted"));
   const { writeOnboarding } = await import('../../lib/onboarding/storage.ts');
   const { DEFAULT_ONBOARDING } = await import('../../lib/onboarding/preferences.ts');
   await writeOnboarding('user_1','org_1',{...structuredClone(DEFAULT_ONBOARDING),preferences:{...structuredClone(DEFAULT_ONBOARDING.preferences),autonomy:['autonomous']}});
-  const member = await newTask(tasks, "Remember this");
+  const member = await newTask(tasks, "Remember this", "org_1", "user_1", {kind:"preference",...preference});
   await runtime.advanceTask(ENV, "org_1", member.id, runtime.newWorkerId());
   assert.equal(
     trace(await tasks.listSteps(member.id, "org_1")),
-    "model_call mutation_reserved:record_preference tool_call:record_preference model_call",
+    "model_call mutation_reserved:record_preference tool_call:record_preference model_call verification_check",
     "an authenticated workspace reserves the key before it mutates",
   );
 });
@@ -124,7 +124,7 @@ test("a conclusion citing a figure no tool produced is withheld", async () => {
 
 test("an invocation that runs out of budget yields and resumes from its transcript", async () => {
   const { tasks, runtime } = await setup();
-  scriptModel(useTool("get_portfolio_metrics"));
+  scriptModel(modelTool("get_portfolio_metrics"));
 
   const task = await newTask(tasks, "Keep working");
   const first = await runtime.advanceTask(ENV, "org_1", task.id, runtime.newWorkerId(), { maxStepsThisInvocation: 2 });
@@ -152,7 +152,7 @@ test("a cancelled task stops without running a step", async () => {
 
 test("the scheduled worker advances untouched work and reclaims a dead worker's task", async () => {
   const { sqlite, tasks, worker } = await setup();
-  scriptModel(conclude("Finished by the cron"));
+  globalThis.__MODEL__ = async (_env,_org,params) => params.messages.some(m=>Array.isArray(m.content)&&m.content.some(b=>b.type==='tool_result')) ? conclude("Finished by the cron") : modelTool('get_portfolio_metrics');
 
   const queued = await newTask(tasks, "Left for the cron");
   const abandoned = await newTask(tasks, "Abandoned mid-run");
@@ -218,7 +218,7 @@ test("the financial ledger reserves once, refuses a duplicate, and holds the dai
 
 test("tasks completing at once leave one verifiable audit chain with no gaps", async () => {
   const { sqlite, tasks, worker, audit } = await setup();
-  scriptModel(conclude("Done"));
+  globalThis.__MODEL__ = async (_env,_org,params) => params.messages.some(m=>Array.isArray(m.content)&&m.content.some(b=>b.type==='tool_result')) ? conclude("Done") : modelTool('get_portfolio_metrics');
 
   // The worker advances a workspace's tasks concurrently by design, so their
   // audit appends contend for the same sequence. Conceding that race would

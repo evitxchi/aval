@@ -57,16 +57,16 @@ export async function POST(request: Request) {
   }
   await recordAttempt(scope);
 
-  const body = (await request.json().catch(() => ({}))) as { goal?: string; agentId?: string; maxSteps?: number };
+  const body = ((await request.json().catch(() => ({}))) ?? {}) as { goal?: string; agentId?: string; maxSteps?: number };
   const goal = typeof body.goal === "string" ? body.goal.trim().slice(0, MAX_GOAL_CHARS) : "";
   if (!goal) return Response.json({ error: "A goal is required" }, { status: 400 });
 
   // An unknown agent id resolves to the read-only `custom` envelope rather
   // than to the broad `general` one, so a typo narrows authority.
   const agentId = typeof body.agentId === "string" && body.agentId ? body.agentId : "general";
-  const maxSteps = Number.isInteger(body.maxSteps) ? Math.min(Math.max(body.maxSteps as number, 2), DEFAULT_MAX_STEPS * 2) : undefined;
+  const maxSteps = Number.isInteger(body.maxSteps) ? Math.min(Math.max(body.maxSteps as number, 2), DEFAULT_MAX_STEPS * 2) : DEFAULT_MAX_STEPS * 2;
 
-  const task = await createTask({ organizationId: identity.organizationId, userId: identity.userId, agentId, goal, maxSteps });
+  const task = await createTask({ check: {kind:"plan"}, organizationId: identity.organizationId, userId: identity.userId, agentId, goal, maxSteps });
   await appendAuditEvents(identity.organizationId, [
     { kind: "task_created", label: roleForPersona(agentId), payloadDigest: await digestPayload(goal), count: task.maxSteps },
   ]);

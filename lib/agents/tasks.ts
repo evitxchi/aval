@@ -1,3 +1,4 @@
+import { parseTaskCheck, type TaskCheck } from './checks';
 /**
  * Durable task state for the agent runtime (§13, §14 of the production
  * readiness guide).
@@ -48,6 +49,8 @@ export interface NewTask {
   userId: string;
   agentId: string;
   goal: string;
+  check: TaskCheck;
+  deadlineAt?: Date;
   maxSteps?: number;
   maxTokens?: number;
   parentTaskId?: string;
@@ -62,6 +65,8 @@ export interface TaskRecord {
   goal: string;
   status: TaskState;
   executionScopeJson: string;
+  checkJson?: string;
+  deadlineAt?: Date | null;
   transcriptJson: string;
   stepCount: number;
   maxSteps: number;
@@ -83,10 +88,13 @@ export interface TaskRecord {
 }
 
 export async function createTask(input: NewTask): Promise<TaskRecord> {
+  const check = parseTaskCheck(input.check);
   const now = new Date();
   const row = {
     id: input.id ?? crypto.randomUUID(),
     executionScopeJson: JSON.stringify(input.executionScope ?? {}),
+    checkJson: JSON.stringify(check),
+    deadlineAt: input.deadlineAt ?? new Date(now.getTime()+30*60_000),
     organizationId: input.organizationId,
     userId: input.userId,
     agentId: input.agentId,
@@ -112,7 +120,9 @@ export async function createTask(input: NewTask): Promise<TaskRecord> {
     finishedAt: null,
   };
   await getDb().insert(agentTasks).values(row).onConflictDoNothing();
-  return row as TaskRecord;
+  const stored=await getTask(input.organizationId,row.id);
+  if(!stored||stored.userId!==input.userId||stored.goal!==row.goal||stored.agentId!==row.agentId||stored.checkJson!==row.checkJson||stored.parentTaskId!==row.parentTaskId)throw Error("Task id already belongs to a different request.");
+  return stored;
 }
 
 /** Reads a task, scoped to its organization — an id alone is never enough to reach one. */
@@ -309,7 +319,7 @@ export async function claimableTasks(limit = 5): Promise<TaskRecord[]> {
         or(isNull(agentTasks.nextAttemptAt), lte(agentTasks.nextAttemptAt, now)),
       ),
     )
-    .orderBy(asc(agentTasks.createdAt))
+    .orderBy(sql`CASE WHEN ${agentTasks.status} = 'WAITING_FOR_TOOL' THEN 1 ELSE 0 END`, asc(agentTasks.createdAt))
     .limit(limit);
   return rows as TaskRecord[];
 }

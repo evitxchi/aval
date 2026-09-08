@@ -1,3 +1,4 @@
+import { HARNESS_TOOLS, runHarnessTool } from '@/lib/agents/harness-tools';
 /**
  * Tools available to Ask Aval.
  *
@@ -189,7 +190,7 @@ const COMPOSE_DOCUMENT_TOOL: ToolSchema = {
  * model picks by description, and the two families are described in terms of
  * what they can answer rather than which table they read.
  */
-const ALL_DATA_TOOLS: ToolSchema[] = [...DATA_TOOLS, ...OPERATIONS_TOOLS, ...COMMUNICATION_TOOLS];
+const ALL_DATA_TOOLS: ToolSchema[] = [...DATA_TOOLS, ...OPERATIONS_TOOLS, ...COMMUNICATION_TOOLS, ...HARNESS_TOOLS];
 
 /** Tools for a quick chat answer — `render_answer`'s `document` is optional. */
 export const TOOLS: ToolSchema[] = [...ALL_DATA_TOOLS, RENDER_ANSWER_TOOL];
@@ -217,7 +218,11 @@ function collectNumbers(v: unknown, out: number[] = []): number[] {
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
-export async function runTool(name: string, input: Record<string, unknown>, organizationId?: string, operationKey?: string): Promise<ToolOutput> {
+export async function runTool(name: string, input: Record<string, unknown>, organizationId?: string, operationKey?: string, taskContext?: {id:string;stepIndex:number}): Promise<ToolOutput> {
+  if (HARNESS_TOOLS.some(tool=>tool.name===name)) {
+    if(!organizationId)throw Error('A workspace is required.');
+    return {json:await runHarnessTool(name,input,organizationId,taskContext?.id,operationKey,taskContext?.stepIndex),numbers:[]};
+  }
   if (COMMUNICATION_TOOLS.some(tool => tool.name === name)) {
     if (!organizationId) throw new Error("A workspace is required.");
     return { json: await runCommunicationTool(name, input, organizationId, operationKey), numbers: [] };

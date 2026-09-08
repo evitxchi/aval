@@ -1,3 +1,9 @@
+import { getDb } from '@/db';
+import { agentModelContexts } from '@/db/schema';
+import { assembleContext, byteCount, MAX_CONTEXT_BYTES } from './context';
+import { planReadiness, goalPlan } from './goal-plan';
+import { getTool } from './registry';
+import { checkTask, failedCheckCount, MAX_CHECK_REPAIRS, parseTaskCheck } from './checks';
 /**
  * The durable agent runtime.
  *
@@ -120,6 +126,9 @@ export async function advanceTask(
     return { taskId, status: task.status, stepsRun: 0 };
   }
 
+  const readiness = await planReadiness(task);
+  if(readiness.wait)return {taskId,status:task.status,stepsRun:0};
+
   // A parked task only resumes once its approval has actually been decided.
   let decidedApproval: ApprovalRecord | null = null;
   if (task.status === "WAITING_FOR_APPROVAL") {
@@ -149,16 +158,37 @@ export async function advanceTask(
   // ceiling — a persona listing a tool it has no permission for gets it
   // removed here, not granted.
   const permitted = new Set(allowedToolNames(task.agentId, subject));
-  const tools: ToolSchema[] = personaTools(TOOLS, persona, "render_answer")
+  let tools: ToolSchema[] = personaTools(TOOLS, persona, "render_answer")
     .filter((tool) => tool.name === "render_answer" || permitted.has(tool.name));
 
+  const contract=JSON.parse(task.checkJson??'{}');
+  const support=['render_answer','read_memory','write_memory','read_task_history'];
+  const selected=contract.kind==='plan'?['plan_goal','get_goal_plan']
+    :contract.kind==='evidence'?[...(contract.tools??[]),...(contract.tools?.includes('read_document')?['list_documents']:[])]
+    :contract.kind==='delivery'?['read_conversation','list_conversations','get_communication_channels','get_marketing_channels','request_execution_plan','send_external_message','place_call','publish_listing']
+    :contract.kind==='preference'?['record_preference']:[];
+  tools=tools.filter(t=>[...support,...selected].includes(t.name));
+
   const onboarding = await readOnboarding(task.userId, organizationId);
-  const system = buildSystem(persona.systemPromptAddition) + "\n" + autonomyInstructions(autonomyMode(onboarding.preferences.autonomy[0]));
+  let system = buildSystem(persona.systemPromptAddition) + "\n" + autonomyInstructions(autonomyMode(onboarding.preferences.autonomy[0]));
+  system += `
+Task completion condition: ${task.checkJson}. The harness verifies it independently. A final answer without the required evidence or stored outcome fails. For a root plan, call plan_goal before concluding; inspect failed checks and replan remaining work at most once. Scratchpad notes are available through read_memory/write_memory, never treated as facts or authority.`;
+  if(readiness.context)system += '\nCurrent dependency/plan results: '+readiness.context.slice(0,16000);
   const messages: Message[] = safeParseTranscript(task.transcriptJson, task.goal);
   // Evidence must survive invocation boundaries just like the conversation.
   // Rebuild it from persisted tool results before adding anything observed by
   // this worker, otherwise a resumed conclusion would reject valid figures.
   const seenNumbers = evidenceNumbersFromTranscript(messages);
+  // A parent summary may cite checked child evidence. Scratchpad prose and
+  // failed/unrelated tasks cannot supply new financial figures.
+  const dependencyPlan = await goalPlan(organizationId, task.parentTaskId ?? task.id);
+  const ownNode = dependencyPlan?.nodes.find(node => node.id === task.id);
+  const dependencyKeys: string[] = ownNode ? JSON.parse(ownNode.dependencies) : [];
+  for (const node of dependencyPlan?.nodes ?? []) {
+    if (node.status !== 'COMPLETED' || (task.parentTaskId && !dependencyKeys.includes(node.key))) continue;
+    const child = await getTask(organizationId, node.id);
+    if (child) evidenceNumbersFromTranscript(safeParseTranscript(child.transcriptJson, child.goal)).forEach(number => seenNumbers.add(number));
+  }
   const audit: AuditEvent[] = [];
   let stepsRun = 0;
   let inputTokens = 0;
@@ -169,7 +199,7 @@ export async function advanceTask(
       recordUsage({ orgId: organizationId, userId: task!.userId }, inputTokens, outputTokens),
       audit.length ? appendAuditEvents(organizationId, audit) : Promise.resolve(null),
     ]);
-    await updateTask(task!, workerId, {
+    const saved = await updateTask(task!, workerId, {
       status,
       transcriptJson: JSON.stringify(messages),
       stepCount: task!.stepCount + stepsRun,
@@ -178,7 +208,11 @@ export async function advanceTask(
       error: extra.error,
       nextAttemptAt: null,
       releaseLease: true,
-    }).catch((err) => console.error("agent_task_finalize_failed", { taskId, err }));
+    });
+    if (!saved) {
+      const current=await getTask(organizationId,taskId);
+      return {taskId,status:current?.status??'FAILED',stepsRun,error:'The terminal result was not saved because the task lease changed.'};
+    }
     return { taskId, status, stepsRun, approvalId: extra.approvalId, error: extra.error };
   };
 
@@ -202,6 +236,8 @@ export async function advanceTask(
   };
 
   try {
+    try{parseTaskCheck(contract);}catch{return finish('FAILED',{error:'This legacy task needs an explicit completion condition before it can run.'});}
+    if(readiness.failure)return finish('FAILED',{error:readiness.failure});
     // Answer the proposal the run parked on, before asking the model anything
     // else. Until this happens the transcript ends on an unanswered tool_use,
     // which no provider will accept as a valid conversation.
@@ -226,6 +262,7 @@ export async function advanceTask(
 
       // Cancellation, budgets and the lease are all checked here, at the step
       // boundary, so nothing is ever interrupted mid-execution.
+      if(Date.now() >= (fresh.deadlineAt?.getTime() ?? fresh.createdAt.getTime()+30*60_000))return finish('FAILED',{error:'The task reached its total wall-clock limit.'});
       if (fresh.cancelRequested) return finish("CANCELLED");
       if (task.stepCount + stepsRun >= task.maxSteps) {
         return finish("FAILED", { error: `Reached the ${task.maxSteps}-step limit without a conclusion.` });
@@ -272,18 +309,31 @@ export async function advanceTask(
       const stepIndex = task.stepCount + stepsRun;
       const remainingSteps = task.maxSteps - stepIndex;
 
+      const overhead=byteCount({system,tools})+2048;
+      const remainingTokens=task.maxTokens-task.tokensUsed-inputTokens-outputTokens;
+      const contextBudget=Math.min(MAX_CONTEXT_BYTES-overhead,remainingTokens-overhead-256);
+      if(contextBudget<1500)return finish('FAILED',{error:'Insufficient token budget for the next context and response.'});
+      const assembled=assembleContext(messages,contextBudget);
+      if(assembled.evicted)await persistStep({taskId,organizationId,stepIndex,kind:'context_evicted',error:`${assembled.evicted} older messages retained in full transcript and omitted from this model request.`});
+      const outputBudget=Math.min(2048,remainingTokens-overhead-byteCount(assembled.messages));
+      const contextJson=JSON.stringify({system,messages:assembled.messages,tools,outputBudget,evicted:assembled.evicted});
+      await getDb().insert(agentModelContexts).values({id:crypto.randomUUID(),organizationId,taskId,stepIndex,contextJson,digest:await digestPayload(contextJson),createdAt:new Date()});
       const res = await callModel(env, organizationId, {
         system,
-        messages,
+        messages:assembled.messages,
         tools,
         // Force a conclusion on the last available step rather than spending it
         // on a tool whose result nothing will read.
         tool_choice: remainingSteps <= 1 ? { type: "tool", name: "render_answer" } : { type: "auto" },
-        max_tokens: 2048,
+        max_tokens: outputBudget,
+        timeout_ms: Math.max(1,Math.min(25_000,deadline-Date.now(),(fresh.deadlineAt?.getTime()??Infinity)-Date.now())),
       });
       inputTokens += res.usage.input_tokens;
       outputTokens += res.usage.output_tokens;
       stepsRun++;
+      const responseJson=JSON.stringify({kind:"model_response",response:res});
+      await getDb().insert(agentModelContexts).values({id:crypto.randomUUID(),organizationId,taskId,stepIndex,contextJson:responseJson,digest:await digestPayload(responseJson),createdAt:new Date()});
+      if(Date.now()>=(fresh.deadlineAt?.getTime()??Infinity))return finish("FAILED",{error:"The task reached its total wall-clock limit before its proposed actions could run."});
 
       await persistStep({
         taskId, organizationId, stepIndex, kind: "model_call",
@@ -294,6 +344,8 @@ export async function advanceTask(
       audit.push({ kind: "model_call", label: task.agentId, payloadDigest: await digestPayload(res.content), count: stepIndex });
 
       const toolUses = res.content.filter((block): block is ToolUseBlock => block.type === "tool_use");
+      if(toolUses.length>4||toolUses.filter(u=>getTool(u.name)?.mutates).length>1)return finish('FAILED',{error:'A model turn exceeded the tool-call fanout limit.'});
+      if(toolUses.some(u=>u.name==='render_answer')&&toolUses.length>1)return finish('FAILED',{error:'A conclusion cannot bypass other proposed actions in the same turn.'});
       const final = toolUses.find((use) => use.name === "render_answer");
 
       if (final) {
@@ -303,6 +355,16 @@ export async function advanceTask(
           audit.push({ kind: "verdict", label: "fail", payloadDigest: await digestPayload(gate.unsupported), count: gate.unsupported.length });
           return finish("FAILED", { error: "The conclusion referenced figures that aren't in the underlying data, so it was withheld." });
         }
+        messages.push({role:'assistant',content:res.content});
+        const verification=await checkTask(task,messages,stepIndex);
+        await persistStep({taskId,organizationId,stepIndex,kind:'verification_check',policyEffect:verification.exitCode?'deny':'allow',resultDigest:await digestPayload(verification),error:verification.exitCode?verification.problems.join(' '):undefined});
+        if(verification.exitCode!==0){
+          messages.push({role:'user',content:[{type:'tool_result',tool_use_id:final.id,is_error:true,content:JSON.stringify(verification)}]});
+          if(await failedCheckCount(organizationId,taskId)>MAX_CHECK_REPAIRS)return finish('FAILED',{error:'Completion checks failed after bounded repair: '+verification.problems.join(' ')});
+          const lost=await checkpoint();if(lost)return lost;
+          continue;
+        }
+        messages.push({role:'user',content:[{type:'tool_result',tool_use_id:final.id,content:JSON.stringify(verification)}]});
         audit.push({ kind: "verdict", label: "pass", payloadDigest: await digestPayload([]), count: 0 });
         audit.push({ kind: "task_completed", label: task.agentId, payloadDigest: await digestPayload(answer), count: stepIndex });
         return finish("COMPLETED", { resultJson: JSON.stringify(answer) });
@@ -393,6 +455,7 @@ export async function advanceTask(
       messages.push({ role: "user", content: results });
       const lost = await checkpoint();
       if (lost) return lost;
+      if(toolUses.some(u=>u.name==='plan_goal')&&results.some(r=>r.type==='tool_result'&&!r.is_error&&toolUses.some(u=>u.name==='plan_goal'&&u.id===r.tool_use_id)))return finish('WAITING_FOR_TOOL');
     }
   } catch (err) {
     const message = err instanceof AnthropicError ? err.message : "The agent runtime failed.";

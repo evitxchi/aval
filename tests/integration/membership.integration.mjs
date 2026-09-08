@@ -194,7 +194,7 @@ test("an elevated action needs two distinct approvers, and can now get them", as
   await membership.upsertMembership({ organizationId: "org_1", userId: "user_2", role: "approver" });
   await membership.upsertMembership({ organizationId: "org_1", userId: "user_9", role: "approver" });
 
-  const task = await tasks.createTask({ organizationId: "org_1", userId: "user_1", agentId: "financial", goal: "Pay the vendor" });
+  const task = await tasks.createTask({ check:{kind:"evidence",tools:["get_portfolio_metrics"]}, organizationId: "org_1", userId: "user_1", agentId: "financial", goal: "Pay the vendor" });
   const approval = await approvals.requestApproval({
     taskId: task.id, organizationId: "org_1", stepIndex: 0,
     tool: registry.getTool("issue_payment"), evidence: { toolUseId: "tu_1", args: {} },
@@ -229,7 +229,7 @@ test("the requester cannot be one of the two approvers on a critical action", as
   const tasks = await import("../../lib/agents/tasks.ts");
 
   await membership.upsertMembership({ organizationId: "org_1", userId: "user_2", role: "approver" });
-  const task = await tasks.createTask({ organizationId: "org_1", userId: "user_1", agentId: "financial", goal: "Pay" });
+  const task = await tasks.createTask({ check:{kind:"evidence",tools:["get_portfolio_metrics"]}, organizationId: "org_1", userId: "user_1", agentId: "financial", goal: "Pay" });
   const approval = await approvals.requestApproval({
     taskId: task.id, organizationId: "org_1", stepIndex: 0,
     tool: registry.getTool("issue_payment"), evidence: { toolUseId: "tu_2", args: {} },

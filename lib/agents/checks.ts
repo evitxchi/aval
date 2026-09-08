@@ -1,0 +1,100 @@
+import { and, eq, sql, asc } from 'drizzle-orm';
+import { getDb } from '@/db';
+import { agentChecks, communicationDeliveries, learnedPreferences, agentPlanNodes, agentTasks, conversations, integrationConnections } from '@/db/schema';
+import { getTool } from './registry';
+import type { TaskRecord } from './tasks';
+import type { Message } from '@/lib/ask-aval/anthropic';
+export type TaskCheck = {
+    kind: 'evidence';
+    tools: string[];
+} | {
+    kind: 'delivery';
+    operation: 'message' | 'call' | 'listing';
+    status: 'accepted' | 'delivered';
+    conversationId?: string;
+} | {
+    kind: 'preference';
+    topic: string;
+    statement: string;
+} | {
+    kind: 'plan';
+};
+export const MAX_CHECK_REPAIRS = 2;
+export function parseTaskCheck(value: unknown): TaskCheck {
+    if (!value || typeof value !== 'object' || Array.isArray(value))
+        throw Error('A machine-checkable completion condition is required.');
+    const c = value as Record<string, unknown>;
+    if (c.kind === 'plan')
+        return { kind: 'plan' };
+    if (c.kind === 'evidence' && Array.isArray(c.tools) && c.tools.length > 0 && c.tools.length <= 4 && c.tools.every(t => typeof t === 'string' && getTool(t) && !getTool(t)!.mutates && !['plan_goal', 'get_goal_plan', 'read_memory', 'read_task_history', 'request_execution_plan'].includes(t)))
+        return { kind: 'evidence', tools: [...new Set(c.tools as string[])] };
+    if (c.kind === 'delivery' && ['message', 'call', 'listing'].includes(String(c.operation)) && ['accepted', 'delivered'].includes(String(c.status)) && (c.conversationId === undefined || typeof c.conversationId === 'string'))
+        return { kind: 'delivery', operation: c.operation as 'message' | 'call' | 'listing', status: c.status as 'accepted' | 'delivered', ...(typeof c.conversationId === 'string' ? { conversationId: c.conversationId } : {}) };
+    if (c.kind === 'preference' && typeof c.topic === 'string' && typeof c.statement === 'string' && c.topic.length < 100 && c.statement.length < 500)
+        return { kind: 'preference', topic: c.topic, statement: c.statement };
+    throw Error('Choose an evidence, delivery, preference, or plan completion condition.');
+}
+export async function checkTask(task: TaskRecord, messages: Message[], stepIndex: number) {
+    const problems: string[] = [];
+    let check: TaskCheck | undefined;
+    try {
+        check = parseTaskCheck(JSON.parse(task.checkJson ?? '{}'));
+    }
+    catch {
+        problems.push('This task has no valid completion condition. Recreate it with an explicit check.');
+    }
+    if (check?.kind === 'evidence') {
+        const calls = new Map<string, string>(), observed = new Set<string>();
+        for (const m of messages) {
+            if (!Array.isArray(m.content))
+                continue;
+            for (const b of m.content) {
+                if (b.type === 'tool_use')
+                    calls.set(b.id, b.name);
+                if (b.type === 'tool_result' && !b.is_error) {
+                    try {
+                        const data = JSON.parse(typeof b.content === 'string' ? b.content : 'null');
+                        if (data !== null && !data?.error && !JSON.stringify(data).includes('[truncated:')) {
+                            const name = calls.get(b.tool_use_id);
+                            if (name)
+                                observed.add(name);
+                        }
+                    }
+                    catch { /* malformed evidence cannot pass */ }
+                }
+            }
+        }
+        for (const tool of check.tools)
+            if (!observed.has(tool))
+                problems.push(`Read ${tool} successfully before concluding. Missing, failed, or truncated evidence cannot satisfy the task.`);
+    }
+    if (check?.kind === 'delivery') {
+        const statuses = check.status === 'delivered' ? ['delivered'] : ['accepted', 'queued', 'initiated', 'ringing', 'in-progress', 'sent', 'delivered', 'completed'];
+        const deliveryRows = await getDb().select({ delivery: communicationDeliveries, provider: integrationConnections.provider }).from(communicationDeliveries).innerJoin(integrationConnections, and(eq(integrationConnections.id, communicationDeliveries.connectionId), eq(integrationConnections.organizationId, task.organizationId))).where(and(eq(communicationDeliveries.organizationId, task.organizationId), sql `substr(${communicationDeliveries.requestKey},1,${task.id.length + 1}) = ${task.id + ":"}`, eq(communicationDeliveries.kind, check.operation)));
+        const thread = check.conversationId ? (await getDb().select().from(conversations).where(and(eq(conversations.organizationId, task.organizationId), eq(conversations.id, check.conversationId))).limit(1))[0] : undefined;
+        const rows = deliveryRows.map(row => ({ ...row.delivery, provider: row.provider }));
+        const destination = thread?.channel === 'whatsapp' && !thread.externalThreadId.startsWith('+') ? '+' + thread.externalThreadId : thread?.externalThreadId;
+        if (!rows.some(r => statuses.includes(r.status) && (!check.conversationId || (thread && r.destination === destination && (check.operation !== 'message' || r.provider === thread.channel)))))
+            problems.push(`No ${check.operation} operation for this task has provider-confirmed ${check.status} status. Do not claim it happened or repeat an unknown send.`);
+    }
+    if (check?.kind === 'preference') {
+        const rows = await getDb().select().from(learnedPreferences).where(and(eq(learnedPreferences.organizationId, task.organizationId), eq(learnedPreferences.topic, check.topic), eq(learnedPreferences.statement, check.statement)));
+        if (!rows.length)
+            problems.push('The required preference was not saved.');
+    }
+    if (check?.kind === 'plan') {
+        const nodes = await getDb().select({ key: agentPlanNodes.nodeKey, revision: agentPlanNodes.revision, status: agentTasks.status }).from(agentPlanNodes).innerJoin(agentTasks, eq(agentTasks.id, agentPlanNodes.taskId)).where(and(eq(agentPlanNodes.rootTaskId, task.id), eq(agentPlanNodes.organizationId, task.organizationId))).orderBy(asc(agentPlanNodes.revision));
+        const latest = new Map<string, typeof nodes[number]>();
+        for (const node of nodes)
+            latest.set(node.key, node);
+        const current = [...latest.values()];
+        if (!current.length || current.some(n => n.status !== 'COMPLETED'))
+            problems.push('The goal needs a persisted plan whose required tasks all pass their independent checks.');
+    }
+    const output = { exitCode: problems.length ? 1 : 0, check: check ?? null, problems, scope: check?.kind === 'evidence' ? 'Evidence access and numeric consistency; not a certification of every natural-language claim.' : 'Stored task outcomes' };
+    await getDb().insert(agentChecks).values({ id: crypto.randomUUID(), organizationId: task.organizationId, taskId: task.id, stepIndex, exitCode: output.exitCode, outputJson: JSON.stringify(output), createdAt: new Date() });
+    return output;
+}
+export async function failedCheckCount(org: string, taskId: string) {
+    return (await getDb().select({ id: agentChecks.id }).from(agentChecks).where(and(eq(agentChecks.organizationId, org), eq(agentChecks.taskId, taskId), eq(agentChecks.exitCode, 1)))).length;
+}

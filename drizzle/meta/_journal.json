@@ -204,6 +204,20 @@
       "when": 1788829510923,
       "tag": "0028_grey_beast",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "6",
+      "when": 1788841458106,
+      "tag": "0029_soft_nightcrawler",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "6",
+      "when": 1788841950147,
+      "tag": "0030_demonic_jasper_sitwell",
+      "breakpoints": true
     }
   ]
 }

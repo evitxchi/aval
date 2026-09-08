@@ -1063,6 +1063,8 @@ export const agentTasks = sqliteTable(
     // Conversation state, so a resumed run continues rather than restarting.
     // Sized by maxSteps and the model's own max_tokens, not unbounded.
     executionScopeJson: text("execution_scope_json").notNull().default("{}"),
+    checkJson: text("check_json").notNull().default("{}"),
+    deadlineAt: integer("deadline_at", { mode: "timestamp_ms" }),
     transcriptJson: text("transcript_json").notNull().default("[]"),
     stepCount: integer("step_count").notNull().default(0),
     maxSteps: integer("max_steps").notNull(),
@@ -1371,3 +1373,18 @@ export const communicationPollSources = sqliteTable('communication_poll_sources'
  lastSuccessAt: integer('last_success_at',{mode:'timestamp_ms'}),
  error: text('error'),
 }, t=>[uniqueIndex('communication_poll_source_uq').on(t.organizationId,t.provider,t.resourceId),index('communication_poll_due_idx').on(t.enabled,t.lastAttemptAt)]);
+
+
+export const agentChecks = sqliteTable("agent_checks", {
+ id:text("id").primaryKey(), organizationId:text("organization_id").notNull().references(()=>organizations.id), taskId:text("task_id").notNull().references(()=>agentTasks.id), stepIndex:integer("step_index").notNull(), exitCode:integer("exit_code").notNull(), outputJson:text("output_json").notNull(), createdAt:integer("created_at",{mode:"timestamp_ms"}).notNull(),
+},t=>[index("agent_checks_task_idx").on(t.organizationId,t.taskId)]);
+export const agentMemory = sqliteTable("agent_memory", {
+ id:text("id").primaryKey(),organizationId:text("organization_id").notNull().references(()=>organizations.id),taskId:text("task_id").notNull().references(()=>agentTasks.id),stepIndex:integer("step_index").notNull(),requestKey:text("request_key").notNull(),body:text("body").notNull(),createdAt:integer("created_at",{mode:"timestamp_ms"}).notNull(),
+},t=>[uniqueIndex("agent_memory_request_uq").on(t.organizationId,t.requestKey),index("agent_memory_task_step_idx").on(t.taskId,t.stepIndex)]);
+export const agentPlanNodes = sqliteTable("agent_plan_nodes", {
+ id:text("id").primaryKey(),organizationId:text("organization_id").notNull().references(()=>organizations.id),rootTaskId:text("root_task_id").notNull().references(()=>agentTasks.id),revision:integer("revision").notNull(),nodeKey:text("node_key").notNull(),taskId:text("task_id").notNull().references(()=>agentTasks.id),dependenciesJson:text("dependencies_json").notNull(),createdAt:integer("created_at",{mode:"timestamp_ms"}).notNull(),
+},t=>[uniqueIndex("agent_plan_node_uq").on(t.rootTaskId,t.revision,t.nodeKey),index("agent_plan_root_idx").on(t.rootTaskId,t.revision)]);
+
+export const agentModelContexts = sqliteTable("agent_model_contexts", {
+ id:text("id").primaryKey(),organizationId:text("organization_id").notNull().references(()=>organizations.id),taskId:text("task_id").notNull().references(()=>agentTasks.id),stepIndex:integer("step_index").notNull(),contextJson:text("context_json").notNull(),digest:text("digest").notNull(),createdAt:integer("created_at",{mode:"timestamp_ms"}).notNull(),
+},t=>[index("agent_model_context_task_idx").on(t.organizationId,t.taskId,t.stepIndex)]);
