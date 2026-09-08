@@ -81,9 +81,9 @@ revision 2. The hosted D1 inspection confirmed the new harness tables; this priv
 currently has zero stored agent tasks and zero historical tasks without a check. This count
 does not cover the separate Cloudflare production database.
 
-The separate GitHub/Cloudflare deployment is unchanged. No push to GitHub `main` was made
-in this resumption, and its previously reported billing/spending-limit failure was not
-rechecked. Scratch helpers in `.local-work/` are retained locally, outside the delivery commits.
+At the earlier version-5 handoff, the separate GitHub/Cloudflare deployment was unchanged.
+The September 8 delivery below supersedes that state. Scratch helpers in `.local-work/`
+remain local, outside the delivery commits.
 
 
 ## September 8 semantic-review delivery resumption
@@ -112,3 +112,23 @@ limit after the full test/build and app/ZIP packaging succeeded, before DMG comp
 
 Real-account provider validation and live reviewer accuracy remain blocked on usable
 connections and model funding. The remaining audit findings are explicitly retained.
+
+### Final GitHub and Cloudflare result
+
+Implementation commit `9f0361c44138101ea6fc9996b0b988d2d9e31e4d` was pushed to GitHub
+`main`. GitHub runners now start normally; the prior billing gate did not recur.
+Cloudflare workflow https://github.com/evitxchi/aval/actions/runs/34256644321 passed
+tests and migrations and deployed the production Worker.
+https://aval.evalxnder.workers.dev/en returns HTTP 200.
+
+The final authenticated agent smoke check failed at the first model request with
+HTTP 400 `insufficient_credits`, zero model steps and no answer. The overall workflow
+is therefore **failed even though code deployment succeeded**. This confirms the
+model-funding blocker in the production runtime as well as the local evaluator.
+
+The desktop workflow https://github.com/evitxchi/aval/actions/runs/34256644512 was
+cancelled after that failure because it requires successful matching website validation
+before publishing. No new signed/notarized release was published. The refreshed local
+DMG remains available and verified. Restore Anthropic API funding, then rerun the
+production validation and desktop release; business-provider validation separately
+requires usable connected provider accounts.

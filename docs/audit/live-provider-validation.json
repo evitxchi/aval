@@ -32,7 +32,17 @@
       }
     ],
     "liveProviderCalls": "not_run_no_authenticated_workspace_session",
-    "connectedPropertyManagementProviders": 0
+    "connectedPropertyManagementProviders": 0,
+    "authenticatedCiModelCheck": {
+      "checkedAt": "2026-09-08T17:25:22Z",
+      "status": "failed",
+      "reason": "insufficient_credits",
+      "httpStatus": 400,
+      "modelSteps": 0,
+      "answerProduced": false,
+      "workflow": "https://github.com/evitxchi/aval/actions/runs/34256644321",
+      "codeDeployment": "succeeded"
+    }
   },
   "anthropic": {
     "model": "claude-sonnet-5",
