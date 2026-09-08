@@ -1,12 +1,13 @@
 import type { ToolSchema } from '@/lib/ask-aval/anthropic';
 import { marketingConnections, publishListing } from "@/lib/marketing/service";
-import { and, eq } from 'drizzle-orm';
+import { and, eq, asc } from 'drizzle-orm';
 import { getDb } from '@/db';
-import { conversations, integrationConnections } from '@/db/schema';
+import { conversations, messages, integrationConnections } from '@/db/schema';
 import { deliver, readCommunicationsConfig, replyToConversation } from './store';
 import { SEND_PROVIDERS } from './providers';
 const text = { type:'string' };
 export const COMMUNICATION_TOOLS: ToolSchema[] = [
+ {name:'read_conversation',description:'Read messages in one known workspace conversation.',input_schema:{type:'object',properties:{conversation_id:{type:'string',minLength:1,maxLength:100}},required:['conversation_id']}},
  {name:'get_marketing_channels',description:'Read marketing connection readiness and remaining partner requirements.',input_schema:{type:'object',properties:{}}},
  {name:'publish_listing',description:'Publish an approved organic Facebook Page post through Meta. Read property facts first; no paid ads or budget changes. Property portals remain blocked until their partner contracts and adapters are certified.',input_schema:{type:'object',properties:{provider:{type:'string',enum:['meta','rightmove','zoopla','onthemarket']},body:{type:'string',minLength:1,maxLength:4000}},required:['provider','body']}},
   { name:'get_communication_channels', description:'Read connected communication providers and configured team route IDs before sending messages or placing a call. Missing connections cannot be invented.', input_schema:{type:'object',properties:{}} },
@@ -16,6 +17,11 @@ export const COMMUNICATION_TOOLS: ToolSchema[] = [
   { name:'place_call', description:'Place a Twilio call with a short spoken script, optionally bridging to a configured team route. Read route IDs first. Requires enabled call routing, a connected account and a known international destination.', input_schema:{type:'object',properties:{to:text,script:{type:'string',maxLength:1200},team_route_id:text},required:['to','script']} },
 ];
 export async function runCommunicationTool(name:string,args:Record<string,unknown>,org:string,key?:string) {
+  if (name === 'read_conversation') {
+    const [thread]=await getDb().select().from(conversations).where(and(eq(conversations.organizationId,org),eq(conversations.id,String(args.conversation_id)))).limit(1);
+    if(!thread)throw Error('Conversation not found.');
+    return {id:thread.id,provider:thread.channel,messages:await getDb().select({direction:messages.direction,body:messages.body,createdAt:messages.createdAt}).from(messages).where(eq(messages.conversationId,thread.id)).orderBy(asc(messages.createdAt)).limit(30)};
+  }
   if (name === 'get_marketing_channels') return marketingConnections(org);
   if (name === 'publish_listing') { if (!key) throw new Error('Publication requires a durable task.'); return publishListing(org, String(args.provider), String(args.body), key); }
   if (name === 'get_communication_channels') {

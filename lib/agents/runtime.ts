@@ -221,6 +221,9 @@ export async function advanceTask(
       const fresh = await getTask(organizationId, taskId);
       if (!fresh) return { taskId, status: "FAILED", stepsRun, error: "Task disappeared mid-run." };
 
+      task.maxSteps = fresh.maxSteps;
+      task.maxTokens = fresh.maxTokens;
+
       // Cancellation, budgets and the lease are all checked here, at the step
       // boundary, so nothing is ever interrupted mid-execution.
       if (fresh.cancelRequested) return finish("CANCELLED");

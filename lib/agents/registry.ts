@@ -83,6 +83,7 @@ const READ_DEFAULTS = {
 } as const;
 
 const DESCRIPTORS: ToolDescriptor[] = [
+  {...READ_DEFAULTS,name:"read_conversation",summary:"Read the originating conversation.",requiredPermission:"portfolio.read"},
   /* ── reads: portfolio and accounting ─────────────────────────────────── */
   { ...READ_DEFAULTS, name: "get_portfolio_metrics", summary: "Portfolio-level NOI, rent, occupancy and work-order counts.", requiredPermission: "portfolio.read" },
   { ...READ_DEFAULTS, name: "get_metric_series", summary: "A time series for one metric with genuine multi-point data.", requiredPermission: "market.read" },

@@ -1,3 +1,4 @@
+import { taskBoundary } from './task-boundary';
 /**
  * The tool executor: the only path from a model's proposal to a tool actually
  * running.
@@ -69,6 +70,13 @@ const RETRY_BASE_MS = 250;
 
 export async function executeTool(request: ExecutionRequest): Promise<ExecutionOutcome> {
   const audit: AuditEvent[] = [];
+  if (request.task) {
+    const refusal = await taskBoundary(request.subject.organizationId, request.subject.userId, request.task.id, request.toolName, request.args);
+    if (refusal) {
+      audit.push({kind:'policy_decision',label:request.toolName+':deny',payloadDigest:await digestPayload(refusal),count:0});
+      return {result:{status:'denied',code:'permission_denied',reason:refusal},audit};
+    }
+  }
   const descriptor = getTool(request.toolName);
   if (request.task) {
     const task = await getTask(request.subject.organizationId, request.task.id);
@@ -246,6 +254,13 @@ async function reserveThenRun(
  */
 export async function executeApprovedTool(request: ExecutionRequest & { task: { id: string; stepIndex: number } }): Promise<ExecutionOutcome> {
   const audit: AuditEvent[] = [];
+  if (request.task) {
+    const refusal = await taskBoundary(request.subject.organizationId, request.subject.userId, request.task.id, request.toolName, request.args);
+    if (refusal) {
+      audit.push({kind:'policy_decision',label:request.toolName+':deny',payloadDigest:await digestPayload(refusal),count:0});
+      return {result:{status:'denied',code:'permission_denied',reason:refusal},audit};
+    }
+  }
   const descriptor = getTool(request.toolName);
   if (request.task) {
     const task = await getTask(request.subject.organizationId, request.task.id);
