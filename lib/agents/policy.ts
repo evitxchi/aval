@@ -20,6 +20,7 @@
  * first, so a malformed or unregistered call never reaches argument parsing.
  */
 
+import { autonomyApproval, type AutonomyMode } from "./autonomy.ts";
 import { NON_CAPABILITY_TOOLS, getTool, implementedTools, type RiskLevel, type ToolDescriptor } from "./registry.ts";
 import { hasPermission, roleForPersona, type AgentRole } from "./permissions.ts";
 import { validateFinancialArguments } from "./financial.ts";
@@ -52,6 +53,8 @@ export interface PolicySubject {
 export interface PolicyContext {
   /** Persona id — a built-in role or a custom persona's row id. Resolved to an envelope by `roleForPersona`. */
   personaId?: string;
+  autonomyMode?: AutonomyMode;
+  approvedPlanAction?: boolean;
   /** How many delegation hops deep this call is. 0 for a user-initiated turn. */
   delegationDepth?: number;
   /** Remaining step budget for the task, if one is being tracked. */
@@ -113,6 +116,11 @@ export function evaluate(
   if (tool.financial) {
     const problem = validateFinancialArguments(tool, args);
     if (problem) return deny("invalid_arguments", problem, tool);
+  }
+
+  if (context.autonomyMode) {
+    const reason = autonomyApproval(tool, context.autonomyMode, context.approvedPlanAction ?? false);
+    return reason ? { effect: "require_approval", tool, reason } : { effect: "allow", tool };
   }
 
   // `critical` always needs a person, whatever the descriptor says — so a

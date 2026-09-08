@@ -59,6 +59,7 @@ const worker = {
     ctx.waitUntil(import("@/lib/integrations/sync-worker").then(({ runImportWorker }) =>
       runImportWorker(env as unknown as Record<string, string | undefined>),
     ));
+    ctx.waitUntil(import("@/lib/communications/poll-worker").then(({ pollCommunicationSources }) => pollCommunicationSources()));
     ctx.waitUntil(import("@/lib/agents/worker").then(({ runAgentWorkerBatch }) =>
       runAgentWorkerBatch(env as unknown as AgentWorkerEnv, "scheduled"),
     ));

@@ -14,6 +14,7 @@
  */
 
 import type { ToolSchema } from "./anthropic";
+import { COMMUNICATION_TOOLS, runCommunicationTool } from "@/lib/communications/tools";
 import { OPERATIONS_TOOLS, runOperationsTool } from "./operations-tools";
 import { METRIC_KEYS, deltaPct, noDataAvailable, readFunnel, readMetricSeries, readMetrics, type MetricKey } from "./portfolio-data";
 import { PREFERENCE_TOPICS, recordPreference, describePreference, type PreferenceTopic } from "./preferences";
@@ -188,7 +189,7 @@ const COMPOSE_DOCUMENT_TOOL: ToolSchema = {
  * model picks by description, and the two families are described in terms of
  * what they can answer rather than which table they read.
  */
-const ALL_DATA_TOOLS: ToolSchema[] = [...DATA_TOOLS, ...OPERATIONS_TOOLS];
+const ALL_DATA_TOOLS: ToolSchema[] = [...DATA_TOOLS, ...OPERATIONS_TOOLS, ...COMMUNICATION_TOOLS];
 
 /** Tools for a quick chat answer — `render_answer`'s `document` is optional. */
 export const TOOLS: ToolSchema[] = [...ALL_DATA_TOOLS, RENDER_ANSWER_TOOL];
@@ -216,7 +217,11 @@ function collectNumbers(v: unknown, out: number[] = []): number[] {
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
-export async function runTool(name: string, input: Record<string, unknown>, organizationId?: string): Promise<ToolOutput> {
+export async function runTool(name: string, input: Record<string, unknown>, organizationId?: string, operationKey?: string): Promise<ToolOutput> {
+  if (COMMUNICATION_TOOLS.some(tool => tool.name === name)) {
+    if (!organizationId) throw new Error("A workspace is required.");
+    return { json: await runCommunicationTool(name, input, organizationId, operationKey), numbers: [] };
+  }
   // The operations layer gets first refusal. It returns null both for names it
   // does not own and for the two shared names on a workspace with no records,
   // so the snapshot executors below stay reachable for workspaces whose

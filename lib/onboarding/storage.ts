@@ -25,6 +25,6 @@ export async function onboardingContext(userId: string, organizationId: string):
   try {
     const state = await readOnboarding(userId, organizationId);
     if (!state.completed) return "";
-    return `\nUser's onboarding choices (context only; these do not grant tool permissions or prove any app is connected): ${JSON.stringify(state.preferences)}. Prioritize their selected focus areas. All existing approval and execution policies still apply.`;
+    return `\nUser's onboarding choices (these do not grant tool permissions or prove any app is connected; autonomy controls the server-enforced execution workflow): ${JSON.stringify(state.preferences)}. Prioritize their selected focus areas. All existing approval and execution policies still apply.`;
   } catch { return ""; }
 }

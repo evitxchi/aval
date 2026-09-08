@@ -75,17 +75,17 @@ const READ_EVERYTHING: readonly Permission[] = [
 export const AGENT_PERMISSIONS: Record<AgentRole, readonly Permission[]> = {
   // The unspecialized assistant. Broad read, one narrow write (its own
   // behavioral memory), nothing external.
-  general: [...READ_EVERYTHING, "preferences.write"],
+  general: [...READ_EVERYTHING, "preferences.write", "messaging.send.external", "listing.publish"],
 
-  financial: ["portfolio.read", "accounting.read", "leases.read", "market.read", "preferences.write"],
+  financial: ["portfolio.read", "accounting.read", "leases.read", "market.read", "preferences.write", "messaging.send.external"],
 
-  brokerage: ["leasing.read", "portfolio.read", "leases.read", "market.read", "preferences.write"],
+  brokerage: ["leasing.read", "portfolio.read", "leases.read", "market.read", "preferences.write", "messaging.send.external", "listing.publish"],
 
   realEstate: ["portfolio.read", "leasing.read", "leases.read", "preferences.write"],
 
   marketResearch: ["market.read", "portfolio.read", "leasing.read", "preferences.write"],
 
-  maintenance: ["maintenance.read", "portfolio.read", "accounting.read", "preferences.write"],
+  maintenance: ["maintenance.read", "portfolio.read", "accounting.read", "preferences.write", "messaging.send.external"],
 
   // §17: "The agent with the widest visibility should often have the least
   // mutation authority." Risk Analyst reads across every domain and holds no

@@ -49,6 +49,9 @@ import {
   type TaskRecord,
   type TaskState,
 } from "./tasks.ts";
+import { planEvidence } from "./autonomy-storage";
+import { autonomyInstructions, autonomyMode } from "./autonomy";
+import { readOnboarding } from "@/lib/onboarding/storage";
 import { shouldRetryTask } from "./retry-policy.ts";
 
 /**
@@ -60,6 +63,7 @@ const GOAL_SYSTEM = `
 You are working a goal, not answering a single question. Investigate before you conclude.
 
 How to work:
+- Propose at most one mutating action per model turn. Execute each approved plan action in its own turn.
 - Start by reading the broadest relevant tool, then follow what you find. Later steps should be chosen because of what earlier ones returned, not planned in advance.
 - When a result raises a question you cannot answer from it, call another tool. When a result contradicts an assumption you made, say so and change course.
 - You have a limited number of steps. Spend them on investigation, not on restating what you already have.
@@ -148,7 +152,8 @@ export async function advanceTask(
   const tools: ToolSchema[] = personaTools(TOOLS, persona, "render_answer")
     .filter((tool) => tool.name === "render_answer" || permitted.has(tool.name));
 
-  const system = buildSystem(persona.systemPromptAddition);
+  const onboarding = await readOnboarding(task.userId, organizationId);
+  const system = buildSystem(persona.systemPromptAddition) + "\n" + autonomyInstructions(autonomyMode(onboarding.preferences.autonomy[0]));
   const messages: Message[] = safeParseTranscript(task.transcriptJson, task.goal);
   // Evidence must survive invocation boundaries just like the conversation.
   // Rebuild it from persisted tool results before adding anything observed by
@@ -342,7 +347,7 @@ export async function advanceTask(
             // Bind the human decision to this exact model proposal. Tool name
             // alone is insufficient because one assistant message may contain
             // two calls to the same financial tool with different arguments.
-            evidence: { toolUseId: use.id, goal: task.goal, agent: task.agentId, arguments: redactArguments(use.input, TOOL_SCHEMAS.get(use.name)), reason: result.reason },
+            evidence: { toolUseId: use.id, goal: task.goal, agent: task.agentId, arguments: redactArguments(use.input, TOOL_SCHEMAS.get(use.name)), review: ["request_execution_plan", "send_external_message", "place_call", "publish_listing"].includes(use.name) ? use.input : undefined, ...(use.name === "request_execution_plan" ? await planEvidence(use.input, task.userId, organizationId) : {}), reason: result.reason },
             amountCents: typeof use.input.amount_cents === "number" ? use.input.amount_cents : undefined,
             currency: typeof use.input.currency === "string" ? use.input.currency : undefined,
             tier: result.tier,

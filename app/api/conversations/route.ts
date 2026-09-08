@@ -1,6 +1,8 @@
-import { and, asc, desc, eq } from "drizzle-orm";
+import { asc, desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { conversations, messages } from "@/db/schema";
+import { replyToConversation } from "@/lib/communications/store";
+import { digestPayload } from "@/lib/audit/chain";
 import { getApiIdentity } from "@/lib/integrations/session";
 
 /** Real inbound/outbound threads for the signed-in org — populated by app/api/webhooks/[provider]/route.ts as real messages arrive. Empty until a real provider is connected and sends real traffic. */
@@ -26,22 +28,18 @@ export async function GET(request: Request) {
   return Response.json({ conversations: withMessages }, { headers: { "cache-control": "no-store" } });
 }
 
-/** Sends a reply on a real conversation — appends it as an outbound message and clears the pending draft. Persists the record of what was sent; does not itself dispatch anything to a real provider (see the design note in app/api/automations/route.ts for why). */
+/** Dispatch first; only provider-accepted replies enter the outbound transcript. */
 export async function POST(request: Request) {
   const identity = await getApiIdentity(request);
   if (!identity) return Response.json({ error: "Authentication required" }, { status: 401 });
-
-  const body = (await request.json().catch(() => ({}))) as { conversationId?: string; body?: string };
-  const text = typeof body.body === "string" ? body.body.trim() : "";
-  if (!body.conversationId || !text) return Response.json({ error: "conversationId and body are required" }, { status: 400 });
-
-  const db = getDb();
-  const [conversation] = await db.select({ id: conversations.id }).from(conversations).where(and(eq(conversations.id, body.conversationId), eq(conversations.organizationId, identity.organizationId))).limit(1);
-  if (!conversation) return Response.json({ error: "Conversation not found" }, { status: 404 });
-
-  const now = new Date();
-  await db.insert(messages).values({ id: crypto.randomUUID(), conversationId: conversation.id, externalMessageId: crypto.randomUUID(), direction: "outbound", body: text, createdAt: now });
-  await db.update(conversations).set({ draftReply: null, draftReplyStatus: null, lastMessageAt: now, updatedAt: now }).where(eq(conversations.id, conversation.id));
-
-  return Response.json({ ok: true });
+  if (identity.role === "member") return Response.json({ error: "An owner or approver must send external messages." }, { status: 403 });
+  if (request.headers.get("origin") && request.headers.get("origin") !== new URL(request.url).origin) return Response.json({ error: "Invalid origin" }, { status: 403 });
+  const input: unknown = await request.json().catch(() => null);
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return Response.json({ error: 'A JSON object is required.' }, { status: 400 });
+  const body = input as { conversationId?: string; body?: string; requestId?: string };
+  if (typeof body.conversationId !== "string" || typeof body.body !== "string" || !body.body.trim() || body.body.length > 4000) return Response.json({ error: "A conversation and a message of at most 4,000 characters are required." }, { status: 400 });
+  try {
+    const result = await replyToConversation(identity.organizationId, body.conversationId, body.body.trim(), `reply:${typeof body.requestId === 'string' ? body.requestId : await digestPayload({ conversation: body.conversationId, body: body.body.trim() })}`);
+    return Response.json({ ok: ['accepted', 'sent', 'delivered'].includes(result.status), ...result }, { status: ['accepted','sent','delivered'].includes(result.status) ? 200 : 409 });
+  } catch (error) { return Response.json({ error: error instanceof Error ? error.message : "Could not send the reply." }, { status: 422 }); }
 }

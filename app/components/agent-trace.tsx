@@ -98,7 +98,7 @@ interface PendingApproval {
   tier: string;
   amountCents: number | null;
   currency: string | null;
-  evidence: { goal?: string; agent?: string; reason?: string; arguments?: Record<string, unknown> };
+  evidence: { goal?: string; agent?: string; reason?: string; arguments?: Record<string, unknown>; review?: Record<string, unknown> };
   requestedAt: number;
   expiresAt: number;
   requiredApprovals: number;
@@ -219,7 +219,7 @@ function ApprovalCard({ approval, busy, onDecide, locale }: {
   const t = useTranslations();
   const label = useEnumLabel();
   const persona = personaFor(approval.evidence.agent ?? "general");
-  const args = Object.entries(approval.evidence.arguments ?? {});
+  const args = Object.entries(approval.evidence.review ?? approval.evidence.arguments ?? {});
 
   return (
     <article className="agent-approval-card" data-risk={approval.risk}>
@@ -247,7 +247,7 @@ function ApprovalCard({ approval, busy, onDecide, locale }: {
       {args.length > 0 && (
         <dl className="agent-approval-args">
           {args.map(([key, value]) => (
-            <div key={key}><dt>{key}</dt><dd>{String(value)}</dd></div>
+            <div key={key}><dt>{key}</dt><dd>{typeof value === "object" ? JSON.stringify(value, null, 2) : String(value)}</dd></div>
           ))}
         </dl>
       )}
@@ -358,7 +358,15 @@ export function AgentTrace() {
   const [details, setDetails] = useState<Record<string, TaskDetail>>({});
   const [expanded, setExpanded] = useState<string | null>(null);
   const [goal, setGoal] = useState("");
-  const [agentId, setAgentId] = useState<string>("riskAnalyst");
+  const [agentId, setAgentId] = useState<string>("general");
+  const [recommendation, setRecommendation] = useState<{agentId:string;mode:string;goal:string}|null>(null);
+  const suggestion = goal.trim() && recommendation?.goal === goal ? recommendation : null;
+  useEffect(() => {
+    if (!goal.trim()) return;
+    const controller = new AbortController();
+    const timer = setTimeout(() => { fetch(`/api/agents/recommendations?goal=${encodeURIComponent(goal)}`, {signal:controller.signal}).then(r=>r.ok?r.json() as Promise<{agentId:string;mode:string}>:null).then(data=>{if(data && !controller.signal.aborted)setRecommendation({...data,goal});}).catch(()=>{}); },250);
+    return () => {clearTimeout(timer);controller.abort();};
+  },[goal]);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -527,6 +535,7 @@ export function AgentTrace() {
         </button>
       </div>
 
+      {suggestion && <div className="agent-suggestion"><span>{t("AgentTrace.suggestedAgent", { agent: t(personaFor(suggestion.agentId).labelKey) })}</span><button type="button" className="soft-button" onClick={()=>setAgentId(suggestion.agentId)}>{t("AgentTrace.chooseSuggested")}</button></div>}
       {notice && <p className="agent-trace-notice">{notice}</p>}
 
       {tasks.length === 0 ? (

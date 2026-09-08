@@ -1738,3 +1738,17 @@ html.aval-module-picking .content-shell { cursor: crosshair; }
   .workspace-invite-controls, .workspace-redeem { align-items: stretch; }
   .workspace-roster li { flex-wrap: wrap; }
 }
+
+.communication-settings { margin: 18px 0; padding: 20px; border: 1px solid var(--line, #dedee2); border-radius: 18px; background: var(--surface, #fff); }
+.communication-settings summary { display:flex; align-items:center; gap:10px; font-weight:600; cursor:pointer; }
+.communication-settings p { color:var(--muted, #72727a); font-size:13px; line-height:1.6; }
+.communication-settings fieldset { border:0; padding:0; margin:16px 0; }
+.communication-settings label { display:flex; flex-direction:column; gap:7px; font-size:12px; }
+.communication-settings input:not([type=checkbox]), .communication-settings textarea { width:100%; box-sizing:border-box; border:1px solid var(--line, #dedee2); background:transparent; color:inherit; padding:10px 12px; border-radius:9px; font:inherit; }
+.communication-settings .communication-toggle { flex-direction:row; margin-bottom:16px; align-items:center; }
+.communication-fields { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px; }
+.communication-route { display:grid; grid-template-columns:20px 1fr 1fr 1.4fr auto; align-items:end; gap:12px; margin-top:16px; }
+.communication-webhooks { display:grid; gap:12px; }
+.agent-approval-args dd { white-space:pre-wrap; overflow-wrap:anywhere; max-height:320px; overflow:auto; }
+.agent-suggestion { display:flex; gap:10px; align-items:center; margin:12px 0; font-size:13px; }
+@media(max-width:700px) { .communication-fields,.communication-route { grid-template-columns:1fr; } }

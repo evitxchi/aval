@@ -61,7 +61,7 @@ export function validateToolArguments(schema: SchemaLike | undefined, args: unkn
   return { ok: false, problems: shown };
 }
 
-interface Rule { type?: unknown; enum?: unknown; items?: unknown }
+interface Rule { type?: unknown; enum?: unknown; items?: unknown; properties?: Record<string, unknown>; required?: string[]; minLength?: number; maxLength?: number; minItems?: number; maxItems?: number }
 
 function isRule(rule: unknown): rule is Rule {
   return typeof rule === "object" && rule !== null && !Array.isArray(rule);
@@ -83,6 +83,12 @@ function checkValue(name: string, supplied: unknown, rule: Rule): string | null 
     return `Argument "${name}" must be ${expected}, not ${describe(supplied)}.`;
   }
 
+  if (typeof supplied === "string" && ((rule.minLength !== undefined && supplied.length < rule.minLength) || (rule.maxLength !== undefined && supplied.length > rule.maxLength))) return `Argument "${name}" has an invalid length.`;
+  if (Array.isArray(supplied) && ((rule.minItems !== undefined && supplied.length < rule.minItems) || (rule.maxItems !== undefined && supplied.length > rule.maxItems))) return `Argument "${name}" has an invalid item count.`;
+  if (expected === "object" && rule.properties) {
+    const nested = validateToolArguments({ type: "object", properties: rule.properties, required: rule.required }, supplied);
+    if (!nested.ok) return `Argument "${name}": ${nested.problems.join(" ")}`;
+  }
   if (expected === "array" && isRule(rule.items) && Array.isArray(supplied)) {
     for (let index = 0; index < supplied.length; index++) {
       const problem = checkValue(`${name}[${index}]`, supplied[index], rule.items);

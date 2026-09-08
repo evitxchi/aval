@@ -1,3 +1,5 @@
+import { queueInboundTask } from "@/lib/communications/intake";
+import { verifyTwilio } from "@/lib/communications/signature";
 import { env } from "cloudflare:workers";
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
@@ -21,17 +23,11 @@ async function hmac(secret: string, value: string, algorithm: "SHA-256" | "SHA-1
   return new Uint8Array(await crypto.subtle.sign("HMAC", key, encoder.encode(value)));
 }
 
-function base64(bytes: Uint8Array) {
-  let binary = "";
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary);
-}
-
 async function connectionCredential(request: Request, provider: string, key: string) {
   const connectionId = new URL(request.url).searchParams.get("connection");
   const encryptionKey = bindings().INTEGRATION_TOKEN_ENCRYPTION_KEY;
   if (!connectionId || !encryptionKey) return null;
-  const [connection] = await getDb().select({ encrypted: integrationConnections.accessTokenCiphertext }).from(integrationConnections).where(and(eq(integrationConnections.id, connectionId), eq(integrationConnections.provider, provider))).limit(1);
+  const [connection] = await getDb().select({ encrypted: integrationConnections.accessTokenCiphertext }).from(integrationConnections).where(and(eq(integrationConnections.id, connectionId), eq(integrationConnections.provider, provider), eq(integrationConnections.status, "connected"))).limit(1);
   if (!connection?.encrypted) return null;
   const credentials = JSON.parse(await decryptSecret(connection.encrypted, encryptionKey)) as Record<string, string>;
   return credentials[key] ?? null;
@@ -63,9 +59,7 @@ async function verify(provider: string, request: Request, raw: string) {
     const secret = await connectionCredential(request, provider, "authToken") ?? config.TWILIO_AUTH_TOKEN;
     const signature = request.headers.get("x-twilio-signature") ?? "";
     if (!secret || !signature) return false;
-    const params = new URLSearchParams(raw);
-    const payload = request.url + [...params.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([key, value]) => `${key}${value}`).join("");
-    return constantTimeEqual(signature, base64(await hmac(secret, payload, "SHA-1")));
+    return verifyTwilio(request, raw, secret);
   }
   return false;
 }
@@ -81,11 +75,11 @@ async function verify(provider: string, request: Request, raw: string) {
 async function resolveOrganizationId(provider: string, connectionId: string | undefined, externalAccountKey: string | undefined): Promise<string | null> {
   const db = getDb();
   if (connectionId) {
-    const [connection] = await db.select({ organizationId: integrationConnections.organizationId }).from(integrationConnections).where(and(eq(integrationConnections.id, connectionId), eq(integrationConnections.provider, provider))).limit(1);
+    const [connection] = await db.select({ organizationId: integrationConnections.organizationId }).from(integrationConnections).where(and(eq(integrationConnections.id, connectionId), eq(integrationConnections.provider, provider), eq(integrationConnections.status, "connected"))).limit(1);
     return connection?.organizationId ?? null;
   }
   if (externalAccountKey) {
-    const [connection] = await db.select({ organizationId: integrationConnections.organizationId }).from(integrationConnections).where(and(eq(integrationConnections.provider, provider), eq(integrationConnections.externalAccountId, externalAccountKey))).limit(1);
+    const [connection] = await db.select({ organizationId: integrationConnections.organizationId }).from(integrationConnections).where(and(eq(integrationConnections.provider, provider), eq(integrationConnections.externalAccountId, externalAccountKey), eq(integrationConnections.status, "connected"))).limit(1);
     return connection?.organizationId ?? null;
   }
   return null;
@@ -132,6 +126,7 @@ async function ingestInboundMessage(provider: string, organizationId: string, pa
   // A retried webhook delivery for the same message id lands here as a
   // no-op insert — skip re-drafting (and re-spending a model call) for a
   // message that already has one.
+  await queueInboundTask(organizationId, conversation.id, parsed.externalMessageId, parsed.body);
   if (inserted.length === 0) return;
 
   const draftWork = (async () => {
@@ -181,6 +176,11 @@ export async function POST(request: Request, context: { params: Promise<{ provid
   try {
     const connectionIdFromQuery = new URL(request.url).searchParams.get("connection");
     const parsed = parseInboundMessage(provider, payload, connectionIdFromQuery);
+    if (parsed && provider === "twilio" && connectionIdFromQuery) {
+      const expected = await connectionCredential(request, provider, "accountSid");
+      if (expected !== payload.AccountSid) return Response.json({ error: "Invalid account" }, { status: 401 });
+      parsed.connectionId = connectionIdFromQuery;
+    }
     if (parsed) {
       const organizationId = await resolveOrganizationId(provider, parsed.connectionId, parsed.externalAccountKey);
       if (organizationId) await ingestInboundMessage(provider, organizationId, parsed, env as unknown as AskAvalEnv);
@@ -189,5 +189,5 @@ export async function POST(request: Request, context: { params: Promise<{ provid
     console.error("Inbound message ingestion failed", provider, error instanceof Error ? error.message : error);
   }
 
-  return Response.json({ received: true }, { status: 202 });
+  return provider === "twilio" ? new Response("<Response/>", { headers: { "content-type": "text/xml" } }) : Response.json({ received: true }, { status: 202 });
 }

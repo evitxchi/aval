@@ -1,4 +1,4 @@
-/** User choices are context, never credentials or an authorization policy. */
+/** User selections describe context. Autonomy selects workflow gates inside server-owned permissions. */
 export const ONBOARDING_OPTIONS = {
   pms: ["appfolio", "yardi", "yardi_breeze", "reapit", "buildium", "sme_professional", "10ninety", "arthur", "joblogic", "rentvine", "asana", "buildingstack", "gohighlevel", "igloohome", "peach", "propstack", "quickbooks", "resharmonics", "realpad", "rentvision", "rm_cloud", "showmojo", "tenantcloud", "street", "yardi_kube", "other"],
   focus: ["all", "maintenance", "leasing", "delinquency", "move_out", "accounting", "reporting", "rent_increase", "compliance"],

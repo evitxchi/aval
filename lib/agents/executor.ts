@@ -20,6 +20,12 @@
  * mean to and fail open.
  */
 
+import { checkFaithfulness, withDerivedNumbers } from "@/lib/ask-aval/faithfulness";
+import { evidenceNumbersFromTranscript } from "./transcript-evidence";
+import { canonicalAction } from "./autonomy";
+import { getTask } from "./tasks";
+import { executionAuthority } from "./autonomy-storage";
+import { getTool } from "./registry";
 import { runTool, TOOL_SCHEMAS } from "@/lib/ask-aval/tools";
 import { validateToolArguments } from "./tool-schema.ts";
 import { boundToolResult } from "./output-bounds.ts";
@@ -63,6 +69,24 @@ const RETRY_BASE_MS = 250;
 
 export async function executeTool(request: ExecutionRequest): Promise<ExecutionOutcome> {
   const audit: AuditEvent[] = [];
+  const descriptor = getTool(request.toolName);
+  if (request.task) {
+    const task = await getTask(request.subject.organizationId, request.task.id);
+    const scope = task ? JSON.parse(task.executionScopeJson) : {};
+    if (task && ['send_external_message','place_call','publish_listing'].includes(request.toolName)) {
+      const evidence = evidenceNumbersFromTranscript(JSON.parse(task.transcriptJson));
+      const claims = request.toolName === 'place_call' ? request.args.script : request.args.body;
+      if (!checkFaithfulness(claims, withDerivedNumbers(evidence)).ok) return { result: { status: 'denied', code: 'invalid_arguments', reason: 'The proposed communication contains figures not verified by this task’s evidence. Read the supporting records or remove the unsupported figures.' }, audit };
+    }
+
+    if (scope.source === 'inbound' && descriptor?.mutates && (request.toolName !== 'send_external_message' || request.args.conversation_id !== scope.conversationId || request.args.to !== undefined || request.args.provider !== undefined)) return { result: { status: 'denied', code: 'permission_denied', reason: 'An inbound-message task can only reply to its originating conversation.' }, audit };
+  }
+
+  if (descriptor && !descriptor.unimplemented && (descriptor.mutates || request.toolName === 'request_execution_plan')) {
+    const authority = await executionAuthority(request.subject.organizationId, request.subject.userId, request.task?.id, request.toolName, request.args);
+    if (!authority.role || (descriptor.requiredPermission === 'messaging.send.external' && authority.role === 'member' && !request.task?.approvalId && !authority.planned)) return { result: { status: 'denied', code: 'permission_denied', reason: 'Current workspace membership does not authorize this action.' }, audit };
+    request = { ...request, context: { ...request.context, autonomyMode: authority.mode, approvedPlanAction: authority.planned } };
+  }
   const decision = evaluate(request.toolName, request.args, request.subject, request.context ?? {});
 
   audit.push({
@@ -93,6 +117,15 @@ export async function executeTool(request: ExecutionRequest): Promise<ExecutionO
       result: { status: "denied", code: "invalid_arguments", reason: shape.problems.join(" ") },
       audit,
     };
+  }
+
+  if (tool.name === 'request_execution_plan') {
+    const actions = request.args.actions as {tool:string;args:Record<string,unknown>}[];
+    for (const action of actions) {
+      const shape = validateToolArguments(TOOL_SCHEMAS.get(action.tool), action.args);
+      const permission = evaluate(action.tool, action.args, request.subject, { personaId: request.context?.personaId });
+      if (!shape.ok || permission.effect === 'deny') return { result: { status: 'denied', code: 'invalid_arguments', reason: 'The plan contains an invalid or unauthorized action.' }, audit };
+    }
   }
 
   const financialDecision = tool.financial
@@ -213,11 +246,31 @@ async function reserveThenRun(
  */
 export async function executeApprovedTool(request: ExecutionRequest & { task: { id: string; stepIndex: number } }): Promise<ExecutionOutcome> {
   const audit: AuditEvent[] = [];
+  const descriptor = getTool(request.toolName);
+  if (request.task) {
+    const task = await getTask(request.subject.organizationId, request.task.id);
+    const scope = task ? JSON.parse(task.executionScopeJson) : {};
+    if (task && ['send_external_message','place_call','publish_listing'].includes(request.toolName)) {
+      const evidence = evidenceNumbersFromTranscript(JSON.parse(task.transcriptJson));
+      const claims = request.toolName === 'place_call' ? request.args.script : request.args.body;
+      if (!checkFaithfulness(claims, withDerivedNumbers(evidence)).ok) return { result: { status: 'denied', code: 'invalid_arguments', reason: 'The proposed communication contains figures not verified by this task’s evidence. Read the supporting records or remove the unsupported figures.' }, audit };
+    }
+
+    if (scope.source === 'inbound' && descriptor?.mutates && (request.toolName !== 'send_external_message' || request.args.conversation_id !== scope.conversationId || request.args.to !== undefined || request.args.provider !== undefined)) return { result: { status: 'denied', code: 'permission_denied', reason: 'An inbound-message task can only reply to its originating conversation.' }, audit };
+  }
+
+  if (descriptor && !descriptor.unimplemented && (descriptor.mutates || request.toolName === 'request_execution_plan')) {
+    const authority = await executionAuthority(request.subject.organizationId, request.subject.userId, request.task?.id, request.toolName, request.args);
+    if (!authority.role || (descriptor.requiredPermission === 'messaging.send.external' && authority.role === 'member' && !request.task?.approvalId && !authority.planned)) return { result: { status: 'denied', code: 'permission_denied', reason: 'Current workspace membership does not authorize this action.' }, audit };
+    request = { ...request, context: { ...request.context, autonomyMode: authority.mode, approvedPlanAction: authority.planned } };
+  }
   const decision = evaluate(request.toolName, request.args, request.subject, request.context ?? {});
   if (decision.effect === "deny") {
     return { result: { status: "denied", code: decision.code, reason: decision.reason }, audit };
   }
   const tool = decision.tool;
+  const shape = validateToolArguments(TOOL_SCHEMAS.get(tool.name), request.args);
+  if (!shape.ok) return { result: { status: 'denied', code: 'invalid_arguments', reason: shape.problems.join(' ') }, audit };
   const financialDecision = tool.financial
     ? await evaluateFinancialProposal(request.subject.organizationId, tool, request.args)
     : null;
@@ -244,7 +297,7 @@ async function runWithRetries(
   for (let attempt = 1; attempt <= tool.maxRetries + 1; attempt++) {
     try {
       const out = await withTimeout(
-        runTool(tool.name, request.args, request.subject.organizationId),
+        runTool(tool.name, request.args, request.subject.organizationId, request.task ? `${request.task.id}:${tool.name}:${await digestPayload(canonicalAction(request.args))}` : _key ?? undefined),
         tool.timeoutMs,
         tool.name,
       );

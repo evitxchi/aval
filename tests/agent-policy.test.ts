@@ -43,7 +43,7 @@ test("a final-answer tool is never executable as a capability", () => {
 });
 
 test("declared-but-unwired tools are denied, so declaring one grants nothing", () => {
-  for (const name of ["issue_payment", "execute_lease", "dispatch_vendor", "send_external_message"]) {
+  for (const name of ["issue_payment", "execute_lease", "dispatch_vendor"]) {
     const decision = evaluate(name, { amount_cents: 100, currency: "USD" }, OWNER, { personaId: "general" });
     assert.equal(decision.effect, "deny", `${name} should be denied`);
     assert.equal(decision.effect === "deny" && decision.code, "not_implemented");

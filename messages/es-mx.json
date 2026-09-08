@@ -57,7 +57,9 @@
     "stepsOf": "{used} de {max} pasos",
     "subtitle": "Objetivos en los que trabajan los agentes, paso a paso: cada llamada a una herramienta, cada decisión de política y todo lo que espera tu aprobación.",
     "title": "Ejecución de agentes",
-    "tokensUsed": "{used} de {max} tokens"
+    "tokensUsed": "{used} de {max} tokens",
+    "suggestedAgent": "Sugerido: {agent}",
+    "chooseSuggested": "Elegir este agente"
   },
   "AskAvalTasks": {
     "cancel": "Cancelar",
@@ -1540,7 +1542,7 @@
     "step": "{current} de {total}",
     "progress": "Progreso de configuración",
     "chooseHint": "Elige las opciones que correspondan. Puedes omitir este paso.",
-    "callsHint": "Guardaré tu preferencia. Puedes conectar un número en Conexiones.",
+    "callsHint": "Elige tu preferencia. Agrega tu número de Twilio y las rutas del equipo en Conexiones para activar llamadas.",
     "autonomyHint": "Elige cómo quieres que trabajemos. Se mantienen los permisos del espacio de trabajo.",
     "settingsHint": "Tus opciones se guardan en tu cuenta. Cámbialas en Configuración → Preferencias.",
     "control": "¿Cómo mantienes el control?",
@@ -1592,17 +1594,17 @@
     "autonomy": {
       "supervised": {
         "visibilityTitle": "Sigue cada paso",
-        "visibility": "Revisa las comunicaciones y acciones propuestas antes de realizarlas.",
+        "visibility": "Aval recomienda un especialista, reúne evidencia y propone acciones para tu revisión.",
         "control": "Solicitar aprobación antes de cada comunicación o acción."
       },
       "assisted": {
         "visibilityTitle": "Empieza con un plan claro",
-        "visibility": "Revisa el enfoque que Aval propone para cada asunto.",
+        "visibility": "Aprueba un plan con acciones y destinos específicos y deja que Aval lo ejecute.",
         "control": "Prefiere aprobar un plan y seguir su progreso. Se mantienen las aprobaciones obligatorias."
       },
       "autonomous": {
         "visibilityTitle": "Sigue el progreso en Aval",
-        "visibility": "Avanza con el trabajo rutinario y revisa la actividad en tu espacio.",
+        "visibility": "Aval investiga, ejecuta trabajo rutinario permitido e informa los resultados en tu espacio.",
         "control": "Prefiere menos consultas. Las acciones sensibles siguen las reglas de aprobación del espacio."
       }
     }
@@ -1627,5 +1629,46 @@
       "needs_review": "Importación pausada. Revisa el problema.",
       "interrupted": "Se interrumpió el proceso. Se reintentará la página guardada."
     }
+  },
+  "Communications": {
+    "loading": "Cargando la configuración de llamadas…",
+    "noDeliveries": "Todavía no hay actividad de entregas.",
+    "title": "Llamadas y enrutamiento al equipo",
+    "description": "Aval responde con tu saludo, reconoce el equipo solicitado y conecta la llamada. Si nadie responde, intenta el número de respaldo.",
+    "enabled": "Activar la atención de llamadas de Aval",
+    "from": "Tu número de Twilio",
+    "fallback": "Número de respaldo",
+    "greeting": "Saludo de Aval",
+    "team": "Equipo",
+    "number": "Teléfono del equipo",
+    "keywords": "Palabras clave, separadas por comas",
+    "remove": "Eliminar ruta",
+    "add": "Agregar equipo",
+    "save": "Guardar rutas",
+    "saving": "Guardando…",
+    "saved": "Rutas guardadas.",
+    "loadError": "No se pudo cargar la configuración.",
+    "saveError": "No se pudieron guardar las rutas.",
+    "webhooks": "Después de conectar Twilio, configura estas direcciones webhook POST en tu número de Twilio.",
+    "voice": "Llamadas entrantes",
+    "recent": "Actividad de entregas reciente"
+  },
+  "ConnectionOperations": {
+    "noSources": "No hay bandejas con actualización automática.",
+    "noForms": "Esta página no devolvió formularios de prospectos.",
+    "title": "Actualizar bandeja e importar prospectos",
+    "description": "Actualiza mensajes recientes o importa una página de consultas de Meta a Arrendamientos. Conecta primero el proveedor.",
+    "provider": "Proveedor",
+    "resource": "ID del espacio o chat",
+    "working": "Procesando…",
+    "forms": "Buscar formularios",
+    "refresh": "Actualizar mensajes recientes",
+    "import": "Importar consultas",
+    "next": "Cargar siguiente página",
+    "failed": "Falló la operación con el proveedor.",
+    "imported": "Se importaron {count} registros nuevos.",
+    "automatic": "Mantener esta bandeja actualizada automáticamente",
+    "active": "Actualización automática activada",
+    "stop": "Detener actualización automática"
   }
 }

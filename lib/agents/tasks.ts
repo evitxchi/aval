@@ -42,6 +42,8 @@ export {
 } from "./task-state.ts";
 
 export interface NewTask {
+  id?: string;
+  executionScope?: { source: "inbound"; conversationId: string };
   organizationId: string;
   userId: string;
   agentId: string;
@@ -59,6 +61,7 @@ export interface TaskRecord {
   agentId: string;
   goal: string;
   status: TaskState;
+  executionScopeJson: string;
   transcriptJson: string;
   stepCount: number;
   maxSteps: number;
@@ -82,7 +85,8 @@ export interface TaskRecord {
 export async function createTask(input: NewTask): Promise<TaskRecord> {
   const now = new Date();
   const row = {
-    id: crypto.randomUUID(),
+    id: input.id ?? crypto.randomUUID(),
+    executionScopeJson: JSON.stringify(input.executionScope ?? {}),
     organizationId: input.organizationId,
     userId: input.userId,
     agentId: input.agentId,
@@ -107,7 +111,7 @@ export async function createTask(input: NewTask): Promise<TaskRecord> {
     updatedAt: now,
     finishedAt: null,
   };
-  await getDb().insert(agentTasks).values(row);
+  await getDb().insert(agentTasks).values(row).onConflictDoNothing();
   return row as TaskRecord;
 }
 

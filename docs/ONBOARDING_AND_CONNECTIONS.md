@@ -4,7 +4,7 @@
 
 Authenticated accounts complete seven resumable onboarding steps: existing software, work priorities, communication, documents, calls, marketing, and preferred collaboration style. Steps can be skipped, except the collaboration preference defaults to assisted. Choices belong to the signed-in user and current workspace, persist in D1, and can be edited in Settings → Preferences. Optimistic revisions prevent stale tabs from silently replacing another save. Load/save failures show retry or reload guidance. The signed-out path remains outside this account-only flow.
 
-Completed choices accompany Ask Aval requests as context. Selecting software does not connect it; selecting autonomous collaboration does not change tool permissions, execution policy, or approval requirements.
+Completed choices accompany Ask Aval requests as context. Selecting software does not connect it. Durable tasks now enforce the selected collaboration mode: supervised actions require review, assisted actions require individual approval or an approved plan with exact arguments, and autonomous tasks can perform routine permitted actions. Publication and financial actions retain their approval gates. Mode changes never grant tool permissions or bypass workspace membership checks.
 
 ## Connection readiness
 

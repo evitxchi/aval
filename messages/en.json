@@ -57,7 +57,9 @@
     "stepsOf": "{used} of {max} steps",
     "subtitle": "Goals the agents are working, step by step: every tool call, every policy decision, and anything held for your approval.",
     "title": "Agent execution",
-    "tokensUsed": "{used} of {max} tokens"
+    "tokensUsed": "{used} of {max} tokens",
+    "suggestedAgent": "Suggested: {agent}",
+    "chooseSuggested": "Choose this agent"
   },
   "AskAvalTasks": {
     "cancel": "Cancel",
@@ -1540,7 +1542,7 @@
     "step": "{current} of {total}",
     "progress": "Setup progress",
     "chooseHint": "Choose any that apply. You can skip this for now.",
-    "callsHint": "I’ll remember your preference. You can connect a phone number in Connections.",
+    "callsHint": "Choose your preference. Add your Twilio number and team routes in Connections to enable calls.",
     "autonomyHint": "Choose how you’d like to work together. Workspace permissions still apply.",
     "settingsHint": "Your choices are saved to your account. Change them anytime in Settings → Preferences.",
     "control": "How do you stay in control?",
@@ -1592,17 +1594,17 @@
     "autonomy": {
       "supervised": {
         "visibilityTitle": "Stay close to every step",
-        "visibility": "Review proposed communications and actions before they happen.",
+        "visibility": "Aval recommends a specialist, gathers evidence, and proposes actions for your review.",
         "control": "Ask for approval before each outreach or action."
       },
       "assisted": {
         "visibilityTitle": "Start with a clear plan",
-        "visibility": "Review the approach Aval proposes for each issue.",
+        "visibility": "Approve a plan with specific actions and destinations, then let Aval carry it out.",
         "control": "Prefer approving a plan, then following its progress. Required approvals still apply."
       },
       "autonomous": {
         "visibilityTitle": "Follow progress in Aval",
-        "visibility": "Keep routine work moving and review activity in your workspace.",
+        "visibility": "Aval investigates, executes permitted routine work, and reports outcomes in your workspace.",
         "control": "Prefer fewer check-ins. Sensitive actions still follow your workspace’s approval rules."
       }
     }
@@ -1627,5 +1629,46 @@
       "needs_review": "Import paused. Review the issue below.",
       "interrupted": "The worker was interrupted. The saved page will be retried."
     }
+  },
+  "Communications": {
+    "loading": "Loading call settings…",
+    "noDeliveries": "No delivery activity yet.",
+    "title": "Calls and team routing",
+    "description": "Aval answers with your greeting, recognizes the requested team, and connects the call. If the team does not answer, Aval tries your fallback number.",
+    "enabled": "Enable Aval call handling",
+    "from": "Your Twilio number",
+    "fallback": "Fallback team number",
+    "greeting": "Aval’s greeting",
+    "team": "Team",
+    "number": "Team phone number",
+    "keywords": "Matching words, separated by commas",
+    "remove": "Remove team route",
+    "add": "Add team",
+    "save": "Save routing",
+    "saving": "Saving…",
+    "saved": "Call routing saved.",
+    "loadError": "Call settings could not be loaded.",
+    "saveError": "Call routing could not be saved.",
+    "webhooks": "After connecting Twilio, use these POST webhook addresses on your Twilio phone number.",
+    "voice": "Incoming calls",
+    "recent": "Recent delivery activity"
+  },
+  "ConnectionOperations": {
+    "noSources": "No inboxes are refreshing automatically.",
+    "noForms": "No lead forms were returned by this Page.",
+    "title": "Inbox refresh and marketing leads",
+    "description": "Refresh recent messages from an authorized inbox, or import a page of Meta inquiries into Leasing. Connect the provider first.",
+    "provider": "Provider",
+    "resource": "Space or chat ID",
+    "working": "Working…",
+    "forms": "Find lead forms",
+    "refresh": "Refresh recent messages",
+    "import": "Import inquiries",
+    "next": "Load next page",
+    "failed": "The provider operation failed.",
+    "imported": "Imported {count} new records.",
+    "automatic": "Keep this inbox refreshed automatically",
+    "active": "Automatic refresh enabled",
+    "stop": "Stop automatic refresh"
   }
 }

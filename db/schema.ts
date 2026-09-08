@@ -1062,6 +1062,7 @@ export const agentTasks = sqliteTable(
     status: text("status").notNull(),
     // Conversation state, so a resumed run continues rather than restarting.
     // Sized by maxSteps and the model's own max_tokens, not unbounded.
+    executionScopeJson: text("execution_scope_json").notNull().default("{}"),
     transcriptJson: text("transcript_json").notNull().default("[]"),
     stepCount: integer("step_count").notNull().default(0),
     maxSteps: integer("max_steps").notNull(),
@@ -1335,3 +1336,38 @@ export const workspaceUsage = sqliteTable("workspace_usage", {
   id: text("id").primaryKey(), organizationId: text("organization_id").notNull().references(() => organizations.id),
   userId: text("user_id").notNull(), minute: integer("minute").notNull(),
 }, t => [uniqueIndex("workspace_usage_subject_minute").on(t.organizationId, t.userId, t.minute)]);
+
+/** Durable provider operations: reserve before sending; uncertain outcomes are never blindly retried. */
+export const communicationDeliveries = sqliteTable("communication_deliveries", {
+  id: text("id").primaryKey(),
+  organizationId: text("organization_id").notNull().references(() => organizations.id),
+  connectionId: text("connection_id").notNull().references(() => integrationConnections.id),
+  requestKey: text("request_key").notNull(),
+  payloadDigest: text("payload_digest").notNull(),
+  kind: text("kind").notNull(),
+  destination: text("destination").notNull(),
+  body: text("body").notNull(),
+  status: text("status").notNull().default("sending"),
+  providerId: text("provider_id"),
+  error: text("error"),
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+}, (t) => [uniqueIndex("communication_deliveries_org_request_uq").on(t.organizationId, t.requestKey), index("communication_deliveries_org_created_idx").on(t.organizationId, t.createdAt)]);
+
+export const communicationSettings = sqliteTable("communication_settings", {
+  organizationId: text("organization_id").primaryKey().references(() => organizations.id),
+  configJson: text("config_json").notNull().default("{}"),
+  updatedBy: text("updated_by").notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+});
+
+export const communicationPollSources = sqliteTable('communication_poll_sources', {
+ id: text('id').primaryKey(),
+ organizationId: text('organization_id').notNull().references(()=>organizations.id),
+ provider: text('provider').notNull(),
+ resourceId: text('resource_id').notNull().default(''),
+ enabled: integer('enabled',{mode:'boolean'}).notNull().default(true),
+ lastAttemptAt: integer('last_attempt_at',{mode:'timestamp_ms'}),
+ lastSuccessAt: integer('last_success_at',{mode:'timestamp_ms'}),
+ error: text('error'),
+}, t=>[uniqueIndex('communication_poll_source_uq').on(t.organizationId,t.provider,t.resourceId),index('communication_poll_due_idx').on(t.enabled,t.lastAttemptAt)]);

@@ -55,6 +55,8 @@ export interface ToolDescriptor {
   requiresApproval: boolean;
   /** Declared-but-unwired: policy denies these until an executor exists. */
   unimplemented?: true;
+  /** Routine external actions can follow the selected execution mode. */
+  routine?: boolean;
   /** Extra deterministic checks for money-moving tools (financial.ts). */
   financial?: {
     /** Argument holding the amount, in minor units (cents). */
@@ -134,8 +136,13 @@ const DESCRIPTORS: ToolDescriptor[] = [
   // denies every one of them (`unimplemented`), so declaring them here grants
   // nothing today and forces the next mutating feature to arrive with a risk
   // level, a permission and an approval posture already decided.
-  { name: "send_external_message", summary: "Send a message to a resident or vendor over a real channel.", riskLevel: "high", mutates: true, requiredPermission: "messaging.send.external", timeoutMs: 20_000, maxRetries: 0, idempotent: false, requiresApproval: true, unimplemented: true },
-  { name: "publish_listing", summary: "Publish a unit listing to an external marketplace.", riskLevel: "high", mutates: true, requiredPermission: "listing.publish", timeoutMs: 20_000, maxRetries: 0, idempotent: false, requiresApproval: true, unimplemented: true },
+  { name: "send_external_message", summary: "Send a message to a resident or vendor over a real channel.", riskLevel: "high", mutates: true, requiredPermission: "messaging.send.external", timeoutMs: 20_000, maxRetries: 0, idempotent: false, requiresApproval: true, routine: true },
+  { name: "place_call", summary: "Place a call and optionally connect a configured team.", riskLevel: "high", mutates: true, requiredPermission: "messaging.send.external", timeoutMs: 20000, maxRetries: 0, idempotent: false, requiresApproval: true, routine: true },
+  { ...READ_DEFAULTS, name: "get_communication_channels", summary: "Connected channels and team routes.", requiredPermission: "portfolio.read" },
+  { ...READ_DEFAULTS, name: "list_conversations", summary: "Real workspace conversations.", requiredPermission: "portfolio.read" },
+  { ...READ_DEFAULTS, name: "request_execution_plan", summary: "Approve exact actions in a task plan.", requiredPermission: "preferences.write", requiresApproval: true },
+  { ...READ_DEFAULTS, name: "get_marketing_channels", summary: "Marketing channel readiness.", requiredPermission: "leasing.read" },
+  { name: "publish_listing", summary: "Publish a unit listing to an external marketplace.", riskLevel: "high", mutates: true, requiredPermission: "listing.publish", timeoutMs: 20_000, maxRetries: 0, idempotent: false, requiresApproval: true },
   { name: "dispatch_vendor", summary: "Dispatch a vendor to a work order.", riskLevel: "high", mutates: true, requiredPermission: "vendor.dispatch", timeoutMs: 20_000, maxRetries: 0, idempotent: false, requiresApproval: true, unimplemented: true },
   {
     name: "authorize_vendor_spend",

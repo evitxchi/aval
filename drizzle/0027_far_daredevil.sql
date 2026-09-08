@@ -1,0 +1,1 @@
+ALTER TABLE `agent_tasks` ADD `execution_scope_json` text DEFAULT '{}' NOT NULL;

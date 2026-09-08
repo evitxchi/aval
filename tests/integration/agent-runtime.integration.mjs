@@ -84,6 +84,9 @@ test("the shared demo workspace is read-only to agents", async () => {
   assert.match(trace(await tasks.listSteps(guest.id, "org_public_demo")), /policy_deny:record_preference/);
 
   scriptModel(useTool("record_preference", preference), conclude("Noted"));
+  const { writeOnboarding } = await import('../../lib/onboarding/storage.ts');
+  const { DEFAULT_ONBOARDING } = await import('../../lib/onboarding/preferences.ts');
+  await writeOnboarding('user_1','org_1',{...structuredClone(DEFAULT_ONBOARDING),preferences:{...structuredClone(DEFAULT_ONBOARDING.preferences),autonomy:['autonomous']}});
   const member = await newTask(tasks, "Remember this");
   await runtime.advanceTask(ENV, "org_1", member.id, runtime.newWorkerId());
   assert.equal(
