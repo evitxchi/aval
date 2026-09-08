@@ -88,6 +88,8 @@ interface TaskDetail extends TaskSummary {
   parentTaskId: string | null;
   result: { headline?: string; narrative?: string } | null;
   trace: TraceEntry[];
+  plan?: { revision: number; nodes: { id: string; key: string; goal: string; status: string; dependencies: string; error: string | null }[] } | null;
+  checks?: { step: number; exitCode: number; output: { problems?: string[]; scope?: string } | null }[];
 }
 
 interface PendingApproval {
@@ -311,7 +313,23 @@ function TaskCard({ task, detail, expanded, busy, onToggle, onCancel }: {
         <div className="agent-task-detail">
           {detail ? (
             <>
+              {detail.plan?.nodes.length ? <section className="agent-task-result">
+                <p className="eyebrow">{t("AgentTrace.goalPlan", { revision: detail.plan.revision })}</p>
+                <ol className="agent-plan-nodes">{detail.plan.nodes.map(node => <li key={node.id}>
+                  <strong>{node.goal}</strong><span>{label("status", node.status)}</span>
+                  {node.dependencies !== "[]" && <small>{t("AgentTrace.dependsOn", { keys: (JSON.parse(node.dependencies) as string[]).join(", ") })}</small>}
+                  {node.error && <p className="agent-task-failure">{node.error}</p>}
+                </li>)}</ol>
+              </section> : null}
               <TraceSteps trace={detail.trace}/>
+              {!!detail.checks?.length && <section className="agent-task-result">
+                <p className="eyebrow">{t("AgentTrace.completionChecks")}</p>
+                {detail.checks.map((check, index) => <div key={index} className={check.exitCode ? "agent-task-failure" : "agent-check-passed"}>
+                  <strong>{t(check.exitCode ? "AgentTrace.checkFailed" : "AgentTrace.checkPassed", { step: check.step + 1 })}</strong>
+                  {check.output?.problems?.map(problem => <p key={problem}>{problem}</p>)}
+                </div>)}
+                <small>{t("AgentTrace.checkScope")}</small>
+              </section>}
 
               {detail.result?.headline && (
                 <div className="agent-task-result">

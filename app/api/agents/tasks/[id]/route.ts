@@ -1,3 +1,7 @@
+import { and, eq, asc } from "drizzle-orm";
+import { getDb } from "@/db";
+import { agentChecks } from "@/db/schema";
+import { goalPlan } from "@/lib/agents/goal-plan";
 import { getApiIdentity } from "@/lib/integrations/session";
 import { ensureOrganization } from "@/lib/integrations/organizations";
 import { serializeTraceStep } from "@/lib/agents/trace-view";
@@ -27,6 +31,8 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   if (!task) return Response.json({ error: "No such task" }, { status: 404 });
 
   const steps = await listSteps(id, identity.organizationId);
+  const plan = await goalPlan(identity.organizationId, task.parentTaskId ?? id);
+  const checks = await getDb().select().from(agentChecks).where(and(eq(agentChecks.organizationId, identity.organizationId), eq(agentChecks.taskId, id))).orderBy(asc(agentChecks.createdAt));
   return Response.json({
     id: task.id,
     agentId: task.agentId,
@@ -41,6 +47,10 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     createdAt: task.createdAt,
     finishedAt: task.finishedAt,
     trace: steps.map(serializeTraceStep),
+    completionCondition: safeParse(task.checkJson ?? "{}"),
+    deadlineAt: task.deadlineAt,
+    plan,
+    checks: checks.map(check => ({ step: check.stepIndex, exitCode: check.exitCode, output: safeParse(check.outputJson), at: check.createdAt })),
   }, { headers: { "cache-control": "no-store" } });
 }
 

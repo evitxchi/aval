@@ -1,0 +1,82 @@
+[
+  {
+    "probe": "false_success_no_action",
+    "status": "COMPLETED",
+    "deliveries": 0
+  },
+  {
+    "probe": "step_cap",
+    "taskId": "95c044bf-8aeb-4d66-b514-0f6b6ee5b09a",
+    "status": "FAILED",
+    "stepsRun": 2,
+    "error": "Reached the 2-step limit without a conclusion."
+  },
+  {
+    "probe": "token_cap",
+    "taskId": "8be47708-c134-4e0a-a445-99a11e5ae021",
+    "status": "FAILED",
+    "stepsRun": 1,
+    "error": "Exhausted the task's token budget."
+  },
+  {
+    "probe": "invocation_deadline",
+    "taskId": "142ec8fd-fa0e-43f5-9b76-781413f203f9",
+    "status": "QUEUED",
+    "stepsRun": 0
+  },
+  {
+    "probe": "context_overflow",
+    "contextChars": 500030,
+    "status": "COMPLETED"
+  },
+  {
+    "probe": "goal_decomposition",
+    "status": "COMPLETED",
+    "children": 0
+  },
+  {
+    "probe": "memory_history",
+    "rows": 1
+  },
+  {
+    "probe": "check_coverage",
+    "queued": 6,
+    "checkColumns": []
+  },
+  {
+    "probe": "tool_boundary",
+    "toolName": "shell",
+    "result": {
+      "status": "denied",
+      "code": "unknown_tool",
+      "reason": "No tool named \"shell\" is registered."
+    }
+  },
+  {
+    "probe": "tool_boundary",
+    "toolName": "write_file",
+    "result": {
+      "status": "denied",
+      "code": "unknown_tool",
+      "reason": "No tool named \"write_file\" is registered."
+    }
+  },
+  {
+    "probe": "tool_boundary",
+    "toolName": "fetch_url",
+    "result": {
+      "status": "denied",
+      "code": "unknown_tool",
+      "reason": "No tool named \"fetch_url\" is registered."
+    }
+  },
+  {
+    "probe": "tool_boundary",
+    "toolName": "issue_payment",
+    "result": {
+      "status": "denied",
+      "code": "not_implemented",
+      "reason": "\"issue_payment\" is declared but has no executor."
+    }
+  }
+]

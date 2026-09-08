@@ -10,6 +10,12 @@
     "riskAnalystLabel": "Analista de Riesgo"
   },
   "AgentTrace": {
+    "goalPlan": "Plan del objetivo · revisión {revision}",
+    "dependsOn": "Después de: {keys}",
+    "completionChecks": "Verificaciones de finalización",
+    "checkPassed": "Paso {step}: verificación aprobada",
+    "checkFailed": "Paso {step}: verificación fallida",
+    "checkScope": "Las verificaciones de análisis confirman el acceso a evidencia y cifras respaldadas. No certifican cada afirmación escrita.",
     "agentLabel": "Agente",
     "approvalNote": "Nada se ejecuta hasta que decidas. Aval preparó esta acción; el backend la verifica de nuevo antes de ejecutarla.",
     "approvalProgress": "{received} de {required} aprobaciones distintas registradas.",

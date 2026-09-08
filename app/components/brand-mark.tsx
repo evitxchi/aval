@@ -22,6 +22,7 @@ function TwilioMark() { return <svg viewBox="0 0 24 24" aria-label="Twilio" role
  *
  */
 export const PROVIDER_ASSETS: Readonly<Record<string, string>> = {
+  yardi: "/brand/providers/yardi.png",
   zoopla: "/brand/providers/zoopla.png",
   onedrive: "/brand/providers/onedrive.svg",
   sme_professional: "/brand/providers/sme_professional.png",

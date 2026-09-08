@@ -1752,3 +1752,8 @@ html.aval-module-picking .content-shell { cursor: crosshair; }
 .agent-approval-args dd { white-space:pre-wrap; overflow-wrap:anywhere; max-height:320px; overflow:auto; }
 .agent-suggestion { display:flex; gap:10px; align-items:center; margin:12px 0; font-size:13px; }
 @media(max-width:700px) { .communication-fields,.communication-route { grid-template-columns:1fr; } }
+
+.agent-plan-nodes { margin: 8px 0; padding-inline-start: 20px; display: grid; gap: 12px; }
+.agent-plan-nodes li > strong, .agent-plan-nodes li > small { display: block; overflow-wrap: anywhere; }
+.agent-plan-nodes li > span { font-size: 11px; color: var(--quiet); }
+.agent-check-passed { margin-block: 8px; }

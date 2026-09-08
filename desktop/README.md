@@ -58,3 +58,7 @@ npm run package:mac:local -- --config.extraMetadata.avalDesktopUrl=http://127.0.
 This changes only the local artifact. The default release still opens the hosted app.
 Refresh the DMG when delivering application changes; do not distribute an older installer
 alongside a newer local build. Local installers are ad-hoc signed and not notarized.
+
+If port 3000 belongs to another project, run `AVAL_LOCAL_PORT=3010 npm run start:local`
+and package with `--config.extraMetadata.avalDesktopUrl=http://127.0.0.1:3010`.
+The September 7 harness-audit delivery uses port 3010 to preserve the active KiraLabs server.

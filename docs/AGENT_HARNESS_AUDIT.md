@@ -106,9 +106,132 @@ transcripts are inspectable; preference upserts erase prior beliefs. The system 
 train its weights or establish that it outperforms a general LLM. Any such claim requires
 matched real-task evaluations for correctness, latency, and cost.
 
-## Remediation log
+## Remediation results — resumed September 7
 
-Pending. The list above was recorded and reported before production-code changes.
-The user's current instruction authorizes proceeding in severity order without another
-approval round. External account/contract limitations will remain explicitly distinguished
-from code and fixture verification.
+The baseline above remains the pre-change report. The user authorized remediation in
+that session, then requested resumption in this terminal. Authority isolation was already
+committed as `b7accd1`; this resumption preserves and completes the interrupted changes.
+The completion contracts, planner, and memory tools share the task schema and runtime;
+they are delivered together to keep the runtime buildable, followed by the trace surface.
+
+| Subsystem | Current verdict | Executed evidence and limits |
+| --- | --- | --- |
+| Persistence | VERIFIED | SIGKILL after a file-backed checkpoint, restart in a new process, continuation from step one to two. A 500,000-character history causes explicit context eviction while the full transcript stays stored. Immutable, timestamped scratchpad and model-frame journals reconstruct earlier steps. |
+| Goal loop | VERIFIED | Multipart goal creates separate tasks; dependencies block until prerequisites complete. Failure is returned to the root; a second revision changes the approach while preserving unfinished checks. Third revision and total-task overflow are rejected. |
+| Verification | VERIFIED / INADEQUATE | All new tasks require a typed check. False delivery fails three checks, with the failure in repair context. Wrong destination/channel and mere acceptance cannot satisfy a delivery requirement. However, evidence access and numeric consistency do not prove every qualitative claim or that a model-chosen plan captures the user's whole intent. This semantic gap remains open. |
+| Guardrails | VERIFIED / INADEQUATE | Server caps, authority, approval gates, context bounds, and unknown-tool refusals pass executable probes. A provider call already in flight cannot be undone at the wall-clock deadline; exact upstream billing after a killed request and the desktop provider's actual OS sandbox remain unverified. |
+
+### Closed implementation findings
+
+1. Child execution re-reads every ancestor's permissions, cancellation, terminal state,
+   and deadline. Direct delegation and planned children share a reserved parent budget;
+   children inherit the original deadline. Inbound tasks remain confined to their thread.
+2. `check_json` is mandatory at task creation. Legacy rows with `{}` fail before a model
+   call rather than receiving an invented check. Checks run as deterministic harness code
+   outside the model session and write immutable `agent_checks` records with exit codes.
+   There are zero unchecked tasks admitted by the new creation path; no production-wide
+   count of historical rows was performed. Existing completed records are preserved.
+3. Root goals only plan; operational tools execute in checked children. Plans have stable
+   keys, dependencies, statuses, check contracts, and a bounded revision history.
+   Completed child evidence can support parent figures; invented figures still fail.
+4. `read_memory`, `write_memory`, and paged `read_task_history` expose task-scoped history.
+   Notes are append-only, limited to 48 entries of 4,000 characters, and never automatically
+   injected. Every model request and returned response is stored with a digest, including
+   rejected proposals. SQL triggers reject update/delete of journals and checks.
+5. Context assembly uses a conservative UTF-8 byte bound for token reservation, reserves
+   response capacity, and records eviction explicitly. Full transcripts are retained;
+   this is deliberate eviction with retrieval, not a model-generated summary.
+6. Terminal updates must acknowledge the current lease. A replacement worker prevents
+   the old worker from claiming it saved a completion. Expired human approvals cannot
+   cause a send after the task's deadline. Delivery receipt checks bind organization,
+   task, operation, destination, channel, and required provider status.
+7. Task detail now exposes the current plan and check results in English and Spanish.
+   Failed check trace rows use a denial tone. Source, model frames, step records, tool
+   results, and checker output provide a reconstruction trail without exposing credentials
+   in the normal task-detail response.
+
+### Individually exercised limits
+
+| Limit | Verdict | Probe |
+| --- | --- | --- |
+| Successful model turns | VERIFIED | Two-step task stops after exactly two responses. API root maximum is 24, shared with children. |
+| Token admission | VERIFIED | One-token task makes zero model calls; context plus response capacity is reserved before dispatch. This is a conservative estimate, not provider billing certification. |
+| Context | VERIFIED | Oversized history is evicted with an explicit marker and remains recoverable from disk. |
+| Invocation time | VERIFIED | Expired invocation yields with zero model calls. |
+| Task deadline | VERIFIED | Expired task fails before model work; approved send and descendants of an expired parent cannot execute. In-flight requests still have their own finite timeout. |
+| Model retry | VERIFIED | Initial provider error plus four retries; the fifth failed call is terminal. Further worker invocations make no call. |
+| Read-tool retry | VERIFIED | Broken provider-storage read produces exactly three attempts, two retry records, and one terminal tool error. |
+| Mutation retry | VERIFIED | Ambiguous send is retained as unknown and never re-sent; a later callback-confirmed result survives an HTTP timeout. |
+| Tool fanout | VERIFIED | Five tool proposals in one turn fail before execution; at most four proposals and one mutation are allowed. |
+| Completion repair | VERIFIED | Initial failed check plus two repair attempts; three failures terminate the task. |
+| Replan | VERIFIED | Initial plan plus one replacement; third revision is refused. |
+| Total planned children | VERIFIED | Eight-node history refuses further allocation without changing the root budget; at most four children per revision. |
+| Scratchpad | VERIFIED | Forty-ninth entry is rejected; historical entries cannot be overwritten. |
+| Desktop input/context | VERIFIED | 601-character question and oversized 48,000-character context are rejected before a turn. |
+| Desktop RPC/turn timeout | VERIFIED | Clock-driven probes reject stalled RPC and two-minute turn; concurrent turns in one conversation are refused. |
+| Desktop filesystem/network | PRESENT / UNVERIFIED | Fake RPC verifies explicit command/file/MCP refusals and read-only/no-network requests. It does not prove upstream OS enforcement. |
+
+The server tool surface has no shell, arbitrary file writer, or general HTTP fetch tool.
+Executable attempts to write `/outside-workspace/probe` or fetch an arbitrary URL are
+refused as unknown tools with zero network requests. Provider adapters use fixed HTTPS
+origins and refuse redirects; their request/response fixtures do not contact live accounts.
+
+### Compounding risk after remediation
+
+The API admits at most 24 successful model turns per root goal, sharing that allowance
+with its children. Each operational task must pass its completion contract before its
+result is accepted. Up to four additional failed provider calls per task can occur under
+the separate retry cap; failed requests may have upstream costs that cannot be proven
+from a lost response. At most eight planned children plus the root exist in the exposed
+planner path. A single task can still reason through its entire remaining turn budget
+before its final independent check. Policy checks on every tool call constrain authority;
+they do not prove intermediate reasoning correct.
+
+The turn bound does not establish semantic correctness: qualitative claims throughout
+those turns are not fully machine verified. The remaining semantic finding must not
+be described as closed or silently accepted out of scope. Prompts remain versioned source
+strings; model frames and task scratchpad entries are inspectable database artifacts.
+No learning of model weights or superiority over general LLMs has been demonstrated.
+
+### Earlier communications, branding, and mode request
+
+- Shared brand rendering covers the identified catalog providers, including the Yardi
+  asset previously left unused. Peach Software and RM Cloud retain explicit text marks
+  pending exact vendor identification; no guessed logo or integration contract was added.
+- Existing onboarding keeps typed questions, staggered options, responsive grids,
+  reduced-motion support, saved preferences, and later editing in Settings. No visual
+  browser QA was performed in this resumption.
+- Outbound adapters for Slack, Google Chat, Teams, Telegram, WhatsApp, Gmail, Outlook,
+  and Twilio now have executable request/acknowledgement fixtures. Twilio calls include
+  automated-assistant disclosure, escaped scripts, configured team routing, callbacks,
+  and a call-duration bound. This is scripted voice and team transfer, not a free-form
+  conversational voice agent.
+- Inbound speech/keypad routing, signed callbacks, inbox polling, sender confinement,
+  membership revocation, mode changes, exact-plan approval, and deduplication are covered
+  by the retained routing and integration tests. Meta fixtures cover organic Page posts
+  and bounded cursor-based lead access; property portals remain blocked by partner access
+  and unimplemented vendor-specific contracts.
+- Supervised reviews external actions; assisted allows exact approved actions;
+  autonomous permits routine actions within existing permissions. Meta publication always
+  requires approval. Payments, dispatch, lease execution, pushes, and deploys cannot be
+  executed by these tools. Internal plan/scratchpad writes are automatic and recorded.
+- API keys alone do not finish every catalog integration. Provider app approval, scopes,
+  account contracts, webhook/public-URL configuration, and live validation remain required.
+  See `ONBOARDING_AND_CONNECTIONS.md` for the provider-by-provider limitations.
+
+### Validation and remaining decisions
+
+Current executed suites: 486 unit/render/desktop tests and 117 runtime integration tests.
+TypeScript passes; both locales contain 1,554 matching keys. Lint has zero errors and five
+existing image warnings. Build, local migration, packaging, and publication results are
+recorded in `RESUME_STATUS.md` after delivery.
+
+Run `npm test` for the complete suite. Targeted adversarial tests are in
+`tests/integration/harness-audit.integration.mjs`, communications tests, and the desktop
+bridge tests. Baseline probe output is preserved in `docs/audit/harness-baseline.json`.
+
+Remaining findings have **not** been accepted as out of scope by the user: broad semantic
+success verification, exact lost-request billing reconciliation, upstream desktop sandbox
+proof, and a real-task accuracy/latency comparison. External credentials and ambiguous
+vendor identities also remain outstanding. The audit report is complete; blanket harness
+certification and the entire original integration wish list are not complete.
