@@ -12,6 +12,9 @@ export const ENV = { ANTHROPIC_API_KEY: "test-key", ANTHROPIC_MODEL: "claude-opu
  * faithful; the networking is not exercised.
  */
 export async function bootRuntime(path = ":memory:") {
+  // Plumbing fixture only. Semantic/adversarial tests override this separately;
+  // its canned approval is never evidence of real reviewer/model accuracy.
+  globalThis.__SEMANTIC_MODEL__ = async (_env, _org, params) => semanticFixture(JSON.parse(params.messages[0].content));
   const sqlite = new DatabaseSync(path);
   sqlite.exec("PRAGMA foreign_keys = ON");
   if(!sqlite.prepare("SELECT name FROM sqlite_master WHERE name='agent_tasks'").get()) for (const file of readdirSync("drizzle").filter((name) => name.endsWith(".sql")).sort()) {
@@ -63,4 +66,26 @@ export function useTool(name, input = {}, id = "tu_tool") {
 export function scriptModel(...turns) {
   let index = 0;
   globalThis.__MODEL__ = async () => turns[Math.min(index++, turns.length - 1)];
+}
+
+export function semanticFixture(packet, overrides = {}) {
+  const source = packet.sources.find(s => !s.failed && s.data && typeof s.data === 'object' && Object.keys(s.data).length);
+  const pointer = source ? '/' + Object.keys(source.data)[0].replaceAll('~', '~0').replaceAll('/', '~1') : '/fixture';
+  return reply([{type:'tool_use', id:'semantic_fixture', name:'semantic_verdict', input: {
+    passed: true,
+    requirements: [{ requirement: packet.goal, satisfied: true, explanation: 'Scripted plumbing fixture, not a quality evaluation.', nodeKeys: packet.phase === 'plan' ? packet.proposal.tasks.map(n => n.key) : [] }],
+    claims: packet.phase === 'plan' ? [] : [{ claim: 'Scripted claim', kind: 'fact', supported: true, citations: [{ sourceId: source?.id ?? 'absent', pointer }] }],
+    issues: [], ...overrides,
+  }}]);
+}
+
+/** Explicit test-only plan review fixture for allocation tests, bypassing no production code. */
+export async function writeReviewedPlan(org, rootId, nodes, key) {
+  const { agentChecks } = await import('../../db/schema.ts');
+  const { getTask } = await import('../../lib/agents/tasks.ts');
+  const { digestPayload } = await import('../../lib/audit/chain.ts');
+  const { writeGoalPlan } = await import('../../lib/agents/goal-plan.ts');
+  const root = await getTask(org, rootId);
+  await globalThis.__DB__.insert(agentChecks).values({ id: crypto.randomUUID(), organizationId: org, taskId: rootId, stepIndex: root.stepCount - 1, exitCode: 0, outputJson: JSON.stringify({ phase: 'plan', reviewer: 'independent-session-v1', proposalDigest: await digestPayload({ tasks: nodes }) }), createdAt: new Date() });
+  return writeGoalPlan(org, rootId, nodes, key);
 }

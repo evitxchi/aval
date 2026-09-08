@@ -184,3 +184,22 @@ GET    /api/agents/health            owner scope or bearer-auth global scope
 
 These are release gates, not hidden TODOs. See the runbook's action-enablement
 gate before widening authority.
+
+
+### Independent semantic review
+
+Durable plans and final answers now pass `lib/agents/semantic-review.ts`. Plans are checked
+before allocating children; final answers retain the existing stored-outcome and numeric
+checks and then receive a separate model-session review. The reviewer has no action tools.
+Its source packet excludes actor prose and scratchpad, includes completed dependency raw
+observations and stored delivery receipts, and refuses oversized context rather than
+truncating it. Requirements, claims and citations are parsed fail-closed; source IDs and
+JSON pointers must exist. Natural-language entailment remains a probabilistic model judgment.
+
+`agent_model_contexts` retains semantic requests/responses, and `agent_checks` stores the
+verdict and proposal digest. Plan persistence requires a matching review from the current
+step. Reviewer tokens are included in task usage before child budgets are allocated.
+At most one reviewer call occurs per actor turn, within the existing time/token limits;
+review calls do not add actor steps. Failed checks share the two-repair allowance.
+Reviewer unavailability withholds completion, including when a provider has no API credit.
+See `AGENT_HARNESS_AUDIT.md` for evaluation results and the remaining live-quality limitation.

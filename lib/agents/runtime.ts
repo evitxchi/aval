@@ -1,5 +1,7 @@
 import { getDb } from '@/db';
-import { agentModelContexts } from '@/db/schema';
+import { agentChecks, agentModelContexts } from '@/db/schema';
+import { semanticPacket } from './semantic-evidence';
+import { SEMANTIC_REVIEW_SYSTEM, SEMANTIC_REVIEW_TOOL, parseSemanticVerdict, type ReviewPacket } from './semantic-review';
 import { assembleContext, byteCount, MAX_CONTEXT_BYTES } from './context';
 import { planReadiness, goalPlan } from './goal-plan';
 import { getTool } from './registry';
@@ -235,6 +237,40 @@ Task completion condition: ${task.checkJson}. The harness verifies it independen
     };
   };
 
+  const review = async (phase: ReviewPacket['phase'], proposal: unknown, stepIndex: number) => {
+    const packet = await semanticPacket(task!, messages, phase, proposal);
+    const params = { system: SEMANTIC_REVIEW_SYSTEM, messages: [{ role: 'user' as const, content: JSON.stringify(packet) }], tools: [SEMANTIC_REVIEW_TOOL], tool_choice: { type: 'tool' as const, name: 'semantic_verdict' }, max_tokens: 1800 };
+    const proposalDigest = await digestPayload(proposal);
+    const scope = { phase, proposalDigest, reviewer: 'independent-session-v1' };
+    const fresh = await getTask(organizationId, taskId);
+    const timeout = Math.min(25_000, deadline - Date.now(), (fresh?.deadlineAt?.getTime() ?? 0) - Date.now());
+    const remaining = (fresh?.maxTokens ?? 0) - task!.tokensUsed - inputTokens - outputTokens;
+    if (!fresh || fresh.cancelRequested || fresh.leaseOwner !== workerId || timeout <= 0 ||
+        byteCount(params) + params.max_tokens > Math.min(MAX_CONTEXT_BYTES, remaining) ||
+        await checkUsageBlocked(env, { orgId: organizationId, userId: task!.userId })) {
+      return { ...scope, exitCode: 1, problems: ['Semantic review could not run within the available lease, time, context, or token budget.'] };
+    }
+    const frame = async (value: unknown) => {
+      const contextJson = JSON.stringify(value);
+      await getDb().insert(agentModelContexts).values({ id: crypto.randomUUID(), organizationId, taskId, stepIndex, contextJson, digest: await digestPayload(contextJson), createdAt: new Date() });
+    };
+    await frame({ kind: 'semantic_request', ...scope, ...params });
+    try {
+      const response = await callModel(env, organizationId, { ...params, timeout_ms: timeout });
+      inputTokens += response.usage.input_tokens;
+      outputTokens += response.usage.output_tokens;
+      await frame({ kind: 'semantic_response', ...scope, response });
+      await persistStep({ taskId, organizationId, stepIndex, kind: 'model_call', toolName: 'semantic_verdict', modelProvider: response.routing?.providerId, modelName: response.routing?.model, resultDigest: await digestPayload(response.content) });
+      audit.push({ kind: 'model_call', label: 'semantic_verdict', payloadDigest: await digestPayload(response.content), count: stepIndex });
+      const current = await getTask(organizationId, taskId);
+      if (!current || current.cancelRequested || current.leaseOwner !== workerId || Date.now() >= Math.min(deadline, current.deadlineAt?.getTime() ?? 0) || task!.tokensUsed + inputTokens + outputTokens > current.maxTokens)
+        return { ...scope, exitCode: 1, problems: ['The task stopped or exhausted its budget during semantic review.'] };
+      return { ...scope, ...parseSemanticVerdict(response, packet) };
+    } catch (err) {
+      return { ...scope, exitCode: 1, problems: [err instanceof AnthropicError ? `Semantic review unavailable: ${err.message}` : 'Semantic review failed; completion was withheld.'] };
+    }
+  };
+
   try {
     try{parseTaskCheck(contract);}catch{return finish('FAILED',{error:'This legacy task needs an explicit completion condition before it can run.'});}
     if(readiness.failure)return finish('FAILED',{error:readiness.failure});
@@ -356,7 +392,7 @@ Task completion condition: ${task.checkJson}. The harness verifies it independen
           return finish("FAILED", { error: "The conclusion referenced figures that aren't in the underlying data, so it was withheld." });
         }
         messages.push({role:'assistant',content:res.content});
-        const verification=await checkTask(task,messages,stepIndex);
+        const verification=await checkTask(task,messages,stepIndex,()=>review('answer',answer,stepIndex));
         await persistStep({taskId,organizationId,stepIndex,kind:'verification_check',policyEffect:verification.exitCode?'deny':'allow',resultDigest:await digestPayload(verification),error:verification.exitCode?verification.problems.join(' '):undefined});
         if(verification.exitCode!==0){
           messages.push({role:'user',content:[{type:'tool_result',tool_use_id:final.id,is_error:true,content:JSON.stringify(verification)}]});
@@ -382,6 +418,22 @@ Task completion condition: ${task.checkJson}. The harness verifies it independen
       const results: ContentBlock[] = [];
 
       for (const use of toolUses) {
+        if (use.name === 'plan_goal') {
+          const verification = await review('plan', use.input, stepIndex);
+          await getDb().insert(agentChecks).values({ id: crypto.randomUUID(), organizationId, taskId, stepIndex, exitCode: verification.exitCode, outputJson: JSON.stringify(verification), createdAt: new Date() });
+          await persistStep({ taskId, organizationId, stepIndex, kind: 'verification_check', toolName: 'plan_goal', policyEffect: verification.exitCode ? 'deny' : 'allow', resultDigest: await digestPayload(verification), error: verification.exitCode ? verification.problems.join(' ') : undefined });
+          if (verification.exitCode) {
+            results.push({ type: 'tool_result', tool_use_id: use.id, content: JSON.stringify(verification), is_error: true });
+            if (await failedCheckCount(organizationId, taskId) > MAX_CHECK_REPAIRS) {
+              messages.push({ role: 'user', content: results });
+              return finish('FAILED', { error: 'Plan checks failed after bounded repair: ' + verification.problems.join(' ') });
+            }
+            continue;
+          }
+          // Allocation reads the stored usage. Include actor AND reviewer costs
+          // before reserving budgets for child tasks; a lost lease stops here.
+          const lost = await checkpoint(); if (lost) return lost;
+        }
         const outcome = await executeTool({
           toolName: use.name,
           args: use.input,

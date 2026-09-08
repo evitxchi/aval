@@ -1,6 +1,6 @@
 import { and, eq, sql } from 'drizzle-orm';
 import { getDb } from '@/db';
-import { agentPlanNodes, agentTasks } from '@/db/schema';
+import { agentChecks, agentPlanNodes, agentTasks } from '@/db/schema';
 import { createTask, getTask, type TaskRecord } from './tasks';
 import { parseTaskCheck, type TaskCheck } from './checks';
 import { digestPayload } from '@/lib/audit/chain';
@@ -64,6 +64,10 @@ export async function writeGoalPlan(org: string, rootId: string, value: unknown,
         throw Error('Only an active root goal may create a plan.');
     let scope = JSON.parse(root.executionScopeJson), plan = scope.plan as Plan | undefined;
     if (plan?.requestKey !== requestKey) {
+        const proposalDigest = await digestPayload({ tasks: value });
+        const reviews = await getDb().select({ output: agentChecks.outputJson }).from(agentChecks).where(and(eq(agentChecks.organizationId, org), eq(agentChecks.taskId, rootId), eq(agentChecks.stepIndex, root.stepCount - 1), eq(agentChecks.exitCode, 0)));
+        if (!reviews.some(row => { const review = JSON.parse(row.output); return review.phase === 'plan' && review.reviewer === 'independent-session-v1' && review.proposalDigest === proposalDigest; }))
+            throw Error('A matching independent semantic plan review is required before allocating work.');
         const prior = await goalPlan(org, rootId);
         if (plan && prior?.nodes.some(n => n.status === 'RUNNING' || n.status === 'WAITING_FOR_APPROVAL'))
             throw Error('Wait for running or approval-pending work before replanning.');

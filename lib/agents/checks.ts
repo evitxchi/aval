@@ -34,7 +34,7 @@ export function parseTaskCheck(value: unknown): TaskCheck {
         return { kind: 'preference', topic: c.topic, statement: c.statement };
     throw Error('Choose an evidence, delivery, preference, or plan completion condition.');
 }
-export async function checkTask(task: TaskRecord, messages: Message[], stepIndex: number) {
+export async function checkTask(task: TaskRecord, messages: Message[], stepIndex: number, review?: () => Promise<{ exitCode: number; problems: string[]; [key: string]: unknown }>) {
     const problems: string[] = [];
     let check: TaskCheck | undefined;
     try {
@@ -91,7 +91,10 @@ export async function checkTask(task: TaskRecord, messages: Message[], stepIndex
         if (!current.length || current.some(n => n.status !== 'COMPLETED'))
             problems.push('The goal needs a persisted plan whose required tasks all pass their independent checks.');
     }
-    const output = { exitCode: problems.length ? 1 : 0, check: check ?? null, problems, scope: check?.kind === 'evidence' ? 'Evidence access and numeric consistency; not a certification of every natural-language claim.' : 'Stored task outcomes' };
+    const semantic = !problems.length && review ? await review() : undefined;
+    if (semantic) problems.push(...semantic.problems);
+    if (semantic?.exitCode && !problems.length) problems.push('Semantic review did not pass.');
+    const output = { exitCode: problems.length ? 1 : 0, check: check ?? null, problems, ...(semantic ? { semantic } : {}), scope: semantic ? 'Stored outcomes plus independent probabilistic semantic review; not a proof of truth.' : 'Stored task outcomes and evidence access' };
     await getDb().insert(agentChecks).values({ id: crypto.randomUUID(), organizationId: task.organizationId, taskId: task.id, stepIndex, exitCode: output.exitCode, outputJson: JSON.stringify(output), createdAt: new Date() });
     return output;
 }

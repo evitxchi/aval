@@ -1,0 +1,44 @@
+{
+  "checkedAt": "2026-09-08T17:00:40.711Z",
+  "status": "blocked_external_configuration",
+  "local": {
+    "origin": "http://127.0.0.1:3010",
+    "connectedBusinessProviders": 0,
+    "result": "blocked_no_connected_providers",
+    "checkedAt": "2026-09-08T17:20:52.164Z"
+  },
+  "privateSite": {
+    "origin": "https://portero-operations-mx.evalxnder.chatgpt.site",
+    "storedConnections": 0,
+    "result": "blocked_no_connected_providers",
+    "latestAccessCheck": {
+      "checkedAt": "2026-09-08T17:19:00Z",
+      "result": "blocked_project_not_found",
+      "note": "Prior stored inventory was not revalidated in this resumption."
+    }
+  },
+  "cloudflareProduction": {
+    "database": "aval-production",
+    "readOnlyInventory": [
+      {
+        "provider": "chatgpt",
+        "status": "connected",
+        "connections": 3
+      },
+      {
+        "provider": "whatsapp_personal",
+        "status": "verification_failed",
+        "connections": 1
+      }
+    ],
+    "liveProviderCalls": "not_run_no_authenticated_workspace_session",
+    "connectedPropertyManagementProviders": 0
+  },
+  "anthropic": {
+    "model": "claude-sonnet-5",
+    "liveHttpStatus": 400,
+    "reason": "insufficient_credits",
+    "evaluationReport": "semantic-live-evaluation.json"
+  },
+  "externalMessagesCallsAndPostsSent": 0
+}

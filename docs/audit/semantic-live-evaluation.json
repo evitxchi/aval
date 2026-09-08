@@ -1,0 +1,12 @@
+{
+  "checkedAt": "2026-09-08T17:07:44.380Z",
+  "provider": "anthropic",
+  "model": "claude-sonnet-5",
+  "dataset": "synthetic-semantic-v1",
+  "status": "blocked_provider",
+  "results": [],
+  "error": {
+    "httpStatus": 400,
+    "reason": "The Anthropic API account has insufficient credits. Its administrator must add API credits in Claude Console. (HTTP 400; insufficient_credits; request req_011CerLedYXLNYVRuGkY6sSY)"
+  }
+}

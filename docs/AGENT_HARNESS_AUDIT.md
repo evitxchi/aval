@@ -178,8 +178,9 @@ origins and refuse redirects; their request/response fixtures do not contact liv
 
 ### Compounding risk after remediation
 
-The API admits at most 24 successful model turns per root goal, sharing that allowance
-with its children. Each operational task must pass its completion contract before its
+The API admits at most 24 actor turns per root goal, sharing that allowance
+with its children. The September 8 semantic gate adds at most one separate reviewer call
+per actor turn, within the same shared token and time limits. Each operational task must pass its completion contract before its
 result is accepted. Up to four additional failed provider calls per task can occur under
 the separate retry cap; failed requests may have upstream costs that cannot be proven
 from a lost response. At most eight planned children plus the root exist in the exposed
@@ -221,7 +222,7 @@ No learning of model weights or superiority over general LLMs has been demonstra
 
 ### Validation and remaining decisions
 
-Current executed suites: 486 unit/render/desktop tests and 117 runtime integration tests.
+Current executed suites: 486 unit/render/desktop tests and 126 runtime integration tests.
 TypeScript passes; both locales contain 1,554 matching keys. Lint has zero errors and five
 existing image warnings. Build, local migration, packaging, and publication results are
 recorded in `RESUME_STATUS.md` after delivery.
@@ -235,3 +236,61 @@ success verification, exact lost-request billing reconciliation, upstream deskto
 proof, and a real-task accuracy/latency comparison. External credentials and ambiguous
 vendor identities also remain outstanding. The audit report is complete; blanket harness
 certification and the entire original integration wish list are not complete.
+
+
+## Semantic and live-provider follow-up — September 8, 2026
+
+**Implemented, with model-quality validation blocked.** The durable runtime now requests
+an independent semantic verdict before plan allocation and after stored-outcome checks on
+a final answer. The reviewer runs in a separate session through the workspace's configured
+model router; it can use the same underlying model as the actor. It has only a verdict tool,
+with no operational authority. This is a probabilistic check, not an independent source of
+truth or a mathematical proof of goal coverage.
+
+The review packet contains the original goal, completion contract, proposed plan/answer,
+paired tool observations, raw evidence from completed dependencies, and task-scoped stored
+delivery receipts including body, destination and status. Failed observations are retained
+as limitations; actor prose and scratchpad notes cannot become evidence. Failed or unrelated
+children cannot supply facts. Oversized packets are refused rather than silently truncated.
+
+The reviewer must decompose requirements, check goal coverage and appropriate action
+contracts, and assess factual claims against the right entity, metric, time, unit, causal
+support, and provider outcome. The parser requires a complete, consistent verdict and
+valid source IDs and JSON pointers. It rejects missing claims, fabricated citations,
+incomplete output, and unsupported requirements. Pointer existence is deterministic;
+whether a cited fact actually supports a natural-language claim still relies on the model.
+
+A plan write requires an exact proposal digest and a passed review from its current step.
+Actor and reviewer usage is checkpointed before child budgets are reserved. Reviewer input,
+output, route and verdict are append-only. Both gates reuse the existing two-repair limit;
+unavailable reviewers, exhausted budgets, cancellation and lease changes withhold completion.
+No schema migration or production-signing change was needed.
+
+Executable tests demonstrate that the old numeric/evidence gates accept a wrong-metric
+conclusion, and that a rejecting reviewer prevents it from completing after bounded repairs.
+They also cover malformed approvals, missing citations, omitted actions, proof binding,
+reviewer usage, unavailable inference, oversized evidence and interrupted tasks. Existing
+runtime tests use an explicitly labeled passing review fixture for plumbing; these results
+do not establish live reviewer accuracy or resistance to all prompt injections.
+
+`tests/fixtures/semantic-cases.mjs` defines 16 labeled cases: metric/entity/period/unit swaps,
+omitted requirements, unsupported causes, missing-data/zero confusion, tool-text injection,
+acceptance versus delivery, wrong message content, weak plans, and valid controls. Execute
+`node scripts/evaluate-semantic-review.mjs .dev.vars` for actual Anthropic calls using local
+configuration, or omit the path and supply environment variables. This synthetic evaluation
+is separate from a real-workspace accuracy/latency comparison.
+
+The live run contacted Anthropic and received HTTP 400, `insufficient_credits`; zero labeled
+cases produced verdicts. Local and private Sites inventories have no connected business
+providers. A read-only production D1 query found three connected ChatGPT records and one
+`verification_failed` personal WhatsApp record, with no connected PMS provider. Stored
+connection status is not proof of usable live access. No authenticated production workspace
+session was available for invoking those account-bound model connections. No customer
+messages, calls or posts were sent. Exact safe results are in
+`docs/audit/live-provider-validation.json` and `docs/audit/semantic-live-evaluation.json`.
+
+**Still open:** live semantic accuracy and false-positive/false-negative measurement,
+real-account integration validation, universal semantic success verification, lost-request
+billing, upstream desktop sandbox proof, and matched real-task accuracy/latency comparison.
+The new review gate narrows the original semantic finding; it does not justify blanket
+certification. A funded model and connected business accounts are required for the next live run.

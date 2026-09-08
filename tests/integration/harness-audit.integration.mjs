@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {bootRuntime} from './harness.mjs';
+import {bootRuntime,writeReviewedPlan as writeGoalPlan} from './harness.mjs';
 test('delegated execution preserves ancestor permissions and reserves a shared budget',async()=>{
  const sqlite=await bootRuntime();const tasks=await import('../../lib/agents/tasks.ts');const {delegate}=await import('../../lib/agents/delegation.ts');const {executeTool}=await import('../../lib/agents/executor.ts');
  const parent=await tasks.createTask({ check:{kind:"evidence",tools:["get_portfolio_metrics"]},organizationId:'org_1',userId:'user_1',agentId:'riskAnalyst',goal:'Review risks.'});
@@ -46,7 +46,7 @@ test('goal plans are inspectable, dependency ordered, and completed only after c
  assert.equal((await run(root.id)).status,'WAITING_FOR_TOOL');const plan=await goalPlan('org_1',root.id);assert.equal(plan.nodes.length,2);
  const first=plan.nodes.find(n=>n.key==='channels'),second=plan.nodes.find(n=>n.key==='conversations');
  assert.equal((await run(second.id)).stepsRun,0);assert.equal((await run(first.id)).status,'COMPLETED');assert.equal((await run(second.id)).status,'COMPLETED');assert.equal((await run(root.id)).status,'COMPLETED');
- assert.equal(sqlite.prepare('SELECT count(*) n FROM agent_checks WHERE exit_code=0').get().n,3);
+ assert.equal(sqlite.prepare('SELECT count(*) n FROM agent_checks WHERE exit_code=0').get().n,4);
 });
 
 test('SIGKILL recovery resumes a file-backed checkpoint in a different process',async()=>{
@@ -74,7 +74,7 @@ test('scratchpad writes are timestamped, immutable, scoped, and readable as of a
 });
 
 test('failed dependencies trigger bounded replanning without deleting or weakening checks',async()=>{
- const sqlite=await bootRuntime();const {createTask}=await import('../../lib/agents/tasks.ts');const {writeGoalPlan,goalPlan,planReadiness}=await import('../../lib/agents/goal-plan.ts');
+ const sqlite=await bootRuntime();const {createTask}=await import('../../lib/agents/tasks.ts');const {goalPlan,planReadiness}=await import('../../lib/agents/goal-plan.ts');
  const root=await createTask({organizationId:'org_1',userId:'user_1',agentId:'general',goal:'Inspect channels then conversations',maxSteps:24,check:{kind:'plan'}});
  const nodes=[{key:'channels',goal:'Inspect channels',dependsOn:[],check:{kind:'evidence',tools:['get_communication_channels']}},{key:'conversations',goal:'Inspect conversations',dependsOn:['channels'],check:{kind:'evidence',tools:['list_conversations']}}];
  await writeGoalPlan('org_1',root.id,nodes,'first');let plan=await goalPlan('org_1',root.id);sqlite.prepare("UPDATE agent_tasks SET status='FAILED',error='provider unavailable' WHERE id=?").run(plan.nodes[0].id);
@@ -101,7 +101,7 @@ test('step, token, invocation, wall-clock, fanout and memory caps each trip inde
 test('a worker that loses its lease cannot report a saved completion',async()=>{
  const sqlite=await bootRuntime();const {createTask}=await import('../../lib/agents/tasks.ts');const runtime=await import('../../lib/agents/runtime.ts');const {ENV,useTool:modelTool,conclude}=await import('./harness.mjs');const task=await createTask({organizationId:'org_1',userId:'user_1',agentId:'general',goal:'Inspect channels',check:{kind:'evidence',tools:['get_communication_channels']}});let calls=0;
  globalThis.__MODEL__=async()=>{if(calls++===0)return modelTool('get_communication_channels');sqlite.prepare("UPDATE agent_tasks SET lease_owner='replacement' WHERE id=?").run(task.id);return conclude('Complete');};
- const result=await runtime.advanceTask(ENV,'org_1',task.id,runtime.newWorkerId());assert.equal(result.status,'RUNNING');assert.match(result.error,/lease changed/);assert.equal(sqlite.prepare('SELECT result_json FROM agent_tasks WHERE id=?').get(task.id).result_json,null);
+ const result=await runtime.advanceTask(ENV,'org_1',task.id,runtime.newWorkerId());assert.equal(result.status,'RUNNING');assert.match(result.error,/lease changed|Lease lost/);assert.equal(sqlite.prepare('SELECT result_json FROM agent_tasks WHERE id=?').get(task.id).result_json,null);
 });
 
 test('task retry exhaustion stops after the initial call and four retries', async () => {
@@ -153,7 +153,7 @@ test('expired or stopped parents refuse child execution and deadlines are inheri
 });
 
 test('goal task ceiling refuses further children before allocating spend',async()=>{
- const sqlite=await bootRuntime();const {createTask,getTask}=await import('../../lib/agents/tasks.ts');const {writeGoalPlan}=await import('../../lib/agents/goal-plan.ts');
+ const sqlite=await bootRuntime();const {createTask,getTask}=await import('../../lib/agents/tasks.ts');
  const root=await createTask({organizationId:'org_1',userId:'user_1',agentId:'general',goal:'Inspect channels',maxSteps:24,check:{kind:'plan'}});
  const node={key:'channels',goal:'Inspect channels',dependsOn:[],check:{kind:'evidence',tools:['get_communication_channels']}};
  // Exercise the independent total-task ceiling even if prior revisions consumed it.
@@ -163,7 +163,7 @@ test('goal task ceiling refuses further children before allocating spend',async(
 });
 
 test('parent conclusions can cite completed child evidence but cannot invent figures',async()=>{
- const sqlite=await bootRuntime();const {createTask}=await import('../../lib/agents/tasks.ts');const {writeGoalPlan,goalPlan}=await import('../../lib/agents/goal-plan.ts');
+ const sqlite=await bootRuntime();const {createTask}=await import('../../lib/agents/tasks.ts');const {goalPlan}=await import('../../lib/agents/goal-plan.ts');
  const runtime=await import('../../lib/agents/runtime.ts');const {ENV,conclude}=await import('./harness.mjs');
  for(const amount of [731,999]) {
   const root=await createTask({organizationId:'org_1',userId:'user_1',agentId:'general',goal:'Summarize verified child revenue',maxSteps:24,check:{kind:'plan'}});

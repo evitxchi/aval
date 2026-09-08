@@ -31,7 +31,7 @@ server running while using this installer. Production signing requirements are u
 
 ## Verification
 
-**603 tests pass:** 486 unit/render/desktop tests and 117 runtime integration tests.
+**612 tests pass:** 486 unit/render/desktop tests and 126 runtime integration tests.
 TypeScript passes and 1,554 translation keys match. Lint reports zero errors and five
 existing image-element warnings. The final production build passes.
 
@@ -55,8 +55,9 @@ Read `AGENT_HARNESS_AUDIT.md` for the full before/after report and individual ve
 The audit report is complete; it explicitly retains unclosed findings for broad semantic
 success verification, lost-request billing reconciliation, actual upstream desktop sandbox
 proof, and matched real-task correctness/latency evaluation. These are not claimed fixed
-or accepted out of scope. Passing evidence-access checks does not certify every written
-claim or that a model-generated plan fully captures the user's intent.
+or accepted out of scope. The September 8 follow-up adds separate model-session review of plans and answers,
+with bounded repairs and recorded evidence. Its live accuracy remains unmeasured;
+fixture results do not certify goal coverage or factual correctness.
 
 Peach Software and RM Cloud still need exact vendor identification. Partner-only portals
 and other unavailable products listed in `ONBOARDING_AND_CONNECTIONS.md` need their actual
@@ -83,3 +84,31 @@ does not cover the separate Cloudflare production database.
 The separate GitHub/Cloudflare deployment is unchanged. No push to GitHub `main` was made
 in this resumption, and its previously reported billing/spending-limit failure was not
 rechecked. Scratch helpers in `.local-work/` are retained locally, outside the delivery commits.
+
+
+## September 8 semantic-review delivery resumption
+
+Recovered the exact preceding Codex session through its saved transcript; Terminal UI
+access was denied by the computer-use tool. The previous turn ended on a Codex usage
+limit after the full test/build and app/ZIP packaging succeeded, before DMG completion.
+
+- Separate plan and answer reviews are implemented. Review requests, responses and
+  verdicts are persisted; invalid evidence, unavailable review, and stopped tasks cannot
+  complete. Plan allocation requires a matching current-step verdict.
+- Recovered final verification: 612 passing tests, successful typecheck, 1,554 matching
+  translation keys, successful production build, and zero lint errors (five existing
+  image warnings). No application source changed after those checks.
+- Refreshed the DMG from the completed desktop package. Embedded metadata confirms
+  http://127.0.0.1:3010. Desktop startup, deep code-signature verification, DMG integrity,
+  and the refreshed DMG/ZIP SHA-256 checks pass. The installer is not notarized.
+- Restarted the local server. Both language pages, integration catalog and task API
+  return HTTP 200. The catalog contains 64 providers and zero connected business
+  providers. The live validator again returned `blocked_no_connected_providers`.
+- The recorded Anthropic evaluation failed with HTTP 400 `insufficient_credits`; no
+  labeled case produced a verdict. It was not rerun against the unchanged account.
+- Sites now returns `project_not_found` for the existing saved project ID. No duplicate
+  Site was created and this semantic-review update has not been published through Sites.
+  The earlier version-5 publication above remains historical evidence.
+
+Real-account provider validation and live reviewer accuracy remain blocked on usable
+connections and model funding. The remaining audit findings are explicitly retained.

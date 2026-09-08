@@ -59,7 +59,7 @@ test("an authorized tool executes and a denied one is recorded, not thrown", asy
   scriptModel(modelTool("get_portfolio_metrics"), conclude("Portfolio reviewed"));
   const allowed = await newTask(tasks, "Review the portfolio");
   assert.equal((await runtime.advanceTask(ENV, "org_1", allowed.id, runtime.newWorkerId())).status, "COMPLETED");
-  assert.equal(trace(await tasks.listSteps(allowed.id, "org_1")), "model_call tool_call:get_portfolio_metrics model_call verification_check");
+  assert.equal(trace(await tasks.listSteps(allowed.id, "org_1")), "model_call tool_call:get_portfolio_metrics model_call model_call:semantic_verdict verification_check");
 
   // issue_payment is declared but unwired, so policy refuses it. The run adapts
   // instead of failing: a refusal is evidence, not an outage.
@@ -91,7 +91,7 @@ test("the shared demo workspace is read-only to agents", async () => {
   await runtime.advanceTask(ENV, "org_1", member.id, runtime.newWorkerId());
   assert.equal(
     trace(await tasks.listSteps(member.id, "org_1")),
-    "model_call mutation_reserved:record_preference tool_call:record_preference model_call verification_check",
+    "model_call mutation_reserved:record_preference tool_call:record_preference model_call model_call:semantic_verdict verification_check",
     "an authenticated workspace reserves the key before it mutates",
   );
 });

@@ -29,7 +29,7 @@ const ROOT = fileURLToPath(new URL("../..", import.meta.url)).replace(/\/$/, "")
 const VIRTUAL = {
   "cloudflare:workers": "export const env = globalThis.__CF_ENV__ ?? {};",
   "@/db": "export function getDb() { return globalThis.__DB__; }",
-  "@/lib/ask-aval/model-router": "export async function callModel(env, orgId, params) { return globalThis.__MODEL__(env, orgId, params); }",
+  "@/lib/ask-aval/model-router": "export async function callModel(env, orgId, params) { return (params.tool_choice?.name === 'semantic_verdict' ? globalThis.__SEMANTIC_MODEL__ : globalThis.__MODEL__)(env, orgId, params); }",
 };
 const virtualUrl = (s) => `debugstub:${encodeURIComponent(s)}`;
 
