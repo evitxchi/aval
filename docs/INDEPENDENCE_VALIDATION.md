@@ -26,7 +26,7 @@ The user-facing **Test independence & agents** module has been removed. Setup ha
 
 Synthetic validation runs from the terminal via `npm run validate:independence`; it does not create a testing surface in the product. The mode examples are illustrations and are not evidence of runtime or model accuracy.
 
-The follow-up live comparison is incomplete: the prior run found issues and reached a Codex usage limit. It uses `npm run compare:agents:codex`. See [AGENT_LLM_COMPARISON.md](AGENT_LLM_COMPARISON.md) for the measured results, failed baseline, and limits.
+The September 9 live comparison finished with zero successful task completions: all three execution/approval sequences passed, but reviewer timeouts and invalid repair proposals blocked completion. It uses `npm run compare:agents:codex`. See [AGENT_LLM_COMPARISON.md](AGENT_LLM_COMPARISON.md) for the measured results, failed baseline, and limits.
 
 ## Current executed validation (0.1.12)
 
@@ -36,7 +36,7 @@ The follow-up live comparison is incomplete: the prior run found issues and reac
 - DMG integrity, deep code signature and DMG/ZIP SHA-256 verification passed; embedded metadata confirms version 0.1.12 and local port 3010.
 - Both language pages return HTTP 200 from the refreshed local server.
 - Refreshed native-app inspection confirmed mode examples and the tour launcher in Settings preferences. Full tour interaction was not completed: the app window became unavailable during inspection. Pointer geometry has automated regression coverage.
-- Live inference remains incomplete; the comparison report preserves the failed runs and usage-limit error. No claims of live provider certification are made.
+- The September 9 live comparison exercised all three modes; execution assertions passed but end-to-end completion failed on reviewer timeouts and invalid repair proposals. Failed earlier runs and usage-limit evidence are preserved. No claims of live provider certification are made.
 
 ## Earlier executed validation (0.1.10)
 

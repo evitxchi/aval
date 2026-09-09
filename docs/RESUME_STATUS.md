@@ -2,6 +2,8 @@
 
 ## Current delivery
 
+September 9 validation follow-up: the fresh three-mode live comparison finished with **zero successful task completions**. All modes read maintenance evidence and performed two exact synthetic sends with two/one/zero approvals; no duplicate or real business messages were sent. Each mode had two reviewer timeouts followed by an invalid actor proposal. No usage-limit error occurred in this run. See `docs/AGENT_LLM_COMPARISON.md` and `docs/audit/agent-llm-comparison-2026-09-09.json`. The earlier interrupted rerun is preserved as `agent-llm-comparison-rerun.json`. Application code, the private site and the 0.1.12 local installer are unchanged by this validation-only follow-up. Next: completion-review latency/scheduling and malformed-proposal recovery, followed by another full live comparison.
+
 ### Latest checkpoint
 
 - Source commit: `5178da1ccc02f43561a881b043b5da7b64c8c2b6` on `fix/codex-live-validation`; pushed to the existing Sites source repository, not GitHub `main`.
