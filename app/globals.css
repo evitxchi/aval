@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "./settings.css";
 @import "./onboarding.css";
+@import "./tutorial.css";
 
 @theme inline {
   --color-background: var(--surface);
@@ -92,13 +93,7 @@
 html, body { min-height: 100%; }
 html { scroll-behavior: smooth; }
 body { margin: 0; background: var(--canvas); color: var(--ink); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
-/* Titlebar drag strip. Must stay below the overlay layer (.dialog-overlay is
-   100) so dialogs and the notification drawer, which reaches y=15px, keep
-   their top edge clickable instead of being swallowed by the drag region. */
-html.aval-desktop-runtime body::before { content: ""; position: fixed; z-index: 10; inset: 0 0 auto; height: 36px; -webkit-app-region: drag; }
-html.aval-desktop-runtime .app-shell { padding-top: 36px; }
-html.aval-desktop-runtime .sidebar { top: 36px; height: calc(100vh - 44px); }
-html.aval-desktop-runtime .content-shell { min-height: calc(100vh - 44px); }
+/* The desktop shell uses a native title bar; web controls need no drag overlay. */
 /* Overflow safety net: a long unbroken string (a pasted key, a URL, an
    unusually long name with no spaces) can otherwise force a grid/flex
    track — and with it, a rounded pill/card container — wider than its

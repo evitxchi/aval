@@ -102,6 +102,29 @@ test('successful review accounts tokens and preserves the exact independent requ
   assert.equal(check.semantic.exitCode, 0);
 });
 
+test('UUID row citations reach independent review without numeric false positives', async () => {
+  const { sqlite, tasks, task, run } = await setup();
+  const id = '7fdb5dc2-154a-41d3-a3d7-1b7dd85314f3';
+  const stored = await tasks.getTask('org_1', task.id);
+  const transcript = JSON.parse(stored.transcriptJson);
+  transcript[2].content[0].content = JSON.stringify({ ...packet.sources[0].data, id });
+  sqlite.prepare('UPDATE agent_tasks SET transcript_json=? WHERE id=?').run(JSON.stringify(transcript), task.id);
+  const answer = conclude('Revenue', 'Oak revenue was USD 1200.');
+  answer.content[0].input.evidence_ids = [id];
+  scriptModel(answer);
+  let reviewed = false;
+  globalThis.__SEMANTIC_MODEL__ = async (_e, _o, params) => {
+    const evidence = JSON.parse(params.messages[0].content);
+    assert.deepEqual(evidence.proposal.evidence_ids, [id]);
+    assert.equal(evidence.sources[0].data.id, id);
+    reviewed = true;
+    return semanticFixture(evidence);
+  };
+  assert.equal((await run()).status, 'COMPLETED');
+  assert.equal(reviewed, true);
+  assert.deepEqual(JSON.parse((await tasks.getTask('org_1', task.id)).resultJson).evidence_ids, [id]);
+});
+
 test('unavailable reviewer, revoked lease, cancellation and oversized evidence never complete', async () => {
   for (const mode of ['unavailable', 'lease', 'cancel', 'oversize', 'budget']) {
     const { sqlite, task, tasks, run } = await setup();

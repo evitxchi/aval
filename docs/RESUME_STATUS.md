@@ -2,6 +2,10 @@
 
 ## Current delivery
 
+September 8 late-evening resumption: recovered the preceding interrupted session. Mode examples now live in onboarding and Settings preferences; the module tour launcher is in Settings; Setup has no testing module or mode examples. The arrow is outside the tour card and aligned with its highlighted target. The live agent comparison remains **incomplete**, with failed runs preserved and a usage-limit blocker. Fixed UUID citation false positives and clarified Assisted multi-action plan instructions; see [AGENT_LLM_COMPARISON.md](AGENT_LLM_COMPARISON.md). Current local delivery is 0.1.12 at port 3010, ad-hoc signed and not notarized. Older delivery/version details below are historical.
+
+September 8 update: resumed the interrupted requests. Independence controls, regional onboarding, a 17-module tutorial, animated mode examples, real inline chat approvals, spacing fixes, a fading mode notice, and a refreshed **0.1.10** local DMG are complete. Eight isolated runtime trials passed; the current suites pass 500 unit tests, 143 runtime tests, and 20 desktop tests. See [INDEPENDENCE_VALIDATION.md](INDEPENDENCE_VALIDATION.md) for the current artifacts and executed checks. The earlier 0.1.8 delivery below is retained as history.
+
 Resumed the interrupted harness audit in this terminal. The local application runs at
 **http://127.0.0.1:3010**. Port 3000 belongs to a running KiraLabs project and was preserved.
 Restart Aval with `AVAL_LOCAL_PORT=3010 npm run start:local` from this repository.

@@ -21,7 +21,7 @@
  *    model call it cannot itself be steered by text inside the prompt.
  */
 
-import { PERSONAS, type PersonaId } from "./personas.ts";
+import { PERSONAS, type PersonaId } from "./persona-catalog.ts";
 
 /**
  * Vocabulary that identifies each specialist's domain, in three tiers:

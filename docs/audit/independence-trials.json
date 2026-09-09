@@ -1,0 +1,521 @@
+{
+  "executedAt": "2026-09-09T05:23:40.176Z",
+  "scope": "Real durable runtime, SQLite, tool adapters and approvals. Scripted model/reviewer and HTTP responses; no live provider or reasoning-quality certification.",
+  "trials": [
+    {
+      "name": "Supervised: two separate Yes decisions",
+      "mode": "supervised",
+      "agentId": "maintenance",
+      "result": "passed",
+      "taskStatus": "COMPLETED",
+      "approvalCheckpoints": 2,
+      "adapterCalls": 2,
+      "deliveryStates": [
+        "accepted",
+        "accepted"
+      ],
+      "trace": [
+        {
+          "kind": "model_call",
+          "tool": null
+        },
+        {
+          "kind": "tool_call",
+          "tool": "get_maintenance_performance"
+        },
+        {
+          "kind": "model_call",
+          "tool": null
+        },
+        {
+          "kind": "approval_requested",
+          "tool": "send_external_message"
+        },
+        {
+          "kind": "mutation_reserved",
+          "tool": "send_external_message"
+        },
+        {
+          "kind": "approval_decided",
+          "tool": "send_external_message"
+        },
+        {
+          "kind": "model_call",
+          "tool": null
+        },
+        {
+          "kind": "approval_requested",
+          "tool": "send_external_message"
+        },
+        {
+          "kind": "mutation_reserved",
+          "tool": "send_external_message"
+        },
+        {
+          "kind": "approval_decided",
+          "tool": "send_external_message"
+        },
+        {
+          "kind": "model_call",
+          "tool": null
+        },
+        {
+          "kind": "model_call",
+          "tool": "semantic_verdict"
+        },
+        {
+          "kind": "verification_check",
+          "tool": null
+        }
+      ],
+      "durationMs": 262
+    },
+    {
+      "name": "Assisted: one exact-plan Yes decision",
+      "mode": "assisted",
+      "agentId": "maintenance",
+      "result": "passed",
+      "taskStatus": "COMPLETED",
+      "approvalCheckpoints": 1,
+      "adapterCalls": 2,
+      "deliveryStates": [
+        "accepted",
+        "accepted"
+      ],
+      "trace": [
+        {
+          "kind": "model_call",
+          "tool": null
+        },
+        {
+          "kind": "tool_call",
+          "tool": "get_maintenance_performance"
+        },
+        {
+          "kind": "model_call",
+          "tool": null
+        },
+        {
+          "kind": "approval_requested",
+          "tool": "request_execution_plan"
+        },
+        {
+          "kind": "approval_decided",
+          "tool": "request_execution_plan"
+        },
+        {
+          "kind": "model_call",
+          "tool": null
+        },
+        {
+          "kind": "mutation_reserved",
+          "tool": "send_external_message"
+        },
+        {
+          "kind": "tool_call",
+          "tool": "send_external_message"
+        },
+        {
+          "kind": "model_call",
+          "tool": null
+        },
+        {
+          "kind": "mutation_reserved",
+          "tool": "send_external_message"
+        },
+        {
+          "kind": "tool_call",
+          "tool": "send_external_message"
+        },
+        {
+          "kind": "model_call",
+          "tool": null
+        },
+        {
+          "kind": "model_call",
+          "tool": "semantic_verdict"
+        },
+        {
+          "kind": "verification_check",
+          "tool": null
+        }
+      ],
+      "durationMs": 29
+    },
+    {
+      "name": "Autonomous: routine work without a Yes decision",
+      "mode": "autonomous",
+      "agentId": "maintenance",
+      "result": "passed",
+      "taskStatus": "COMPLETED",
+      "approvalCheckpoints": 0,
+      "adapterCalls": 2,
+      "deliveryStates": [
+        "accepted",
+        "accepted"
+      ],
+      "trace": [
+        {
+          "kind": "model_call",
+          "tool": null
+        },
+        {
+          "kind": "tool_call",
+          "tool": "get_maintenance_performance"
+        },
+        {
+          "kind": "model_call",
+          "tool": null
+        },
+        {
+          "kind": "mutation_reserved",
+          "tool": "send_external_message"
+        },
+        {
+          "kind": "tool_call",
+          "tool": "send_external_message"
+        },
+        {
+          "kind": "model_call",
+          "tool": null
+        },
+        {
+          "kind": "mutation_reserved",
+          "tool": "send_external_message"
+        },
+        {
+          "kind": "tool_call",
+          "tool": "send_external_message"
+        },
+        {
+          "kind": "model_call",
+          "tool": null
+        },
+        {
+          "kind": "model_call",
+          "tool": "semantic_verdict"
+        },
+        {
+          "kind": "verification_check",
+          "tool": null
+        }
+      ],
+      "durationMs": 19
+    },
+    {
+      "name": "Assisted: No rejects the plan with zero sends",
+      "mode": "assisted",
+      "agentId": "maintenance",
+      "result": "passed",
+      "taskStatus": "FAILED",
+      "approvalCheckpoints": 1,
+      "adapterCalls": 0,
+      "deliveryStates": [],
+      "trace": [
+        {
+          "kind": "model_call",
+          "tool": null
+        },
+        {
+          "kind": "tool_call",
+          "tool": "get_maintenance_performance"
+        },
+        {
+          "kind": "model_call",
+          "tool": null
+        },
+        {
+          "kind": "approval_requested",
+          "tool": "request_execution_plan"
+        },
+        {
+          "kind": "approval_decided",
+          "tool": "request_execution_plan"
+        },
+        {
+          "kind": "model_call",
+          "tool": null
+        },
+        {
+          "kind": "verification_check",
+          "tool": null
+        },
+        {
+          "kind": "model_call",
+          "tool": null
+        },
+        {
+          "kind": "verification_check",
+          "tool": null
+        },
+        {
+          "kind": "model_call",
+          "tool": null
+        },
+        {
+          "kind": "verification_check",
+          "tool": null
+        }
+      ],
+      "durationMs": 19
+    },
+    {
+      "name": "Autonomous: missing connection cannot report completion",
+      "mode": "autonomous",
+      "agentId": "maintenance",
+      "result": "passed",
+      "taskStatus": "FAILED",
+      "approvalCheckpoints": 0,
+      "adapterCalls": 0,
+      "deliveryStates": [],
+      "trace": [
+        {
+          "kind": "model_call",
+          "tool": null
+        },
+        {
+          "kind": "tool_call",
+          "tool": "get_maintenance_performance"
+        },
+        {
+          "kind": "model_call",
+          "tool": null
+        },
+        {
+          "kind": "mutation_reserved",
+          "tool": "send_external_message"
+        },
+        {
+          "kind": "error",
+          "tool": "send_external_message"
+        },
+        {
+          "kind": "model_call",
+          "tool": null
+        },
+        {
+          "kind": "verification_check",
+          "tool": null
+        },
+        {
+          "kind": "model_call",
+          "tool": null
+        },
+        {
+          "kind": "verification_check",
+          "tool": null
+        },
+        {
+          "kind": "model_call",
+          "tool": null
+        },
+        {
+          "kind": "verification_check",
+          "tool": null
+        }
+      ],
+      "durationMs": 17
+    },
+    {
+      "name": "Autonomous: unconfirmed send is never retried",
+      "mode": "autonomous",
+      "agentId": "maintenance",
+      "result": "passed",
+      "taskStatus": "FAILED",
+      "approvalCheckpoints": 0,
+      "adapterCalls": 1,
+      "deliveryStates": [
+        "unknown"
+      ],
+      "trace": [
+        {
+          "kind": "model_call",
+          "tool": null
+        },
+        {
+          "kind": "tool_call",
+          "tool": "get_maintenance_performance"
+        },
+        {
+          "kind": "model_call",
+          "tool": null
+        },
+        {
+          "kind": "mutation_reserved",
+          "tool": "send_external_message"
+        },
+        {
+          "kind": "error",
+          "tool": "send_external_message"
+        },
+        {
+          "kind": "model_call",
+          "tool": null
+        },
+        {
+          "kind": "verification_check",
+          "tool": null
+        },
+        {
+          "kind": "model_call",
+          "tool": null
+        },
+        {
+          "kind": "verification_check",
+          "tool": null
+        },
+        {
+          "kind": "model_call",
+          "tool": null
+        },
+        {
+          "kind": "verification_check",
+          "tool": null
+        }
+      ],
+      "durationMs": 22
+    },
+    {
+      "name": "Assisted to Supervised: changed mode invalidates plan authority",
+      "mode": "assisted",
+      "agentId": "maintenance",
+      "result": "passed",
+      "taskStatus": "COMPLETED",
+      "approvalCheckpoints": 3,
+      "adapterCalls": 2,
+      "deliveryStates": [
+        "accepted",
+        "accepted"
+      ],
+      "trace": [
+        {
+          "kind": "model_call",
+          "tool": null
+        },
+        {
+          "kind": "tool_call",
+          "tool": "get_maintenance_performance"
+        },
+        {
+          "kind": "model_call",
+          "tool": null
+        },
+        {
+          "kind": "approval_requested",
+          "tool": "request_execution_plan"
+        },
+        {
+          "kind": "approval_decided",
+          "tool": "request_execution_plan"
+        },
+        {
+          "kind": "model_call",
+          "tool": null
+        },
+        {
+          "kind": "approval_requested",
+          "tool": "send_external_message"
+        },
+        {
+          "kind": "mutation_reserved",
+          "tool": "send_external_message"
+        },
+        {
+          "kind": "approval_decided",
+          "tool": "send_external_message"
+        },
+        {
+          "kind": "model_call",
+          "tool": null
+        },
+        {
+          "kind": "approval_requested",
+          "tool": "send_external_message"
+        },
+        {
+          "kind": "mutation_reserved",
+          "tool": "send_external_message"
+        },
+        {
+          "kind": "approval_decided",
+          "tool": "send_external_message"
+        },
+        {
+          "kind": "model_call",
+          "tool": null
+        },
+        {
+          "kind": "model_call",
+          "tool": "semantic_verdict"
+        },
+        {
+          "kind": "verification_check",
+          "tool": null
+        }
+      ],
+      "durationMs": 32
+    },
+    {
+      "name": "Risk Analyst: autonomy cannot grant messaging permission",
+      "mode": "autonomous",
+      "agentId": "riskAnalyst",
+      "result": "passed",
+      "taskStatus": "FAILED",
+      "approvalCheckpoints": 0,
+      "adapterCalls": 0,
+      "deliveryStates": [],
+      "trace": [
+        {
+          "kind": "model_call",
+          "tool": null
+        },
+        {
+          "kind": "tool_call",
+          "tool": "get_maintenance_performance"
+        },
+        {
+          "kind": "model_call",
+          "tool": null
+        },
+        {
+          "kind": "policy_deny",
+          "tool": "send_external_message"
+        },
+        {
+          "kind": "model_call",
+          "tool": null
+        },
+        {
+          "kind": "policy_deny",
+          "tool": "send_external_message"
+        },
+        {
+          "kind": "model_call",
+          "tool": null
+        },
+        {
+          "kind": "verification_check",
+          "tool": null
+        },
+        {
+          "kind": "model_call",
+          "tool": null
+        },
+        {
+          "kind": "verification_check",
+          "tool": null
+        },
+        {
+          "kind": "model_call",
+          "tool": null
+        },
+        {
+          "kind": "verification_check",
+          "tool": null
+        }
+      ],
+      "durationMs": 18
+    }
+  ],
+  "passed": true
+}

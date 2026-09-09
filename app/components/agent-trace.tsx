@@ -33,11 +33,11 @@
  * or spend a model step.
  */
 
+import { AgentApprovalPrompt } from "./agent-approval-prompt";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import {
   Check,
-  Xmark,
   WarningTriangle,
   Lock,
   Clock,
@@ -221,7 +221,6 @@ function ApprovalCard({ approval, busy, onDecide, locale }: {
   const t = useTranslations();
   const label = useEnumLabel();
   const persona = personaFor(approval.evidence.agent ?? "general");
-  const args = Object.entries(approval.evidence.review ?? approval.evidence.arguments ?? {});
 
   return (
     <article className="agent-approval-card" data-risk={approval.risk}>
@@ -242,26 +241,7 @@ function ApprovalCard({ approval, busy, onDecide, locale }: {
         <p className="agent-approval-goal"><span>{t("AgentTrace.forGoal")}</span>{approval.evidence.goal}</p>
       )}
 
-      {/* Arguments arrive already redacted (lib/agents/redaction.ts): keys and
-          structurally-safe values survive, free text is reduced to its length.
-          What reaches the approver is the shape of the action, never a
-          resident's name lifted out of a document. */}
-      {args.length > 0 && (
-        <dl className="agent-approval-args">
-          {args.map(([key, value]) => (
-            <div key={key}><dt>{key}</dt><dd>{typeof value === "object" ? JSON.stringify(value, null, 2) : String(value)}</dd></div>
-          ))}
-        </dl>
-      )}
-
-      <div className="agent-approval-actions">
-        <button type="button" className="soft-button" disabled={busy} onClick={() => onDecide(approval.id, "rejected")}>
-          <Xmark width={15} height={15}/>{t("AgentTrace.reject")}
-        </button>
-        <button type="button" className="primary-button" disabled={busy} onClick={() => onDecide(approval.id, "approved")}>
-          <Check width={15} height={15}/>{t("AgentTrace.approve")}
-        </button>
-      </div>
+      <AgentApprovalPrompt tool={approval.tool} review={approval.evidence.review ?? approval.evidence.arguments ?? {}} disabled={busy} onDecision={decision => onDecide(approval.id,decision)}/>
       {approval.requiredApprovals > 1 && (
         <p className="agent-approval-note">{t("AgentTrace.approvalProgress", { received: approval.approvalsReceived, required: approval.requiredApprovals })}</p>
       )}

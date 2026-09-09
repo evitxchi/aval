@@ -71,7 +71,7 @@ const GOAL_SYSTEM = `
 You are working a goal, not answering a single question. Investigate before you conclude.
 
 How to work:
-- Propose at most one mutating action per model turn. Execute each approved plan action in its own turn.
+- Call at most one mutating tool per model turn. A request_execution_plan call may describe multiple exact actions for one approval; describing them does not execute them. Execute each approved plan action in its own later turn.
 - Start by reading the broadest relevant tool, then follow what you find. Later steps should be chosen because of what earlier ones returned, not planned in advance.
 - When a result raises a question you cannot answer from it, call another tool. When a result contradicts an assumption you made, say so and change course.
 - You have a limited number of steps. Spend them on investigation, not on restating what you already have.
@@ -169,7 +169,11 @@ export async function advanceTask(
     :contract.kind==='evidence'?[...(contract.tools??[]),...(contract.tools?.includes('read_document')?['list_documents']:[])]
     :contract.kind==='delivery'?['read_conversation','list_conversations','get_communication_channels','get_marketing_channels','request_execution_plan','send_external_message','place_call','publish_listing']
     :contract.kind==='preference'?['record_preference']:[];
-  tools=tools.filter(t=>[...support,...selected].includes(t.name));
+  // Delivery still needs the specialist's source evidence before composing an
+  // action. The persona and permission intersection above remains the ceiling.
+  // This adds only registered reads, never additional mutation authority.
+  tools=tools.filter(t=>[...support,...selected].includes(t.name)
+    || (contract.kind==='delivery' && getTool(t.name)?.mutates===false));
 
   const onboarding = await readOnboarding(task.userId, organizationId);
   let system = buildSystem(persona.systemPromptAddition) + "\n" + autonomyInstructions(autonomyMode(onboarding.preferences.autonomy[0]));
