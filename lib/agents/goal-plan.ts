@@ -22,7 +22,7 @@ type Plan = {
     steps: number;
     tokens: number;
 };
-function parseNodes(value: unknown, parent: TaskRecord, completed: string[] = []): Node[] {
+export function validatePlanNodes(value: unknown, parent: TaskRecord, completed: string[] = []): Node[] {
     if (!Array.isArray(value) || !value.length || value.length > MAX_PLAN_NODES)
         throw Error('A plan requires one to four tasks.');
     const keys = new Set<string>(completed);
@@ -46,7 +46,7 @@ function parseNodes(value: unknown, parent: TaskRecord, completed: string[] = []
 /** Reject impossible tool names/contracts before spending a reviewer call. */
 export async function validateGoalPlanProposal(parent: TaskRecord, value: unknown) {
     const prior = await goalPlan(parent.organizationId, parent.id);
-    parseNodes(value, parent, prior?.nodes.filter(n => n.status === 'COMPLETED').map(n => n.key) ?? []);
+    validatePlanNodes(value, parent, prior?.nodes.filter(n => n.status === 'COMPLETED').map(n => n.key) ?? []);
 }
 export async function goalPlan(org: string, rootId: string) {
     const root = await getTask(org, rootId);
@@ -79,7 +79,7 @@ export async function writeGoalPlan(org: string, rootId: string, value: unknown,
         const revision = (plan?.revision ?? 0) + 1;
         if (revision > MAX_PLAN_REVISIONS)
             throw Error('The goal reached its replan cap. Review the failed checks.');
-        const nodes = parseNodes(value, root, prior?.nodes.filter(n => n.status === 'COMPLETED').map(n => n.key));
+        const nodes = validatePlanNodes(value, root, prior?.nodes.filter(n => n.status === 'COMPLETED').map(n => n.key));
         if (prior)
             for (const old of prior.nodes.filter(n => n.status !== 'COMPLETED')) {
                 const replacement = nodes.find(n => n.key === old.key);

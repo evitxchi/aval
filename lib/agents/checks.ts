@@ -21,6 +21,24 @@ export type TaskCheck = {
 };
 export const MAX_CHECK_REPAIRS = 2;
 export const EVIDENCE_TOOL_NAMES = implementedTools().filter(t => !t.mutates && !['plan_goal', 'get_goal_plan', 'read_memory', 'read_task_history', 'request_execution_plan'].includes(t.name)).map(t => t.name);
+/** Shared model-facing shape; parseTaskCheck remains the runtime authority. */
+export const TASK_CHECK_SCHEMA = {
+    type: 'object',
+    description: 'Evidence: {"kind":"evidence","tools":["read_document"]}. Delivery: kind, operation and status. Preference: kind, topic and statement. Use exact names from the tool enum. Nested plan checks are forbidden.',
+    properties: {
+        kind: { type: 'string', enum: ['evidence', 'delivery', 'preference'] },
+        tools: { type: 'array', minItems: 1, maxItems: 4, items: { type: 'string', enum: EVIDENCE_TOOL_NAMES }, description: 'Required for evidence: exact executable read-tool names, not descriptions or search queries.' },
+        operation: { type: 'string', enum: ['message', 'call', 'listing'] },
+        status: { type: 'string', enum: ['accepted', 'delivered'] },
+        conversationId: { type: 'string' },
+        topic: { type: 'string', maxLength: 99 },
+        statement: { type: 'string', maxLength: 499 },
+    },
+    required: ['kind'],
+    anyOf: [{ required: ['tools'], properties: { kind: { enum: ['evidence'] } } },
+        { required: ['operation', 'status'], properties: { kind: { enum: ['delivery'] } } },
+        { required: ['topic', 'statement'], properties: { kind: { enum: ['preference'] } } }],
+};
 export function parseTaskCheck(value: unknown): TaskCheck {
     if (!value || typeof value !== 'object' || Array.isArray(value))
         throw Error('A machine-checkable completion condition is required.');
@@ -33,7 +51,7 @@ export function parseTaskCheck(value: unknown): TaskCheck {
         return { kind: 'delivery', operation: c.operation as 'message' | 'call' | 'listing', status: c.status as 'accepted' | 'delivered', ...(typeof c.conversationId === 'string' ? { conversationId: c.conversationId } : {}) };
     if (c.kind === 'preference' && typeof c.topic === 'string' && typeof c.statement === 'string' && c.topic.length < 100 && c.statement.length < 500)
         return { kind: 'preference', topic: c.topic, statement: c.statement };
-    throw Error('Choose an evidence, delivery, preference, or plan completion condition.');
+    throw Error('Choose an evidence, delivery, preference, or plan completion condition. Evidence requires {"kind":"evidence","tools":["exact_read_tool_name"]}; delivery requires operation and status; preference requires topic and statement.');
 }
 export async function checkTask(task: TaskRecord, messages: Message[], stepIndex: number, review?: () => Promise<{ exitCode: number; problems: string[]; [key: string]: unknown }>) {
     const problems: string[] = [];
