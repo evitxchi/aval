@@ -1,0 +1,478 @@
+{
+  "checkedAt": "2026-09-08T17:33:31.939Z",
+  "provider": "codex-app-server",
+  "scope": "live inference with real durable runtime and tools; synthetic SQLite data; hosted router and business providers not exercised",
+  "status": "failed",
+  "modelCalls": [
+    {
+      "phase": "actor",
+      "durationMs": 8195,
+      "usage": {
+        "input_tokens": 11342,
+        "output_tokens": 108
+      },
+      "tools": [
+        "plan_goal"
+      ],
+      "routing": {
+        "providerId": "codex-app-server",
+        "model": "gpt-6-astra"
+      }
+    },
+    {
+      "phase": "reviewer",
+      "durationMs": 9797,
+      "usage": {
+        "input_tokens": 10996,
+        "output_tokens": 220
+      },
+      "tools": [
+        "semantic_verdict"
+      ],
+      "routing": {
+        "providerId": "codex-app-server",
+        "model": "gpt-6-astra"
+      }
+    },
+    {
+      "phase": "actor",
+      "durationMs": 4037,
+      "usage": {
+        "input_tokens": 11993,
+        "output_tokens": 26
+      },
+      "tools": [
+        "get_goal_plan"
+      ],
+      "routing": {
+        "providerId": "codex-app-server",
+        "model": "gpt-6-astra"
+      }
+    },
+    {
+      "phase": "actor",
+      "durationMs": 6753,
+      "usage": {
+        "input_tokens": 12096,
+        "output_tokens": 138
+      },
+      "tools": [
+        "plan_goal"
+      ],
+      "routing": {
+        "providerId": "codex-app-server",
+        "model": "gpt-6-astra"
+      }
+    },
+    {
+      "phase": "reviewer",
+      "durationMs": 11718,
+      "usage": {
+        "input_tokens": 10995,
+        "output_tokens": 287
+      },
+      "tools": [
+        "semantic_verdict"
+      ],
+      "routing": {
+        "providerId": "codex-app-server",
+        "model": "gpt-6-astra"
+      }
+    }
+  ],
+  "invocations": [
+    {
+      "taskId": "7b543ba5-6a8d-4a92-a299-ee84f4e818a2",
+      "status": "QUEUED",
+      "stepsRun": 1
+    },
+    {
+      "taskId": "7b543ba5-6a8d-4a92-a299-ee84f4e818a2",
+      "status": "QUEUED",
+      "stepsRun": 1
+    },
+    {
+      "taskId": "7b543ba5-6a8d-4a92-a299-ee84f4e818a2",
+      "status": "QUEUED",
+      "stepsRun": 1
+    },
+    {
+      "taskId": "7b543ba5-6a8d-4a92-a299-ee84f4e818a2",
+      "status": "FAILED",
+      "stepsRun": 0,
+      "error": "Insufficient token budget for the next context and response."
+    }
+  ],
+  "model": "gpt-6-astra",
+  "rootTaskId": "7b543ba5-6a8d-4a92-a299-ee84f4e818a2",
+  "tasks": [
+    {
+      "id": "7b543ba5-6a8d-4a92-a299-ee84f4e818a2",
+      "parentTaskId": null,
+      "goal": "Read the current portfolio NOI and rent collected. Report each observed value, with its correct metric label. Do not infer currency, period, or causes that the tool does not supply.",
+      "status": "FAILED",
+      "result": null,
+      "error": "Insufficient token budget for the next context and response.",
+      "tokensUsed": 58201,
+      "trace": [
+        {
+          "id": "5b62f8ad-150c-4253-982f-6b901e748457",
+          "taskId": "7b543ba5-6a8d-4a92-a299-ee84f4e818a2",
+          "organizationId": "org_1",
+          "sequence": 1,
+          "stepIndex": 0,
+          "kind": "model_call",
+          "modelProvider": "codex-app-server",
+          "modelName": "gpt-6-astra",
+          "toolName": null,
+          "policyEffect": null,
+          "denyCode": null,
+          "riskLevel": null,
+          "argsDigest": null,
+          "resultDigest": "547d802badbbd877fff7231866b873985272b72cac12b45ae116c17f03075c6b",
+          "attempt": 1,
+          "durationMs": null,
+          "idempotencyKey": null,
+          "error": null,
+          "createdAt": "2026-09-08T17:33:41.233Z"
+        },
+        {
+          "id": "d9bb372a-c2a8-45ec-8b98-e8ab9d176dcb",
+          "taskId": "7b543ba5-6a8d-4a92-a299-ee84f4e818a2",
+          "organizationId": "org_1",
+          "sequence": 2,
+          "stepIndex": 0,
+          "kind": "model_call",
+          "modelProvider": "codex-app-server",
+          "modelName": "gpt-6-astra",
+          "toolName": "semantic_verdict",
+          "policyEffect": null,
+          "denyCode": null,
+          "riskLevel": null,
+          "argsDigest": null,
+          "resultDigest": "d55f4750287ba6b78403ba7b342fa726e3c737ca2f6115d1d8b22d3e18d90f0a",
+          "attempt": 1,
+          "durationMs": null,
+          "idempotencyKey": null,
+          "error": null,
+          "createdAt": "2026-09-08T17:33:51.040Z"
+        },
+        {
+          "id": "6873b989-3eac-45cc-bf2b-bee88955a135",
+          "taskId": "7b543ba5-6a8d-4a92-a299-ee84f4e818a2",
+          "organizationId": "org_1",
+          "sequence": 3,
+          "stepIndex": 0,
+          "kind": "verification_check",
+          "modelProvider": null,
+          "modelName": null,
+          "toolName": "plan_goal",
+          "policyEffect": "allow",
+          "denyCode": null,
+          "riskLevel": null,
+          "argsDigest": null,
+          "resultDigest": "b0696afa50a0cad53432346a68155e502fd796bb750bcf6da857be5ad9ac140c",
+          "attempt": 1,
+          "durationMs": null,
+          "idempotencyKey": null,
+          "error": null,
+          "createdAt": "2026-09-08T17:33:51.045Z"
+        },
+        {
+          "id": "8d7dd7f3-6085-46e5-b9e1-a93421a06d35",
+          "taskId": "7b543ba5-6a8d-4a92-a299-ee84f4e818a2",
+          "organizationId": "org_1",
+          "sequence": 4,
+          "stepIndex": 0,
+          "kind": "mutation_reserved",
+          "modelProvider": null,
+          "modelName": null,
+          "toolName": "plan_goal",
+          "policyEffect": "allow",
+          "denyCode": null,
+          "riskLevel": "low",
+          "argsDigest": "8caab25cf3faa064a0fb6729bb3a7b3176173736c0b0bece2d8011c46d0d6325",
+          "resultDigest": null,
+          "attempt": 1,
+          "durationMs": null,
+          "idempotencyKey": "plan_goal:7b543ba5-6a8d-4a92-a299-ee84f4e818a2:step_0",
+          "error": null,
+          "createdAt": "2026-09-08T17:33:51.075Z"
+        },
+        {
+          "id": "88630c17-21e3-48c5-8458-603955cf4a36",
+          "taskId": "7b543ba5-6a8d-4a92-a299-ee84f4e818a2",
+          "organizationId": "org_1",
+          "sequence": 5,
+          "stepIndex": 0,
+          "kind": "error",
+          "modelProvider": null,
+          "modelName": null,
+          "toolName": "plan_goal",
+          "policyEffect": null,
+          "denyCode": null,
+          "riskLevel": null,
+          "argsDigest": "8caab25cf3faa064a0fb6729bb3a7b3176173736c0b0bece2d8011c46d0d6325",
+          "resultDigest": null,
+          "attempt": 1,
+          "durationMs": null,
+          "idempotencyKey": null,
+          "error": "Tool failed after 1 attempt(s): Choose an evidence, delivery, preference, or plan completion condition.. Do not guess the value.",
+          "createdAt": "2026-09-08T17:33:51.078Z"
+        },
+        {
+          "id": "8012934b-a94b-4566-9371-1ab50f1a2fbc",
+          "taskId": "7b543ba5-6a8d-4a92-a299-ee84f4e818a2",
+          "organizationId": "org_1",
+          "sequence": 6,
+          "stepIndex": 1,
+          "kind": "model_call",
+          "modelProvider": "codex-app-server",
+          "modelName": "gpt-6-astra",
+          "toolName": null,
+          "policyEffect": null,
+          "denyCode": null,
+          "riskLevel": null,
+          "argsDigest": null,
+          "resultDigest": "4d02bf29712fac2e805271350d3564dccfcdca868da02a27d026ff152c8b3fef",
+          "attempt": 1,
+          "durationMs": null,
+          "idempotencyKey": null,
+          "error": null,
+          "createdAt": "2026-09-08T17:33:55.121Z"
+        },
+        {
+          "id": "a14e9078-9a67-4cff-aab3-fea0beca9379",
+          "taskId": "7b543ba5-6a8d-4a92-a299-ee84f4e818a2",
+          "organizationId": "org_1",
+          "sequence": 7,
+          "stepIndex": 1,
+          "kind": "tool_call",
+          "modelProvider": null,
+          "modelName": null,
+          "toolName": "get_goal_plan",
+          "policyEffect": "allow",
+          "denyCode": null,
+          "riskLevel": "low",
+          "argsDigest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "resultDigest": "a4c567f7c769cee53a02d0e30a4ca39dfc04c66f9be285ba74c0013c2eb47701",
+          "attempt": 1,
+          "durationMs": 0,
+          "idempotencyKey": null,
+          "error": null,
+          "createdAt": "2026-09-08T17:33:55.123Z"
+        },
+        {
+          "id": "f59e8b73-2c5b-4798-9c1b-7c52e1965fc8",
+          "taskId": "7b543ba5-6a8d-4a92-a299-ee84f4e818a2",
+          "organizationId": "org_1",
+          "sequence": 8,
+          "stepIndex": 2,
+          "kind": "model_call",
+          "modelProvider": "codex-app-server",
+          "modelName": "gpt-6-astra",
+          "toolName": null,
+          "policyEffect": null,
+          "denyCode": null,
+          "riskLevel": null,
+          "argsDigest": null,
+          "resultDigest": "33e2bbe44299607a6173af5a2cd52ad23cf57c05232f3363fd7ec4910cb5ff9f",
+          "attempt": 1,
+          "durationMs": null,
+          "idempotencyKey": null,
+          "error": null,
+          "createdAt": "2026-09-08T17:34:01.882Z"
+        },
+        {
+          "id": "3121af2d-72e1-4af3-86d7-51eeb804601e",
+          "taskId": "7b543ba5-6a8d-4a92-a299-ee84f4e818a2",
+          "organizationId": "org_1",
+          "sequence": 9,
+          "stepIndex": 2,
+          "kind": "model_call",
+          "modelProvider": "codex-app-server",
+          "modelName": "gpt-6-astra",
+          "toolName": "semantic_verdict",
+          "policyEffect": null,
+          "denyCode": null,
+          "riskLevel": null,
+          "argsDigest": null,
+          "resultDigest": "e0e7467ed2ac2cf276565b26b62a7a58ec27e692f068356d0389a82e672cf9d8",
+          "attempt": 1,
+          "durationMs": null,
+          "idempotencyKey": null,
+          "error": null,
+          "createdAt": "2026-09-08T17:34:13.607Z"
+        },
+        {
+          "id": "11c432c8-4cb0-4fdd-9bcf-1c4b823fae08",
+          "taskId": "7b543ba5-6a8d-4a92-a299-ee84f4e818a2",
+          "organizationId": "org_1",
+          "sequence": 10,
+          "stepIndex": 2,
+          "kind": "verification_check",
+          "modelProvider": null,
+          "modelName": null,
+          "toolName": "plan_goal",
+          "policyEffect": "allow",
+          "denyCode": null,
+          "riskLevel": null,
+          "argsDigest": null,
+          "resultDigest": "825a7adc858281d01e5970b6f14457ae421eb904f103a6a0306c00cfad198d6d",
+          "attempt": 1,
+          "durationMs": null,
+          "idempotencyKey": null,
+          "error": null,
+          "createdAt": "2026-09-08T17:34:13.611Z"
+        },
+        {
+          "id": "83f2d9bb-1e5b-4555-9a6f-709910906361",
+          "taskId": "7b543ba5-6a8d-4a92-a299-ee84f4e818a2",
+          "organizationId": "org_1",
+          "sequence": 11,
+          "stepIndex": 2,
+          "kind": "mutation_reserved",
+          "modelProvider": null,
+          "modelName": null,
+          "toolName": "plan_goal",
+          "policyEffect": "allow",
+          "denyCode": null,
+          "riskLevel": "low",
+          "argsDigest": "8caab25cf3faa064a0fb6729bb3a7b3176173736c0b0bece2d8011c46d0d6325",
+          "resultDigest": null,
+          "attempt": 1,
+          "durationMs": null,
+          "idempotencyKey": "plan_goal:7b543ba5-6a8d-4a92-a299-ee84f4e818a2:step_2",
+          "error": null,
+          "createdAt": "2026-09-08T17:34:13.615Z"
+        },
+        {
+          "id": "6155a999-55c3-45af-b039-bd6aaa84d325",
+          "taskId": "7b543ba5-6a8d-4a92-a299-ee84f4e818a2",
+          "organizationId": "org_1",
+          "sequence": 12,
+          "stepIndex": 2,
+          "kind": "error",
+          "modelProvider": null,
+          "modelName": null,
+          "toolName": "plan_goal",
+          "policyEffect": null,
+          "denyCode": null,
+          "riskLevel": null,
+          "argsDigest": "8caab25cf3faa064a0fb6729bb3a7b3176173736c0b0bece2d8011c46d0d6325",
+          "resultDigest": null,
+          "attempt": 1,
+          "durationMs": null,
+          "idempotencyKey": null,
+          "error": "Tool failed after 1 attempt(s): Choose an evidence, delivery, preference, or plan completion condition.. Do not guess the value.",
+          "createdAt": "2026-09-08T17:34:13.619Z"
+        }
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "task_id": "7b543ba5-6a8d-4a92-a299-ee84f4e818a2",
+      "step_index": 0,
+      "exit_code": 0,
+      "output_json": {
+        "phase": "plan",
+        "proposalDigest": "08e6b864883c24b0c8849f983d0fb4ce0820eae6a2cc503517b5f982ef38be93",
+        "reviewer": "independent-session-v1",
+        "exitCode": 0,
+        "problems": [],
+        "verdict": {
+          "passed": true,
+          "requirements": [
+            {
+              "requirement": "Read current portfolio NOI and rent collected.",
+              "satisfied": true,
+              "explanation": "The read_portfolio_metrics node explicitly requests both current portfolio metrics and specifies an evidence check using get_portfolio_summary.",
+              "nodeKeys": [
+                "read_portfolio_metrics"
+              ]
+            },
+            {
+              "requirement": "Report each observed value with its correct metric label.",
+              "satisfied": true,
+              "explanation": "The node requires reporting each observed value with its exact metric label, preserving the distinction between NOI and rent collected.",
+              "nodeKeys": [
+                "read_portfolio_metrics"
+              ]
+            },
+            {
+              "requirement": "Do not infer currency, period, or causes not supplied by the tool.",
+              "satisfied": true,
+              "explanation": "The node explicitly prohibits these inferences and requires reporting a limitation if necessary tools or data are unavailable.",
+              "nodeKeys": [
+                "read_portfolio_metrics"
+              ]
+            }
+          ],
+          "claims": [],
+          "issues": []
+        }
+      }
+    },
+    {
+      "task_id": "7b543ba5-6a8d-4a92-a299-ee84f4e818a2",
+      "step_index": 2,
+      "exit_code": 0,
+      "output_json": {
+        "phase": "plan",
+        "proposalDigest": "c0bbd9716a2df7adc21ffe690432c92a00af0866b16386cba171d785bcf1084d",
+        "reviewer": "independent-session-v1",
+        "exitCode": 0,
+        "problems": [],
+        "verdict": {
+          "passed": true,
+          "requirements": [
+            {
+              "requirement": "Read current portfolio NOI.",
+              "satisfied": true,
+              "explanation": "Node read_portfolio_metrics requests the connected portfolio financial summary and observed NOI, with get_portfolio_summary as its evidence check.",
+              "nodeKeys": [
+                "read_portfolio_metrics"
+              ]
+            },
+            {
+              "requirement": "Read current portfolio rent collected.",
+              "satisfied": true,
+              "explanation": "Node read_portfolio_metrics requests observed rent collected from the same portfolio summary and evidence check.",
+              "nodeKeys": [
+                "read_portfolio_metrics"
+              ]
+            },
+            {
+              "requirement": "Report each observed value with its correct metric label.",
+              "satisfied": true,
+              "explanation": "Node read_portfolio_metrics explicitly requires reporting both observed values with their correct metric labels.",
+              "nodeKeys": [
+                "read_portfolio_metrics"
+              ]
+            },
+            {
+              "requirement": "Do not infer currency, period, or causes not supplied by the tool.",
+              "satisfied": true,
+              "explanation": "Node read_portfolio_metrics explicitly prohibits these inferences. No unauthorized action is proposed.",
+              "nodeKeys": [
+                "read_portfolio_metrics"
+              ]
+            }
+          ],
+          "claims": [],
+          "issues": []
+        }
+      }
+    }
+  ],
+  "assertions": {
+    "rootCompleted": false,
+    "childrenCompleted": false,
+    "portfolioRead": false,
+    "expectedValuesRetained": false,
+    "liveActorAndReviewer": true,
+    "independentPlanReview": true,
+    "independentAnswerReview": false
+  }
+}

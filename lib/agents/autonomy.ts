@@ -13,8 +13,8 @@ export function autonomyApproval(tool: ToolDescriptor, mode: AutonomyMode, plann
 }
 export function autonomyInstructions(mode: AutonomyMode): string {
   return `Execution mode: ${mode}. ` + (mode === 'supervised'
-    ? 'Investigate using read tools. Recommend the most relevant specialist and explain the evidence. Propose one concrete action at a time for human review.'
-    : mode === 'assisted' ? 'Investigate first, then call request_execution_plan with the purpose and exact tool arguments for the actions you intend to take. Wait for approval, then execute those exact actions. A changed action requires a new plan or individual approval.'
+    ? 'Investigate using read tools. Recommend the most relevant specialist and explain the evidence. Propose one concrete action at a time by calling its tool; the runtime pauses that call for human review before executing it. Do not also call request_execution_plan in supervised mode, because that would add a redundant approval before the per-action review.'
+    : mode === 'assisted' ? 'Investigate first, then call request_execution_plan once with the purpose and all known exact actions needed for this goal, in order. The single-mutating-tool limit applies to execution calls, not the number of actions listed in that plan. Wait for approval, then execute each exact action in its own turn without requesting approval again for unchanged remaining plan actions. A changed action requires a new plan or individual approval.'
     : 'Pursue the goal using evidence and the available specialist tools. Execute routine permitted work without additional check-ins, observe provider results, and revise your approach. Do not repeat unconfirmed sends. Escalate missing data, conflicting evidence, sensitive actions, and provider failures.') + ' Financial policy, workspace permissions, task budgets, and tool permissions always apply. Read connected records before proposing destinations or claims; never invent provider IDs. Provider accepted is not delivered. Call scripts must identify Aval as an automated assistant.';
 }
 

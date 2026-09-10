@@ -5,6 +5,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent, MouseEvent as ReactMouseEvent } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { ChatLines, CheckCircle, Database, NavArrowRight, Page, Search, SendDiagonal, StatsUpSquare, ViewGrid, WarningTriangle, Xmark, Minus, ScaleFrameEnlarge, ScaleFrameReduce, ControlSlider } from "iconoir-react";
+import { AgentTaskConversation } from "./agent-task-conversation";
+import { useOnboarding } from "./preference-context";
+import { IndependenceControls } from "./independence-controls";
 import { useExperience } from "@/app/components/experience";
 import type { CreateDraftInput, DraftFormat } from "@/app/components/ask-aval-tasks";
 import { MarkdownPreview } from "@/app/components/markdown-preview";
@@ -45,6 +48,7 @@ type Answer = {
   tools_used?: string[];
 };
 type ChatMessage = {
+  taskId?: string;
   id: number;
   role: "user" | "assistant";
   text?: string;
@@ -224,6 +228,11 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
   const t = useTranslations();
   const locale = useLocale();
   const [open, setOpen] = useState(false);
+  useEffect(() => {
+    const show = (event: Event) => { if ((event as CustomEvent<boolean>).detail) setOpen(true); };
+    window.addEventListener("aval:tour:chat",show);
+    return () => window.removeEventListener("aval:tour:chat",show);
+  }, []);
   const [minimized, setMinimized] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const toolsRef = useRef<HTMLDetailsElement>(null);
@@ -418,9 +427,27 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
 
   // Answers are grounded in authenticated workspace records. Failures are
   // shown explicitly and never replaced with canned analysis.
+  const preferences = useOnboarding();
+  const [startingTask, setStartingTask] = useState(false);
+  const taskStarting = useRef(false);
+  const startAgentTask = async () => {
+    const goal = input.trim();
+    if (!goal || thinking || taskStarting.current || !preferences || preferences.busy) return;
+    taskStarting.current = true; setStartingTask(true);
+    try {
+      const response = await fetch("/api/agents/tasks", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ goal, agentId: personaId }) });
+      const data = await response.json() as { taskId?: string; error?: string };
+      if (!response.ok || !data.taskId) throw new Error(data.error || t("AvalAssistant.unavailable"));
+      setMessages(current => [...current, { id: nextId.current++, role: "user", text: goal }, { id: nextId.current++, role: "assistant", taskId: data.taskId, text: t("Independence.taskStarted") }]);
+      setInput(current => current.trim() === goal ? "" : current);
+    } catch (error) {
+      setMessages(current => [...current, { id: nextId.current++, role: "assistant", error: error instanceof Error ? error.message : t("AvalAssistant.unavailable") }]);
+    } finally { taskStarting.current = false; setStartingTask(false); }
+  };
+
   const submitQuestion = async (question: string) => {
     const trimmed = question.trim();
-    if (!trimmed || thinking) return;
+    if (!trimmed || thinking || startingTask) return;
     const focusedModule = selectedModule;
     const userMessage: ChatMessage = { id: nextId.current++, role: "user", text: trimmed };
     setMessages((current) => [...current, userMessage]);
@@ -546,6 +573,7 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
           </header>
 
           <div className="aval-assistant-context">
+            <IndependenceControls compact/>
             <div className="aval-chat-context-row">
               <span className="aval-chat-scope"><Database width={15} height={15} /><span>{currentContext}</span><span>·</span><span>{t("ChatPolish.workspace")}</span></span>
               <button className={`aval-module-picker ${pickingPersona ? "active" : ""}`} type="button" onClick={() => setPickingPersona((current) => !current)} aria-pressed={pickingPersona}>
@@ -643,6 +671,7 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
             {messages.map((message) => (
               <div className={`aval-chat-message ${message.role}`} key={message.id}>
                 {message.text && <p>{message.text}</p>}
+                {message.taskId && <><AgentTaskConversation taskId={message.taskId}/><a className="soft-button" href={`/${locale}?view=tasks`}>{t("Independence.viewTask")}</a></>}
                 {message.error && (
                   <div className="aval-chat-error">
                     <WarningTriangle width={16} height={16}/>
@@ -726,17 +755,17 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
                 <button type="button" onClick={()=>{setDraftPanelOpen(true);if(toolsRef.current)toolsRef.current.open=false;}}><Page width={18} height={18}/><span>{t("AvalAssistant.draftDocument")}<small>{t("ChatPolish.draftHelp")}</small></span></button>
                 <button type="button" onClick={()=>{setPickingPersona(true);if(toolsRef.current)toolsRef.current.open=false;}}><AvalAgentAvatar personaId={personaId} shape={activePersona.shape} theme={activePersona.theme} icon={activePersona.icon} size={20}/><span>{t("AvalAssistant.selectAgent")}<small>{t("ChatPolish.agentHelp")}</small></span></button>
               </div>
-            </details><span className="aval-enter-hint">{t("ChatPolish.newLine")}</span>
+            </details>{preferences && <button type="button" className="aval-start-task" disabled={!input.trim() || thinking || startingTask || preferences.busy} onClick={() => void startAgentTask()}>{t(startingTask ? "Independence.startingTask" : "Independence.startTask")}</button>}<span className="aval-enter-hint">{t("ChatPolish.newLine")}</span>
             {thinking && desktop.bridge && desktop.state?.active
               ? <button className="aval-composer-send" type="button" onClick={() => void desktop.bridge?.cancelTurn("ask-aval")} aria-label={t("AvalAssistant.cancelAnswer")}><Xmark width={18} height={18} /></button>
-              : <button className="aval-composer-send" type="submit" disabled={!input.trim() || thinking} aria-label={t("AvalAssistant.sendMessage")}><SendDiagonal width={18} height={18} /></button>}
+              : <button className="aval-composer-send" type="submit" disabled={!input.trim() || thinking || startingTask} aria-label={t("AvalAssistant.sendMessage")}><SendDiagonal width={18} height={18} /></button>}
             </div>
           </form>
           <p className="aval-chat-disclaimer">{t("AvalAssistant.avalShowsItsEvidenceAndAsks")}</p>
         </section>
       )}
 
-      <button className="aval-assistant-launcher" type="button" onClick={toggleAssistant} aria-expanded={open} aria-label={open ? t("AvalAssistant.closeAvalAssistant") : t("AvalAssistant.askAval")}>
+      <button className="aval-assistant-launcher" data-tour-target="chat" type="button" onClick={toggleAssistant} aria-expanded={open} aria-label={open ? t("AvalAssistant.closeAvalAssistant") : t("AvalAssistant.askAval")}>
         {open ? <Xmark width={22} height={22} /> : <ChatLines width={23} height={23} />}
         {!open && <span aria-hidden="true" />}
       </button>

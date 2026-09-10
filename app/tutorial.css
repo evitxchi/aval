@@ -1,0 +1,63 @@
+.animated-copy { position:relative; display:block; }
+.animated-copy-space { visibility:hidden; }
+.animated-copy-text { position:absolute; inset:0; }
+.animated-copy-text i { display:inline-block; width:2px; height:.95em; margin-left:3px; background:currentColor; vertical-align:-.08em; }
+.tour-start { margin:12px 0; justify-content:center; white-space:nowrap; font-size:.875rem; }
+.tour-overlay { position:fixed; inset:0; z-index:210; background:transparent; }
+.tour-spotlight { position:fixed; z-index:211; pointer-events:none; border:2px solid var(--viz-blue); border-radius:12px; box-shadow:0 0 0 9999px #10121e99,0 0 0 5px #5b8def22; transition:top 280ms cubic-bezier(.22,1,.36,1),left 280ms cubic-bezier(.22,1,.36,1),width 280ms,height 280ms; }
+.tour-card { position:fixed; z-index:212; padding:22px; border:1px solid var(--line); border-radius:20px; background:var(--surface); color:var(--ink); box-shadow:var(--shadow-float); transition:top 280ms cubic-bezier(.22,1,.36,1),left 280ms cubic-bezier(.22,1,.36,1); max-height:calc(100dvh - 40px); overflow:auto; }
+.tour-card-top { display:flex; justify-content:space-between; align-items:center; font-size:.8125rem; color:var(--muted); margin-bottom:14px; }
+.tour-card h2 { font-size:1.3rem; letter-spacing:-.035em; line-height:1.35; margin:0 0 12px; }
+.tour-card p { font-size:.9375rem; line-height:1.6; color:var(--muted); margin:0; }
+.tour-card footer { display:flex; justify-content:space-between; gap:14px; margin-top:22px; }
+.tour-progress { display:flex; gap:4px; margin-top:24px; }
+.tour-progress i { flex:1; height:3px; border-radius:2px; background:var(--line); }
+.tour-progress i.active { background:var(--ink); }
+.tour-pointer { position:fixed; z-index:212; pointer-events:none; color:var(--viz-blue); display:flex; transition:top 280ms cubic-bezier(.22,1,.36,1),left 280ms cubic-bezier(.22,1,.36,1); }
+.tour-pointer.points-left { transform:rotate(180deg); }
+.tour-pointer.points-up { transform:rotate(-90deg); }
+.tour-pointer.points-down { transform:rotate(90deg); }
+@media(prefers-reduced-motion:reduce) { .tour-card,.tour-spotlight,.tour-pointer { transition:none; } }
+.agent-task-window { border:1px solid var(--line-strong); border-radius:15px; background:var(--surface); overflow:hidden; color:var(--ink); width:100%; }
+.agent-task-window > header { display:flex; align-items:center; gap:12px; padding:13px 16px; border-bottom:1px solid var(--line); background:var(--canvas); }
+.agent-task-window > header strong { display:flex; align-items:center; gap:7px; font-size:.875rem; }
+.mini-window-dots { display:flex; gap:4px; flex-shrink:0; }
+.mini-window-dots i { width:6px; height:6px; border-radius:50%; background:var(--muted); opacity:.4; }
+.mini-window-state { margin-left:auto; font-size:.75rem; color:var(--muted); white-space:nowrap; }
+.agent-window-body { padding:18px; display:flex; flex-direction:column; align-items:stretch; gap:14px; font-size:.875rem; line-height:1.6; }
+.agent-window-body > p { margin:0; }
+.agent-task-window > footer { padding:12px 16px; font-size:.8125rem; font-weight:500; background:var(--canvas); border-top:1px solid var(--line); }
+.agent-window-goal { margin-left:28px!important; padding:12px 16px; border-radius:14px 14px 3px 14px; background:var(--surface-sunken); }
+.agent-window-message { padding:12px 16px; border:1px solid var(--line); border-radius:14px 14px 14px 3px; }
+.agent-window-step { display:grid; gap:4px; border-left:2px solid var(--line); padding-left:12px; }
+.agent-window-step span { color:var(--muted); font-size:.8125rem; }
+.agent-review-prompt { padding:16px; border:1px solid var(--line-strong); border-radius:13px; background:var(--canvas); color:var(--ink); font-size:.875rem; line-height:1.6; }
+.agent-review-prompt h4 { margin:0 0 12px; font-weight:600; font-size:.9375rem; }
+.agent-review-prompt ol { padding-left:20px; display:grid; gap:12px; margin:12px 0; }
+.agent-review-prompt dl { display:grid; gap:6px; margin:8px 0 0; }
+.agent-review-prompt dl > div { display:grid; grid-template-columns:90px minmax(0,1fr); gap:12px; }
+.agent-review-prompt dt { color:var(--muted); }
+.agent-review-prompt dd { margin:0; white-space:pre-wrap; overflow-wrap:anywhere; }
+.agent-decision-buttons { display:flex; flex-wrap:wrap; gap:10px; margin-top:16px; }
+.agent-decision-buttons button { white-space:nowrap; font-size:.875rem; }
+.mode-examples > p { color:var(--muted); line-height:1.6; }
+.example-mode-tabs { display:flex; flex-wrap:wrap; gap:6px; padding:5px; border:1px solid var(--line); border-radius:13px; margin:20px 0 10px; width:fit-content; }
+.example-mode-tabs button { padding:9px 18px; border:0; border-radius:9px; background:transparent; cursor:pointer; color:var(--muted); font-size:.875rem; }
+.example-mode-tabs button[aria-pressed="true"] { background:var(--ink); color:var(--surface); }
+.example-player { max-width:600px; }
+.example-controls { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:14px 0; }
+.example-stage { position:relative; }
+.example-stage .agent-window-body { height:390px; overflow-y:auto; scrollbar-gutter:stable; }
+.example-invitation { color:var(--muted); padding:24px 0; text-align:center; }
+.example-evidence { display:grid; gap:6px; padding:10px 14px; border-left:2px solid var(--viz-blue); font-size:.8125rem; }
+.example-evidence > span { color:var(--muted); }
+.example-result { display:grid; gap:5px; animation:example-reveal 250ms ease both; }
+.example-result strong { font-size:.8125rem; }
+.example-cursor { pointer-events:none; position:absolute; color:var(--ink); filter:drop-shadow(0 1px 2px var(--surface)); opacity:0; transition:left 650ms cubic-bezier(.22,1,.36,1),top 650ms cubic-bezier(.22,1,.36,1),opacity 150ms; z-index:2; }
+.example-cursor.shown { opacity:1; }
+.example-cursor i { position:absolute; left:-8px; top:-8px; width:25px; height:25px; border:2px solid var(--viz-blue); border-radius:50%; opacity:0; }
+.example-cursor.clicking i { animation:example-click 350ms ease-out; }
+@keyframes example-click { 0%{opacity:1;scale:.5} 100%{opacity:0;scale:1.8} }
+@keyframes example-reveal { from{opacity:0;translate:0 5px} to{opacity:1;translate:0 0} }
+@media(max-width:480px) { .agent-review-prompt dl > div { grid-template-columns:1fr; gap:0; } .example-mode-tabs button { padding:8px 12px; } }
+@media(prefers-reduced-motion:reduce) { .example-cursor { display:none; } .example-result { animation:none; } }

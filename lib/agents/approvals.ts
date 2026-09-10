@@ -15,7 +15,7 @@
  * of a decision made against stale evidence.
  */
 
-import { and, desc, eq, lt, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, lt, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { agentApprovalDecisions, agentApprovals } from "@/db/schema";
 import { approvalTierFor, requiredApprovalsFor, type ApprovalTier } from "./financial.ts";
@@ -153,11 +153,11 @@ export async function latestApprovalForTask(organizationId: string, taskId: stri
   return (row as ApprovalRecord | undefined) ?? null;
 }
 
-export async function listPendingApprovals(organizationId: string, limit = 50): Promise<ApprovalRecord[]> {
+export async function listPendingApprovals(organizationId: string, limit = 50, taskIds?: string[]): Promise<ApprovalRecord[]> {
   const rows = await getDb()
     .select()
     .from(agentApprovals)
-    .where(and(eq(agentApprovals.organizationId, organizationId), eq(agentApprovals.status, "pending")))
+    .where(and(eq(agentApprovals.organizationId, organizationId), eq(agentApprovals.status, "pending"), taskIds ? inArray(agentApprovals.taskId, taskIds) : undefined))
     .orderBy(desc(agentApprovals.requestedAt))
     .limit(limit);
   return rows as ApprovalRecord[];

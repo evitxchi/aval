@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 import { getApiIdentity, isGuestIdentity } from "@/lib/integrations/session";
 import { ensureOrganization } from "@/lib/integrations/organizations";
 import { decideApproval, expireStaleApprovals, getApproval, listPendingApprovals } from "@/lib/agents/approvals";
+import { goalPlan } from "@/lib/agents/goal-plan";
 import { getTask } from "@/lib/agents/tasks";
 import { appendAuditEvents } from "@/lib/audit/log";
 import { digestPayload } from "@/lib/audit/chain";
@@ -29,7 +30,16 @@ export async function GET(request: Request) {
   // request from appearing actionable between minute ticks.
   await expireStaleApprovals(identity.organizationId);
 
-  const pending = await listPendingApprovals(identity.organizationId);
+  const rootId = new URL(request.url).searchParams.get("rootTaskId");
+  let taskIds: string[] | undefined;
+  if (rootId) {
+    const plan = await goalPlan(identity.organizationId, rootId);
+    if (!plan) return Response.json({ error: "No such task" }, { status: 404 });
+    taskIds = [rootId, ...plan.nodes.map(node => node.id)];
+  }
+  // Apply the task scope before the inbox limit, so a busy workspace cannot
+  // hide this conversation's pending decision behind unrelated approvals.
+  const pending = await listPendingApprovals(identity.organizationId, 50, taskIds);
   return Response.json({
     approvals: pending.map((approval) => ({
       id: approval.id,

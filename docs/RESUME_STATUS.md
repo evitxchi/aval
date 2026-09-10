@@ -2,6 +2,29 @@
 
 ## Current delivery
 
+September 9 completion-review resumption: **all three modes now pass end-to-end completion**. The fresh live `gpt-6-astra` run read evidence, executed exactly two ordered synthetic sends with two/one/zero approvals, and passed independent review in Supervised/Assisted/Autonomous. Review latencies were 18.408/18.704/19.040 seconds; no timeouts, invalid proposals or usage-limit failures occurred. See `docs/AGENT_LLM_COMPARISON.md` and `docs/audit/agent-llm-comparison-completion-review-verification.json`. Earlier failed and supervised-only evidence is preserved.
+
+Final proposals now survive invocation boundaries without consuming another actor step, including at the step limit. Review citations use short packet-local IDs with original provenance, and the Codex evaluation bridge uses direct structured verdicts plus clearer failure diagnostics. Regression tests cover deferred completion, budget/cancellation/deadline/numeric enforcement, and rejected saved answers receiving repair feedback before an independently reviewed replacement.
+
+Validation: full `npm test` passed (506 unit, 147 runtime, typecheck, translation parity, build); the runtime suite passed 148 after the additional repair regression. Desktop: 20 tests. Lint: zero errors, five existing image warnings. Refreshed `desktop/dist/Aval-0.1.12-local-arm64.dmg`, ZIP and SHA-256 checksums target **http://127.0.0.1:3010**; ad-hoc signed and **not notarized**. Signature, DMG integrity, embedded metadata and startup smoke passed. Both local language pages returned HTTP 200; server log: `/tmp/aval-completion-review-server.log`.
+
+All current repository changes and the three pending commits are prepared for the user-requested GitHub push on `fix/codex-live-validation`. This branch push does not trigger the `main`-only Cloudflare/desktop release workflows. The hosted Sites deployment remains at the historical checkpoint below. Real business-provider validation remains separate; these trials used synthetic HTTP and automatic test approvals.
+
+### Previous delivery checkpoint
+
+- Source commit: `5178da1ccc02f43561a881b043b5da7b64c8c2b6` on `fix/codex-live-validation`; pushed to the existing Sites source repository, not GitHub `main`.
+- Private Sites version **6** deployed successfully at 2026-09-09 05:28:44 UTC with environment revision **2**. URL: https://portero-operations-mx.evalxnder.chatgpt.site. Owner-only access remains unchanged. Deployment: `appgdep_6aa0ee7f9dd08191ab211d476e52370f`.
+- `npm test`: 504 unit tests and 145 runtime tests passed, with typecheck, translation parity and production build. Desktop: 20 tests. Eight synthetic runtime trials passed. Lint: zero errors, five existing image warnings.
+- Current installer: `desktop/dist/Aval-0.1.12-local-arm64.dmg`, ZIP and `Aval-0.1.12-local-arm64.sha256`. Embedded URL is http://127.0.0.1:3010. Ad-hoc signed; not notarized. Signature, disk integrity, checksums and Electron startup smoke pass. This smoke check reaches Electron readiness; it does not exercise inference.
+- Local server log: `/tmp/aval-resume-sep9-server.log`; both language pages returned HTTP 200. Keep the local server running for the DMG.
+- Live comparison remains **incomplete**, with raw failures preserved. Account allowance was exhausted before completing Assisted/Autonomous and independent review. The latest numeric-ID and Assisted prompt fixes have regression coverage but still need a live rerun. See `AGENT_LLM_COMPARISON.md` for the exact command and limitations.
+- Native UI confirmed the preferences placement after reload. Full interactive tour verification remains partial because the app window became unavailable. Existing pointer geometry tests pass.
+
+
+September 8 late-evening resumption: recovered the preceding interrupted session. Mode examples now live in onboarding and Settings preferences; the module tour launcher is in Settings; Setup has no testing module or mode examples. The arrow is outside the tour card and aligned with its highlighted target. The live agent comparison remains **incomplete**, with failed runs preserved and a usage-limit blocker. Fixed UUID citation false positives and clarified Assisted multi-action plan instructions; see [AGENT_LLM_COMPARISON.md](AGENT_LLM_COMPARISON.md). Current local delivery is 0.1.12 at port 3010, ad-hoc signed and not notarized. Older delivery/version details below are historical.
+
+September 8 update: resumed the interrupted requests. Independence controls, regional onboarding, a 17-module tutorial, animated mode examples, real inline chat approvals, spacing fixes, a fading mode notice, and a refreshed **0.1.10** local DMG are complete. Eight isolated runtime trials passed; the current suites pass 500 unit tests, 143 runtime tests, and 20 desktop tests. See [INDEPENDENCE_VALIDATION.md](INDEPENDENCE_VALIDATION.md) for the current artifacts and executed checks. The earlier 0.1.8 delivery below is retained as history.
+
 Resumed the interrupted harness audit in this terminal. The local application runs at
 **http://127.0.0.1:3010**. Port 3000 belongs to a running KiraLabs project and was preserved.
 Restart Aval with `AVAL_LOCAL_PORT=3010 npm run start:local` from this repository.
@@ -31,7 +54,7 @@ server running while using this installer. Production signing requirements are u
 
 ## Verification
 
-**612 tests pass:** 486 unit/render/desktop tests and 126 runtime integration tests.
+**613 tests pass:** 486 unit/render/desktop tests and 127 runtime integration tests.
 TypeScript passes and 1,554 translation keys match. Lint reports zero errors and five
 existing image-element warnings. The final production build passes.
 
@@ -132,3 +155,23 @@ before publishing. No new signed/notarized release was published. The refreshed 
 DMG remains available and verified. Restore Anthropic API funding, then rerun the
 production validation and desktop release; business-provider validation separately
 requires usable connected provider accounts.
+
+
+## Codex live validation follow-up
+
+The user requested Codex for live agent validation. The local ChatGPT-authenticated
+Codex App Server (`gpt-6-astra`) passed all 16 labeled semantic cases and a complete
+durable root/child task run on isolated synthetic SQLite data. Actor and reviewer
+calls were live; business providers and the hosted router were not exercised.
+
+A baseline failed on an invented evidence tool. The planner now receives explicit
+check schemas and real tool names, and structural preflight rejects invalid plans
+before invoking the reviewer. Production budgets and provider selection are unchanged.
+See `CODEX_LIVE_VALIDATION.md` for reproduction, latency, usage and remaining limits.
+
+The final full suite passes 613 tests (486 unit/render/desktop plus 127 runtime),
+with a successful production build and no lint errors (five existing image warnings).
+The local DMG was refreshed and passed disk-image integrity, checksum, signature
+and startup checks. It still targets http://127.0.0.1:3010 and is not notarized.
+This follow-up is delivered on `fix/codex-live-validation`; it does not publish new
+production code or bypass the hosted live-validation requirement.

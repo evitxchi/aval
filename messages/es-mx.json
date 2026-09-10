@@ -1537,13 +1537,15 @@
   },
   "Onboarding": {
     "questions": {
-      "pms": "¿Qué software inmobiliario usas?",
+      "pms": "¿Qué sistema inmobiliario o PMS usas?",
       "focus": "¿Por dónde empezamos?",
       "chat": "¿Dónde conversa tu equipo?",
       "documents": "¿Dónde guardas tus documentos?",
       "calls": "¿Quieres que atienda llamadas y las dirija a tu equipo?",
       "marketing": "¿Dónde anuncias tus propiedades?",
-      "autonomy": "Una última cosa. ¿Cuánto quieres que haga por mi cuenta?"
+      "autonomy": "Una última cosa. ¿Cuánto quieres que haga por mi cuenta?",
+      "language": "¿En qué idioma quieres usar Aval?",
+      "region": "¿En qué región trabajas?"
     },
     "step": "{current} de {total}",
     "progress": "Progreso de configuración",
@@ -1576,7 +1578,9 @@
       "documents": "Documentos",
       "calls": "Gestión de llamadas",
       "marketing": "Publicidad",
-      "autonomy": "Independencia"
+      "autonomy": "Independencia",
+      "language": "Idioma",
+      "region": "Región"
     },
     "options": {
       "all": "Todo",
@@ -1595,7 +1599,17 @@
       "autonomous": "Autónomo",
       "other": "Otra opción",
       "imessage": "iMessage",
-      "gmail": "Gmail / Correo"
+      "gmail": "Gmail / Correo",
+      "en": "English",
+      "es-mx": "Español (Latinoamérica)",
+      "us": "Estados Unidos y Canadá",
+      "mx": "México",
+      "latam": "Resto de Latinoamérica",
+      "uk": "Reino Unido e Irlanda",
+      "other_region": "Otra región",
+      "easybroker": "EasyBroker",
+      "tokko": "Tokko Broker",
+      "wasi": "Wasi"
     },
     "autonomy": {
       "supervised": {
@@ -1613,7 +1627,11 @@
         "visibility": "Aval investiga, ejecuta trabajo rutinario permitido e informa los resultados en tu espacio.",
         "control": "Prefiere menos consultas. Las acciones sensibles siguen las reglas de aprobación del espacio."
       }
-    }
+    },
+    "regionalHint": "Opciones para tu región. Elegir una aplicación no la conecta.",
+    "showRegional": "Mostrar opciones regionales",
+    "showAll": "Ver todas las aplicaciones",
+    "regionalUnavailable": "Preferencia disponible · conexión aún no implementada"
   },
   "Imports": {
     "title": "Importaciones automáticas",
@@ -1676,5 +1694,214 @@
     "automatic": "Mantener esta bandeja actualizada automáticamente",
     "active": "Actualización automática activada",
     "stop": "Detener actualización automática"
+  },
+  "Independence": {
+    "title": "Independencia",
+    "guide": "Cómo usar Aval",
+    "howTitle": "Cómo usar Aval",
+    "howConnect": "Elige tu idioma y región, y cuéntale a Aval qué aplicaciones usas. Conecta una fuente en Conexiones cuando estés listo.",
+    "howAsk": "Abre el chat, elige un agente y describe el resultado que buscas. Aval consulta la evidencia disponible y propone los siguientes pasos.",
+    "howReview": "Sigue el progreso en Tareas y revisa las solicitudes en el chat o el Centro de revisión. Encuentra el recorrido y los ejemplos de independencia en Configuración → Preferencias.",
+    "limits": "La independencia se aplica a tus acciones en este espacio. Los permisos del agente siguen vigentes. Las acciones sensibles requieren aprobación; la falta de evidencia o un resultado no confirmado detiene la ejecución. Cambiar de modo afecta acciones futuras; no deshace trabajo ya ejecutado.",
+    "modes": {
+      "supervised": "Aval investiga; tú apruebas cada acción antes de ejecutarla.",
+      "assisted": "Aval propone un plan exacto; lo apruebas una vez y Aval lo ejecuta. Los cambios requieren nueva aprobación.",
+      "autonomous": "Aval ejecuta el trabajo rutinario permitido y reporta resultados. Las acciones sensibles aún requieren aprobación."
+    },
+    "active": "Activo: {mode}",
+    "switching": "Cambiando el modo de independencia…",
+    "changed": "Cambiaste a {mode}",
+    "bootTitle": "Aval inicia en modo {mode}",
+    "bootDescription": "Elige cómo trabajará Aval contigo. Configuración, chat y tus tareas de agentes comparten esta elección en este espacio.",
+    "enter": "Entrar a Aval · {mode}",
+    "labTitle": "Probar independencia y agentes",
+    "synthetic": "Datos sintéticos",
+    "labDescription": "Ejecuta un seguimiento de mantenimiento con dos mensajes de ejemplo. Elige aquí un agente de prueba y cambia el modo de independencia arriba para comparar aprobaciones, permisos y manejo de fallas.",
+    "labContext": "Probando {agent} · {mode}",
+    "scenario": "Escenario",
+    "scenarios": {
+      "routine": "Seguimiento rutinario",
+      "missing": "Falta de evidencia",
+      "failure": "Respuesta del proveedor sin confirmar"
+    },
+    "fixtureTitle": "Espacio de ejemplo · Harbor Court",
+    "fixtureDescription": "Un residente reportó una llave con fuga. La orden de ejemplo está abierta y el canal de mantenimiento está disponible. Aval propone una confirmación y un seguimiento.",
+    "fixtureDestination": "Destino: bandeja sintética de mantenimiento. Sin destinatarios reales.",
+    "run": "Ejecutar prueba",
+    "reset": "Reiniciar",
+    "counts": "{count} acciones de ejemplo · {approvals} aprobaciones",
+    "statuses": {
+      "ready": "Listo para probar",
+      "waiting": "Esperando tu revisión",
+      "completed": "Prueba completa",
+      "blocked": "Detenido por evidencia o permisos",
+      "failed": "Detenido: respuesta sin confirmar",
+      "cancelled": "Rechazado; acciones restantes canceladas"
+    },
+    "reviewPlan": "Revisa el plan exacto de dos acciones",
+    "reviewAction": "Revisa esta acción",
+    "approve": "Aprobar trabajo de ejemplo",
+    "reject": "Rechazar y detener",
+    "events": {
+      "routed": "Especialista recomendado para esta solicitud:",
+      "read": "Evidencia sintética consultada",
+      "denied": "Este agente no tiene permiso para esta acción",
+      "missing": "No hay evidencia; no se propone ninguna acción",
+      "failed": "Respuesta sin confirmar; no se reenvía automáticamente",
+      "planWaiting": "Pausa antes de ejecutar el plan",
+      "actionWaiting": "Pausa antes de ejecutar esta acción",
+      "planApproved": "Plan exacto aprobado",
+      "actionApproved": "Acción exacta aprobada",
+      "accepted": "La bandeja de ejemplo aceptó la acción; no se afirma entrega",
+      "sensitiveApproval": "La publicación sensible aún requiere aprobación",
+      "sensitiveDenied": "Los permisos de este agente impiden publicar",
+      "sensitiveAllowed": "Publicación permitida",
+      "cancelled": "Rechazado; no se ejecutan más acciones"
+    },
+    "outbox": "Inspeccionar bandeja sintética",
+    "labLimits": "Esta prueba aislada usa las reglas reales de selección de agente y permisos de Aval con decisiones programadas y una bandeja temporal. No llama a un modelo de IA, conecta proveedores ni cambia registros. Cambiar de modo o agente reinicia la prueba. No certifica entregas de proveedores reales. Elegir un agente de prueba no cambia el agente predeterminado del espacio.",
+    "startTask": "Iniciar tarea de agente",
+    "startingTask": "Iniciando…",
+    "taskStarted": "Tu tarea está en cola. El progreso y las solicitudes de aprobación aparecerán aquí usando tu modo de independencia guardado.",
+    "viewTask": "Ver tareas y aprobaciones",
+    "testAgent": "Agente de prueba",
+    "tour": "Recorrido por Aval"
+  },
+  "AgentExperience": {
+    "windowTitle": "Tarea de agente Aval",
+    "live": "Tarea real",
+    "example": "Ejemplo sintético",
+    "yes": "Sí, aprobar",
+    "no": "No, rechazar",
+    "approvePlan": "¿Puedo ejecutar este plan exacto?",
+    "approveAction": "¿Puedo ejecutar esta acción?",
+    "loading": "Cargando tarea…",
+    "loadError": "No se puede actualizar la tarea. Reintentando…",
+    "decisionError": "No se pudo guardar la decisión. Intenta de nuevo.",
+    "retry": "Reintentar",
+    "approvalCount": "{received} de {required} aprobaciones requeridas registradas.",
+    "statuses": {
+      "QUEUED": "En cola para el agente",
+      "RUNNING": "Aval está trabajando",
+      "WAITING_FOR_APPROVAL": "Esperando tu decisión",
+      "WAITING_FOR_TOOL": "Esperando resultado de una herramienta",
+      "COMPLETED": "Verificaciones de finalización aprobadas",
+      "FAILED": "Detenido; revisa la falla",
+      "CANCELLED": "Tarea cancelada"
+    },
+    "examplesTitle": "Mira cada modo en acción",
+    "examplesIntro": "Explora cómo trabaja Aval en cada modo. Mira un ejemplo o prueba las decisiones Sí/No antes de elegir tus preferencias.",
+    "exampleMode": "Modo del ejemplo",
+    "exampleLimits": "Datos de ejemplo ilustrativos; no se envían mensajes. Las tareas reales usan estos mismos controles de aprobación y requieren fuentes conectadas.",
+    "watch": "Ver ejemplo",
+    "try": "Probar por mi cuenta",
+    "pause": "Pausar ejemplo",
+    "resume": "Reanudar ejemplo",
+    "reset": "Reiniciar ejemplo",
+    "ready": "Listo para reproducir",
+    "investigating": "Consultando la evidencia disponible",
+    "sampleComplete": "Acciones de ejemplo aceptadas; no se afirma entrega",
+    "proposalRejected": "Propuesta rechazada. No se ejecutan más acciones de ejemplo.",
+    "sampleGoal": "Confirma la solicitud de mantenimiento y envía un seguimiento breve al canal de mantenimiento.",
+    "sampleRead": "Consultaré la orden de trabajo y verificaré el destino antes de proponer mensajes.",
+    "invitation": "Observa el cursor o toma las decisiones Sí/No por tu cuenta.",
+    "source": "Registro fuente sintético",
+    "sampleEvidence": "Harbor Court · llave con fuga · orden abierta · canal de mantenimiento disponible",
+    "samplePlan": "Confirmar la solicitud y dar seguimiento en el mismo canal.",
+    "accepted": "Acción {n} aceptada por la bandeja de ejemplo",
+    "sampleResult": "Se aceptaron ambos mensajes de ejemplo con {approvals} pausas de aprobación. No se enviaron mensajes reales.",
+    "tools": {
+      "send_external_message": "Enviar un mensaje",
+      "request_execution_plan": "Plan de ejecución",
+      "record_preference": "Guardar una preferencia",
+      "place_call": "Hacer una llamada",
+      "publish_listing": "Publicar un anuncio"
+    },
+    "fields": {
+      "provider": "Canal",
+      "to": "Destino",
+      "body": "Mensaje",
+      "conversation_id": "Conversación",
+      "script": "Guion de llamada",
+      "summary": "Resumen"
+    }
+  },
+  "Tour": {
+    "start": "Recorrido por Aval",
+    "step": "Paso {current} de {total}",
+    "close": "Cerrar recorrido",
+    "back": "Atrás",
+    "next": "Siguiente",
+    "finish": "Terminar recorrido",
+    "modules": {
+      "overview": {
+        "title": "Resumen del portafolio",
+        "body": "Empieza con el desempeño del portafolio y la actividad reciente. Las cifras reflejan los registros disponibles; conecta o importa datos para completar lo que falta."
+      },
+      "setup": {
+        "title": "Configuración e independencia",
+        "body": "Elige tu especialista, define la independencia de Aval y prueba los ejemplos animados o la práctica sintética. Enséñale las preferencias que quieres que recuerde."
+      },
+      "tasks": {
+        "title": "Tareas de Aval",
+        "body": "Dale un objetivo concreto a un agente y sigue su plan, evidencia, verificaciones y resultados. Las tareas conservan su progreso cuando sales de esta pantalla."
+      },
+      "reviewCenter": {
+        "title": "Centro de revisión",
+        "body": "Revisa el contenido y el destino exactos de cada propuesta. Sí aprueba esa propuesta; No la rechaza. Las acciones sensibles requieren aprobación en todos los modos."
+      },
+      "inbox": {
+        "title": "Bandeja compartida",
+        "body": "Lee conversaciones conectadas y coordina respuestas en un solo lugar. Los canales disponibles dependen de conexiones verificadas y sus capacidades."
+      },
+      "properties": {
+        "title": "Propiedades",
+        "body": "Organiza las propiedades y unidades del portafolio. Esta es la base del análisis de ocupación, arrendamiento y operaciones."
+      },
+      "leasing": {
+        "title": "Arrendamiento",
+        "body": "Sigue las unidades disponibles y el proceso desde una consulta hasta un contrato. Usa la evidencia conectada para detectar qué requiere atención."
+      },
+      "maintenance": {
+        "title": "Mantenimiento",
+        "body": "Revisa órdenes de trabajo, antigüedad y desempeño del servicio. Pide al especialista investigar un problema y proponer un siguiente paso respaldado."
+      },
+      "accounting": {
+        "title": "Contabilidad",
+        "body": "Revisa registros financieros, cuentas por cobrar y resultados operativos. Aval usa registros fuente; el modo Autónomo no habilita movimientos de dinero no implementados."
+      },
+      "infrastructure": {
+        "title": "Infraestructura",
+        "body": "Da seguimiento a medidores, consumo y recibos. Relaciona el uso de recursos con los edificios que administras."
+      },
+      "calendar": {
+        "title": "Calendario",
+        "body": "Consulta actividades programadas y próximas fechas. Coordina tiempos sin perder el contexto de tus operaciones."
+      },
+      "projects": {
+        "title": "Proyectos",
+        "body": "Organiza el trabajo en proyectos con responsables y progreso claros. Mantén visibles los esfuerzos operativos más amplios."
+      },
+      "teams": {
+        "title": "Equipos",
+        "body": "Organiza a las personas que colaboran en el espacio. La estructura del equipo y el acceso ayudan a aclarar responsabilidades."
+      },
+      "connections": {
+        "title": "Conexiones",
+        "body": "Conecta las aplicaciones con tus registros y conversaciones. Cada aplicación muestra su disponibilidad real; guardar una credencial no prueba una integración funcional."
+      },
+      "documents": {
+        "title": "Documentos",
+        "body": "Incorpora documentos y haz preguntas basadas en su contenido. Las afirmaciones de un documento se atribuyen a esa fuente."
+      },
+      "settings": {
+        "title": "Ajustes",
+        "body": "Administra tu cuenta, apariencia, conexiones de modelos y preferencias iniciales. Vuelve aquí para actualizar idioma, región o aplicaciones."
+      },
+      "chat": {
+        "title": "Conversa con Aval",
+        "body": "Haz preguntas o elige Iniciar tarea de agente para ejecutar trabajo. El progreso y las aprobaciones Sí/No aparecen en el chat; las trazas completas están en Tareas."
+      }
+    }
   }
 }

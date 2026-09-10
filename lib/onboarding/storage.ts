@@ -1,12 +1,12 @@
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { userOnboarding } from "@/db/schema";
-import { DEFAULT_ONBOARDING, parseOnboarding, type OnboardingState } from "./preferences";
+import { DEFAULT_ONBOARDING, parseOnboarding, upgradeStoredOnboarding, type OnboardingState } from "./preferences";
 
 export async function readOnboarding(userId: string, organizationId: string): Promise<OnboardingState> {
   const [row] = await getDb().select().from(userOnboarding).where(and(eq(userOnboarding.userId, userId), eq(userOnboarding.organizationId, organizationId))).limit(1);
   if (!row) return structuredClone(DEFAULT_ONBOARDING);
-  const parsed = parseOnboarding({ preferences: JSON.parse(row.preferences), step: row.step, completed: row.completed, revision: row.revision });
+  const parsed = parseOnboarding(upgradeStoredOnboarding({ preferences: JSON.parse(row.preferences), step: row.step, completed: row.completed, revision: row.revision }));
   if (!parsed) throw new Error("Invalid stored onboarding preferences");
   return parsed;
 }

@@ -20,6 +20,21 @@ async function setup(mode='autonomous') {
 const message={provider:'slack',to:'C_TEST',body:'Your maintenance request is being reviewed.'};
 const subject={organizationId:'org_1',userId:'user_1',isGuest:false};
 async function newTask(tasks,extra={}) {return tasks.createTask({check:{kind:"delivery",operation:"message",status:"accepted"},organizationId:'org_1',userId:'user_1',agentId:'general',goal:'Respond to the maintenance inquiry.',...extra});}
+test('delivery model receives specialist evidence tools without expanding its permissions',async()=>{
+ for(const agentId of ['maintenance','financial','riskAnalyst']) {
+  const {sqlite,tasks,runtime}=await setup();
+  try {
+   let offered=[];
+   globalThis.__MODEL__=async(_env,_org,params)=>{offered=params.tools.map(tool=>tool.name);return conclude('No action taken');};
+   const task=await newTask(tasks,{agentId});
+   await runtime.advanceTask(ENV,'org_1',task.id,runtime.newWorkerId(),{maxStepsThisInvocation:1});
+   assert.ok(offered.includes(agentId==='maintenance'?'get_maintenance_performance':'get_accounting_breakdown'));
+   assert.equal(offered.includes('send_external_message'),agentId!=='riskAnalyst');
+   assert.equal(offered.includes('get_maintenance_performance'),agentId==='maintenance');
+   assert.ok(!offered.includes('record_preference'),'delivery reads must not add unrelated mutations');
+  }finally{sqlite.close();}
+ }
+});
 test('a real provider send is reserved once, accepted accurately, and scoped by organization',async t=>{
  const {sqlite,store}=await setup();let calls=0;
  t.mock.method(globalThis,'fetch',async(url,init)=>{calls++;assert.equal(url,'https://slack.com/api/chat.postMessage');assert.equal(init.headers.authorization,'Bearer slack-test-token');assert.equal(JSON.parse(init.body).channel,'C_TEST');return Response.json({ok:true,ts:'171.001'});});
@@ -137,3 +152,40 @@ test('communication and marketing endpoints reject malformed JSON before reachin
  }
  assert.equal(calls,0);
 });
+
+// Matrix runs the real durable loop, SQLite, approvals, permissions and provider adapter.
+// Only the model decisions and HTTP response are scripted; no live messages are sent.
+for (const mode of ['supervised','assisted','autonomous']) {
+ for (const agentId of ['general','financial','brokerage','maintenance']) {
+  test(`${agentId} / ${mode}: two actions complete with the correct human checkpoints`,async t=>{
+   const {tasks,runtime,approvals,sqlite}=await setup(mode);let calls=0;
+   t.mock.method(globalThis,'fetch',async(url)=>{assert.equal(url,'https://slack.com/api/chat.postMessage');calls++;return Response.json({ok:true,ts:`matrix.${calls}`});});
+   const second={...message,body:'The maintenance team will follow up in this channel.'};
+   const turns=[useTool('send_external_message',message,'send-first'),useTool('send_external_message',second,'send-second'),conclude('Both updates submitted')];
+   if(mode==='assisted')turns.unshift(useTool('request_execution_plan',{summary:'Acknowledge and follow up.',actions:[{tool:'send_external_message',args:message},{tool:'send_external_message',args:second}]},'plan'));
+   scriptModel(...turns);
+   const task=await newTask(tasks,{agentId});
+   let outcome=await runtime.advanceTask(ENV,'org_1',task.id,runtime.newWorkerId());let stops=0;
+   while(outcome.status==='WAITING_FOR_APPROVAL'&&stops<3){
+    assert.equal(calls,mode==='supervised'?stops:0,'no unapproved action reached the adapter');
+    const approval=await approvals.latestApprovalForTask('org_1',task.id);
+    assert.equal((await approvals.decideApproval('org_1',approval.id,'approved','user_1','user_1','owner')).ok,true);
+    stops++;outcome=await runtime.advanceTask(ENV,'org_1',task.id,runtime.newWorkerId());
+   }
+   assert.equal(outcome.status,'COMPLETED');assert.equal(calls,2);
+   assert.equal(stops,mode==='supervised'?2:mode==='assisted'?1:0);
+   assert.equal(sqlite.prepare('SELECT count(*) n FROM communication_deliveries').get().n,2);
+   assert.ok((await tasks.listSteps(task.id,'org_1')).some(s=>s.kind==='verification_check'));
+  });
+ }
+ test(`${mode}: independence cannot grant outreach to agents without that permission`,async t=>{
+  const {tasks,executor}=await setup(mode);let calls=0;
+  t.mock.method(globalThis,'fetch',async()=>{calls++;throw Error('A denied tool reached the network');});
+  for(const agentId of ['realEstate','marketResearch','riskAnalyst','portfolioOutlook','leaseReview']){
+   const task=await newTask(tasks,{agentId});
+   const result=await executor.executeTool({toolName:'send_external_message',args:message,subject,context:{personaId:agentId},task:{id:task.id,stepIndex:1}});
+   assert.equal(result.result.status,'denied',agentId);
+  }
+  assert.equal(calls,0);
+ });
+}

@@ -1,7 +1,7 @@
 import { and, eq, sql, asc } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { agentChecks, communicationDeliveries, learnedPreferences, agentPlanNodes, agentTasks, conversations, integrationConnections } from '@/db/schema';
-import { getTool } from './registry';
+import { implementedTools } from './registry';
 import type { TaskRecord } from './tasks';
 import type { Message } from '@/lib/ask-aval/anthropic';
 export type TaskCheck = {
@@ -20,13 +20,14 @@ export type TaskCheck = {
     kind: 'plan';
 };
 export const MAX_CHECK_REPAIRS = 2;
+export const EVIDENCE_TOOL_NAMES = implementedTools().filter(t => !t.mutates && !['plan_goal', 'get_goal_plan', 'read_memory', 'read_task_history', 'request_execution_plan'].includes(t.name)).map(t => t.name);
 export function parseTaskCheck(value: unknown): TaskCheck {
     if (!value || typeof value !== 'object' || Array.isArray(value))
         throw Error('A machine-checkable completion condition is required.');
     const c = value as Record<string, unknown>;
     if (c.kind === 'plan')
         return { kind: 'plan' };
-    if (c.kind === 'evidence' && Array.isArray(c.tools) && c.tools.length > 0 && c.tools.length <= 4 && c.tools.every(t => typeof t === 'string' && getTool(t) && !getTool(t)!.mutates && !['plan_goal', 'get_goal_plan', 'read_memory', 'read_task_history', 'request_execution_plan'].includes(t)))
+    if (c.kind === 'evidence' && Array.isArray(c.tools) && c.tools.length > 0 && c.tools.length <= 4 && c.tools.every(t => typeof t === 'string' && EVIDENCE_TOOL_NAMES.includes(t)))
         return { kind: 'evidence', tools: [...new Set(c.tools as string[])] };
     if (c.kind === 'delivery' && ['message', 'call', 'listing'].includes(String(c.operation)) && ['accepted', 'delivered'].includes(String(c.status)) && (c.conversationId === undefined || typeof c.conversationId === 'string'))
         return { kind: 'delivery', operation: c.operation as 'message' | 'call' | 'listing', status: c.status as 'accepted' | 'delivered', ...(typeof c.conversationId === 'string' ? { conversationId: c.conversationId } : {}) };

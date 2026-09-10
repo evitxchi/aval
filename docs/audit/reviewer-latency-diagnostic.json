@@ -1,0 +1,290 @@
+{
+  "scope": "Standalone synthetic reviewer latency diagnostic with 60-second timeout; not a runtime completion trial.",
+  "packet": {
+    "phase": "answer",
+    "goal": "Read maintenance evidence and send exactly these messages, in order, to SYNTHETIC_MAINTENANCE on Slack: [\"Your maintenance request is being reviewed.\",\"The maintenance team will follow up here.\"]. Report acceptance without claiming delivery.",
+    "check": {
+      "kind": "delivery",
+      "operation": "message",
+      "status": "accepted"
+    },
+    "proposal": {
+      "headline": "Messages accepted",
+      "narrative": "Maintenance evidence was reviewed. Slack accepted both requested messages in order for SYNTHETIC_MAINTENANCE. Delivery is not confirmed."
+    },
+    "completedTasks": [],
+    "sources": [
+      {
+        "id": "maintenance:0",
+        "tool": "get_maintenance_performance",
+        "arguments": {},
+        "failed": false,
+        "data": {
+          "workOrders": [
+            {
+              "summary": "Leaking tap",
+              "status": "open"
+            }
+          ]
+        }
+      },
+      {
+        "id": "receipt:0",
+        "tool": "stored_delivery_receipt",
+        "arguments": {},
+        "failed": false,
+        "data": {
+          "provider": "slack",
+          "destination": "SYNTHETIC_MAINTENANCE",
+          "body": "Your maintenance request is being reviewed.",
+          "status": "accepted",
+          "createdAt": 1000
+        }
+      },
+      {
+        "id": "receipt:1",
+        "tool": "stored_delivery_receipt",
+        "arguments": {},
+        "failed": false,
+        "data": {
+          "provider": "slack",
+          "destination": "SYNTHETIC_MAINTENANCE",
+          "body": "The maintenance team will follow up here.",
+          "status": "accepted",
+          "createdAt": 1001
+        }
+      }
+    ]
+  },
+  "startedAt": "2026-09-10T01:33:13.153Z",
+  "model": "gpt-6-astra",
+  "response": {
+    "content": [
+      {
+        "type": "tool_use",
+        "id": "ef92f9b1-443b-4e26-b0ba-be2bb7878a40",
+        "name": "semantic_verdict",
+        "input": {
+          "passed": true,
+          "requirements": [
+            {
+              "requirement": "Read maintenance evidence.",
+              "satisfied": true,
+              "explanation": "Successful maintenance evidence supplies an open work order for a leaking tap.",
+              "nodeKeys": []
+            },
+            {
+              "requirement": "Send exactly the two specified messages, in order, to SYNTHETIC_MAINTENANCE on Slack.",
+              "satisfied": true,
+              "explanation": "Both Slack receipts match the destination and exact requested bodies; timestamps 1000 and 1001 establish the requested order.",
+              "nodeKeys": []
+            },
+            {
+              "requirement": "Report acceptance without claiming delivery.",
+              "satisfied": true,
+              "explanation": "The proposal reports acceptance and explicitly states that delivery is not confirmed.",
+              "nodeKeys": []
+            }
+          ],
+          "claims": [
+            {
+              "claim": "Maintenance evidence was reviewed.",
+              "kind": "fact",
+              "supported": true,
+              "citations": [
+                {
+                  "sourceId": "maintenance:0",
+                  "pointer": "/workOrders/0/summary"
+                },
+                {
+                  "sourceId": "maintenance:0",
+                  "pointer": "/workOrders/0/status"
+                }
+              ]
+            },
+            {
+              "claim": "Slack accepted both requested messages in order for SYNTHETIC_MAINTENANCE.",
+              "kind": "fact",
+              "supported": true,
+              "citations": [
+                {
+                  "sourceId": "receipt:0",
+                  "pointer": "/provider"
+                },
+                {
+                  "sourceId": "receipt:0",
+                  "pointer": "/destination"
+                },
+                {
+                  "sourceId": "receipt:0",
+                  "pointer": "/body"
+                },
+                {
+                  "sourceId": "receipt:0",
+                  "pointer": "/status"
+                },
+                {
+                  "sourceId": "receipt:0",
+                  "pointer": "/createdAt"
+                },
+                {
+                  "sourceId": "receipt:1",
+                  "pointer": "/provider"
+                },
+                {
+                  "sourceId": "receipt:1",
+                  "pointer": "/destination"
+                },
+                {
+                  "sourceId": "receipt:1",
+                  "pointer": "/body"
+                },
+                {
+                  "sourceId": "receipt:1",
+                  "pointer": "/status"
+                },
+                {
+                  "sourceId": "receipt:1",
+                  "pointer": "/createdAt"
+                }
+              ]
+            },
+            {
+              "claim": "Delivery is not confirmed.",
+              "kind": "limitation",
+              "supported": true,
+              "citations": [
+                {
+                  "sourceId": "receipt:0",
+                  "pointer": "/status"
+                },
+                {
+                  "sourceId": "receipt:1",
+                  "pointer": "/status"
+                }
+              ]
+            }
+          ],
+          "issues": []
+        }
+      }
+    ],
+    "stop_reason": "tool_use",
+    "usage": {
+      "input_tokens": 10842,
+      "output_tokens": 409
+    },
+    "routing": {
+      "providerId": "codex-app-server",
+      "model": "gpt-6-astra"
+    }
+  },
+  "verdict": {
+    "exitCode": 0,
+    "problems": [],
+    "verdict": {
+      "passed": true,
+      "requirements": [
+        {
+          "requirement": "Read maintenance evidence.",
+          "satisfied": true,
+          "explanation": "Successful maintenance evidence supplies an open work order for a leaking tap.",
+          "nodeKeys": []
+        },
+        {
+          "requirement": "Send exactly the two specified messages, in order, to SYNTHETIC_MAINTENANCE on Slack.",
+          "satisfied": true,
+          "explanation": "Both Slack receipts match the destination and exact requested bodies; timestamps 1000 and 1001 establish the requested order.",
+          "nodeKeys": []
+        },
+        {
+          "requirement": "Report acceptance without claiming delivery.",
+          "satisfied": true,
+          "explanation": "The proposal reports acceptance and explicitly states that delivery is not confirmed.",
+          "nodeKeys": []
+        }
+      ],
+      "claims": [
+        {
+          "claim": "Maintenance evidence was reviewed.",
+          "kind": "fact",
+          "supported": true,
+          "citations": [
+            {
+              "sourceId": "maintenance:0",
+              "pointer": "/workOrders/0/summary"
+            },
+            {
+              "sourceId": "maintenance:0",
+              "pointer": "/workOrders/0/status"
+            }
+          ]
+        },
+        {
+          "claim": "Slack accepted both requested messages in order for SYNTHETIC_MAINTENANCE.",
+          "kind": "fact",
+          "supported": true,
+          "citations": [
+            {
+              "sourceId": "receipt:0",
+              "pointer": "/provider"
+            },
+            {
+              "sourceId": "receipt:0",
+              "pointer": "/destination"
+            },
+            {
+              "sourceId": "receipt:0",
+              "pointer": "/body"
+            },
+            {
+              "sourceId": "receipt:0",
+              "pointer": "/status"
+            },
+            {
+              "sourceId": "receipt:0",
+              "pointer": "/createdAt"
+            },
+            {
+              "sourceId": "receipt:1",
+              "pointer": "/provider"
+            },
+            {
+              "sourceId": "receipt:1",
+              "pointer": "/destination"
+            },
+            {
+              "sourceId": "receipt:1",
+              "pointer": "/body"
+            },
+            {
+              "sourceId": "receipt:1",
+              "pointer": "/status"
+            },
+            {
+              "sourceId": "receipt:1",
+              "pointer": "/createdAt"
+            }
+          ]
+        },
+        {
+          "claim": "Delivery is not confirmed.",
+          "kind": "limitation",
+          "supported": true,
+          "citations": [
+            {
+              "sourceId": "receipt:0",
+              "pointer": "/status"
+            },
+            {
+              "sourceId": "receipt:1",
+              "pointer": "/status"
+            }
+          ]
+        }
+      ],
+      "issues": []
+    }
+  },
+  "durationMs": 17208
+}

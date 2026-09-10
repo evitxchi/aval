@@ -200,6 +200,6 @@ JSON pointers must exist. Natural-language entailment remains a probabilistic mo
 verdict and proposal digest. Plan persistence requires a matching review from the current
 step. Reviewer tokens are included in task usage before child budgets are allocated.
 At most one reviewer call occurs per actor turn, within the existing time/token limits;
-review calls do not add actor steps. Failed checks share the two-repair allowance.
+review calls do not add actor steps. Final proposals are checkpointed before review; when fewer than 26 seconds remain in the invocation, the task queues and the next worker reviews the saved answer, even at the actor step limit. Source citations use packet-local IDs with retained original provenance. Failed checks share the two-repair allowance.
 Reviewer unavailability withholds completion, including when a provider has no API credit.
 See `AGENT_HARNESS_AUDIT.md` for evaluation results and the remaining live-quality limitation.
