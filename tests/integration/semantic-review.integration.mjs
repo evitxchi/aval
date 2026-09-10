@@ -125,6 +125,84 @@ test('UUID row citations reach independent review without numeric false positive
   assert.deepEqual(JSON.parse((await tasks.getTask('org_1', task.id)).resultJson).evidence_ids, [id]);
 });
 
+test('a checkpointed last-step answer resumes review without another actor call or repair', async () => {
+  const { sqlite, tasks, task, run } = await setup('evidence', { maxSteps: 1 });
+  let actors = 0, reviewers = 0;
+  globalThis.__MODEL__ = async () => {
+    actors++;
+    const answer = conclude('Revenue', 'Oak revenue was USD 1200.');
+    answer.content.unshift({ type: 'text', text: 'Ready to conclude.' });
+    return answer;
+  };
+  globalThis.__SEMANTIC_MODEL__ = async (_e, _o, params) => {
+    reviewers++;
+    assert.ok(params.timeout_ms > 24000);
+    const evidence = JSON.parse(params.messages[0].content);
+    assert.equal(evidence.sources[0].id, 's0');
+    assert.equal(evidence.sources[0].originId, `${task.id}:0`);
+    return semanticFixture(evidence);
+  };
+  assert.equal((await run({ invocationBudgetMs: 20000 })).status, 'QUEUED');
+  const pending = await tasks.getTask('org_1', task.id);
+  assert.equal(pending.stepCount, 1);
+  assert.equal(pending.tokensUsed, 150);
+  assert.equal(pending.resultJson, null);
+  assert.equal(reviewers, 0);
+  assert.equal(sqlite.prepare('SELECT count(*) n FROM agent_checks').get().n, 0);
+  assert.equal((await run()).status, 'COMPLETED');
+  const completed = await tasks.getTask('org_1', task.id);
+  assert.equal(actors, 1);
+  assert.equal(reviewers, 1);
+  assert.equal(completed.stepCount, 1);
+  assert.equal(completed.tokensUsed, 300);
+  assert.equal(sqlite.prepare('SELECT step_index FROM agent_checks').get().step_index, 0);
+});
+
+test('pending answer recovery still enforces cancellation, deadline, tokens and numeric evidence', async () => {
+  for (const mode of ['cancel', 'deadline', 'tokens', 'fabricated']) {
+    const { sqlite, task, tasks, run } = await setup('evidence', { maxSteps: 1 });
+    scriptModel(conclude('Revenue', mode === 'fabricated' ? 'Revenue was USD 987654.' : 'Oak revenue was USD 1200.'));
+    assert.equal((await run({ invocationBudgetMs: 20000 })).status, 'QUEUED');
+    if (mode === 'cancel') sqlite.prepare('UPDATE agent_tasks SET cancel_requested=1 WHERE id=?').run(task.id);
+    if (mode === 'deadline') sqlite.prepare('UPDATE agent_tasks SET deadline_at=0 WHERE id=?').run(task.id);
+    if (mode === 'tokens') sqlite.prepare('UPDATE agent_tasks SET max_tokens=tokens_used WHERE id=?').run(task.id);
+    globalThis.__MODEL__ = async () => { throw Error('Do not re-propose a pending answer.'); };
+    globalThis.__SEMANTIC_MODEL__ = async () => { throw Error('Do not review a blocked answer.'); };
+    assert.equal((await run()).status, mode === 'cancel' ? 'CANCELLED' : 'FAILED');
+    assert.equal((await tasks.getTask('org_1', task.id)).resultJson, null);
+  }
+});
+
+test('a rejected checkpointed answer supplies repair feedback and reviews the replacement at its own step', async () => {
+  const { sqlite, tasks, task, run } = await setup('evidence', { maxSteps: 2 });
+  let actors = 0, reviewers = 0;
+  globalThis.__MODEL__ = async (_e, _o, params) => {
+    actors++;
+    if (actors === 2) assert.match(JSON.stringify(params.messages), /wrong metric/);
+    return conclude('Revenue', actors === 1 ? 'Oak revenue was USD 400.' : 'Oak revenue was USD 1200.');
+  };
+  globalThis.__SEMANTIC_MODEL__ = async (_e, _o, params) => {
+    reviewers++;
+    const evidence = JSON.parse(params.messages[0].content);
+    return semanticFixture(evidence, reviewers === 1
+      ? { passed: false, issues: ['wrong metric: 400 is expenses, not revenue'] } : {});
+  };
+  assert.equal((await run({ invocationBudgetMs: 20000 })).status, 'QUEUED');
+  assert.equal(reviewers, 0);
+  assert.equal((await run({ invocationBudgetMs: 20000 })).status, 'QUEUED');
+  assert.equal(actors, 2);
+  assert.equal(reviewers, 1);
+  assert.equal((await tasks.getTask('org_1', task.id)).resultJson, null);
+  assert.equal((await run()).status, 'COMPLETED');
+  assert.equal(actors, 2);
+  assert.equal(reviewers, 2);
+  const completed = await tasks.getTask('org_1', task.id);
+  assert.equal(completed.stepCount, 2);
+  assert.equal(completed.tokensUsed, 600);
+  assert.deepEqual(sqlite.prepare('SELECT step_index,exit_code FROM agent_checks ORDER BY step_index').all()
+    .map(row => ({ ...row })), [{ step_index: 0, exit_code: 1 }, { step_index: 1, exit_code: 0 }]);
+});
+
 test('unavailable reviewer, revoked lease, cancellation and oversized evidence never complete', async () => {
   for (const mode of ['unavailable', 'lease', 'cancel', 'oversize', 'budget']) {
     const { sqlite, task, tasks, run } = await setup();

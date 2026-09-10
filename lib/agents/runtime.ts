@@ -275,8 +275,29 @@ Task completion condition: ${task.checkJson}. The harness verifies it independen
         return { ...scope, exitCode: 1, problems: ['The task stopped or exhausted its budget during semantic review.'] };
       return { ...scope, ...parseSemanticVerdict(response, packet) };
     } catch (err) {
+      await frame({ kind: 'semantic_error', ...scope, timeoutMs: timeout,
+        error: err instanceof AnthropicError ? err.message : 'Semantic review transport failed.' });
       return { ...scope, exitCode: 1, problems: [err instanceof AnthropicError ? `Semantic review unavailable: ${err.message}` : 'Semantic review failed; completion was withheld.'] };
     }
+  };
+
+  const completeAnswer = async (final: ToolUseBlock, stepIndex: number): Promise<AdvanceOutcome | null> => {
+    const answer = stripDashes(final.input);
+    const gate = checkFaithfulness(answer, withDerivedNumbers(seenNumbers));
+    if (!gate.ok) {
+      audit.push({ kind: 'verdict', label: 'fail', payloadDigest: await digestPayload(gate.unsupported), count: gate.unsupported.length });
+      return finish('FAILED', { error: "The conclusion referenced figures that aren't in the underlying data, so it was withheld." });
+    }
+    const verification = await checkTask(task, messages, stepIndex, () => review('answer', answer, stepIndex));
+    await persistStep({ taskId, organizationId, stepIndex, kind: 'verification_check', policyEffect: verification.exitCode ? 'deny' : 'allow', resultDigest: await digestPayload(verification), error: verification.exitCode ? verification.problems.join(' ') : undefined });
+    messages.push({ role: 'user', content: [{ type: 'tool_result', tool_use_id: final.id, ...(verification.exitCode ? { is_error: true } : {}), content: JSON.stringify(verification) }] });
+    if (verification.exitCode !== 0) {
+      if (await failedCheckCount(organizationId, taskId) > MAX_CHECK_REPAIRS) return finish('FAILED', { error: 'Completion checks failed after bounded repair: ' + verification.problems.join(' ') });
+      return checkpoint();
+    }
+    audit.push({ kind: 'verdict', label: 'pass', payloadDigest: await digestPayload([]), count: 0 });
+    audit.push({ kind: 'task_completed', label: task.agentId, payloadDigest: await digestPayload(answer), count: stepIndex });
+    return finish('COMPLETED', { resultJson: JSON.stringify(answer) });
   };
 
   try {
@@ -303,12 +324,16 @@ Task completion condition: ${task.checkJson}. The harness verifies it independen
 
       task.maxSteps = fresh.maxSteps;
       task.maxTokens = fresh.maxTokens;
+      const last = messages.at(-1);
+      const pendingUses = last?.role === 'assistant' && Array.isArray(last.content)
+        ? last.content.filter((block): block is ToolUseBlock => block.type === 'tool_use') : [];
+      const pendingAnswer = pendingUses.length === 1 && pendingUses[0].name === 'render_answer' ? pendingUses[0] : undefined;
 
       // Cancellation, budgets and the lease are all checked here, at the step
       // boundary, so nothing is ever interrupted mid-execution.
       if(Date.now() >= (fresh.deadlineAt?.getTime() ?? fresh.createdAt.getTime()+30*60_000))return finish('FAILED',{error:'The task reached its total wall-clock limit.'});
       if (fresh.cancelRequested) return finish("CANCELLED");
-      if (task.stepCount + stepsRun >= task.maxSteps) {
+      if (!pendingAnswer && task.stepCount + stepsRun >= task.maxSteps) {
         return finish("FAILED", { error: `Reached the ${task.maxSteps}-step limit without a conclusion.` });
       }
       if (task.tokensUsed + inputTokens + outputTokens >= task.maxTokens) {
@@ -348,6 +373,14 @@ Task completion condition: ${task.checkJson}. The harness verifies it independen
       }
       if (!(await heartbeat(taskId, workerId))) {
         return { taskId, status: fresh.status, stepsRun, error: "Lease lost to another worker." };
+      }
+
+      if (pendingAnswer) {
+        // This proposal already consumed its actor step. Review it before any
+        // further inference, including when it was the last permitted step.
+        const outcome = await completeAnswer(pendingAnswer, task.stepCount + stepsRun - 1);
+        if (outcome) return outcome;
+        continue;
       }
 
       const stepIndex = task.stepCount + stepsRun;
@@ -393,25 +426,14 @@ Task completion condition: ${task.checkJson}. The harness verifies it independen
       const final = toolUses.find((use) => use.name === "render_answer");
 
       if (final) {
-        const answer = stripDashes(final.input);
-        const gate = checkFaithfulness(answer, withDerivedNumbers(seenNumbers));
-        if (!gate.ok) {
-          audit.push({ kind: "verdict", label: "fail", payloadDigest: await digestPayload(gate.unsupported), count: gate.unsupported.length });
-          return finish("FAILED", { error: "The conclusion referenced figures that aren't in the underlying data, so it was withheld." });
-        }
         messages.push({role:'assistant',content:res.content});
-        const verification=await checkTask(task,messages,stepIndex,()=>review('answer',answer,stepIndex));
-        await persistStep({taskId,organizationId,stepIndex,kind:'verification_check',policyEffect:verification.exitCode?'deny':'allow',resultDigest:await digestPayload(verification),error:verification.exitCode?verification.problems.join(' '):undefined});
-        if(verification.exitCode!==0){
-          messages.push({role:'user',content:[{type:'tool_result',tool_use_id:final.id,is_error:true,content:JSON.stringify(verification)}]});
-          if(await failedCheckCount(organizationId,taskId)>MAX_CHECK_REPAIRS)return finish('FAILED',{error:'Completion checks failed after bounded repair: '+verification.problems.join(' ')});
-          const lost=await checkpoint();if(lost)return lost;
-          continue;
-        }
-        messages.push({role:'user',content:[{type:'tool_result',tool_use_id:final.id,content:JSON.stringify(verification)}]});
-        audit.push({ kind: "verdict", label: "pass", payloadDigest: await digestPayload([]), count: 0 });
-        audit.push({ kind: "task_completed", label: task.agentId, payloadDigest: await digestPayload(answer), count: stepIndex });
-        return finish("COMPLETED", { resultJson: JSON.stringify(answer) });
+        const lost = await checkpoint(); if (lost) return lost;
+        // Do not spend an actor repair on a review starved by the current
+        // invocation. The next worker resumes this exact checkpointed answer.
+        if (deadline - Date.now() < 26_000) return finish('QUEUED');
+        const outcome = await completeAnswer(final, stepIndex);
+        if (outcome) return outcome;
+        continue;
       }
 
       if (res.stop_reason !== "tool_use" || toolUses.length === 0) {

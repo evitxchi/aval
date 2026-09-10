@@ -1,11 +1,14 @@
 /** Opt-in matched live-model comparison; isolated data and synthetic HTTP only. */
 import assert from 'node:assert/strict';
-import { writeFileSync } from 'node:fs';
+import { writeFileSync, existsSync } from 'node:fs';
 import { registerHooks } from 'node:module';
 import { bootRuntime, ENV } from '../tests/integration/harness.mjs';
 import { startCodexInference } from './lib/codex-inference.mjs';
 registerHooks({resolve(specifier,context,next){return next(specifier==='next/headers'?'next/headers.js':specifier,context);}});
 const output=process.argv[2]??'docs/audit/agent-llm-comparison.json';
+if (existsSync(output)) throw Error('Choose a new output path to preserve previous evaluation evidence.');
+const modes=process.env.AVAL_COMPARISON_MODES?.split(',')??['supervised','assisted','autonomous'];
+if (!modes.length || modes.some(mode=>!['supervised','assisted','autonomous'].includes(mode))) throw Error('Invalid comparison mode.');
 const report={executedAt:new Date().toISOString(),status:'running',scope:'Matched live inference, same model and task facts. Aval uses real runtime, tools, SQLite and approvals. Ordinary response has no execution tools. All provider responses are synthetic. No live business effects.',evaluationConfig:{taskTokenBudget:200000,ownModelCredential:true,seededConversation:true},trials:[]};
 const save=()=>writeFileSync(output,JSON.stringify(report,null,2)+'\n');
 const originalFetch=globalThis.fetch;
@@ -13,7 +16,7 @@ let client;
 const actions=[{provider:'slack',to:'SYNTHETIC_MAINTENANCE',body:'Your maintenance request is being reviewed.'},{provider:'slack',to:'SYNTHETIC_MAINTENANCE',body:'The maintenance team will follow up here.'}];
 try {
  client=await startCodexInference();report.model=client.model;save();
- for(const mode of ['supervised','assisted','autonomous']) {
+ for(const mode of modes) {
   const trial={mode,agentId:'maintenance',modelCalls:[],approvals:[],outbox:[]};report.trials.push(trial);save();
   const sqlite=await bootRuntime();
   try {
@@ -41,8 +44,9 @@ try {
    trial.baseline={answer:baseline.content[0].input.text,durationMs:Math.round(performance.now()-start),usage:baseline.usage,adapterCalls:0};save();
    const infer=phase=>async(_env,_org,params)=>{
     const started=performance.now();
+    if(phase==='reviewer'){(trial.reviewRequests??=[]).push(params);save();}
     try {const response=await client.call(params);trial.modelCalls.push({phase,durationMs:Math.round(performance.now()-started),usage:response.usage,proposals:response.content.map(c=>({name:c.name,input:c.input}))});save();console.log(`${mode} ${phase}: ${response.content.map(c=>c.name).join(', ')}`);return response;}
-    catch(error){trial.modelCalls.push({phase,durationMs:Math.round(performance.now()-started),error:error.message});save();throw error;}
+    catch(error){trial.modelCalls.push({phase,durationMs:Math.round(performance.now()-started),error:error.message,diagnostics:error.diagnostics});save();throw error;}
    };
    globalThis.__MODEL__=infer('actor');globalThis.__SEMANTIC_MODEL__=infer('reviewer');
    globalThis.fetch=async(url,init)=>{

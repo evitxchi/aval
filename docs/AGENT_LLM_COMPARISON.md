@@ -2,9 +2,25 @@
 
 ## Current result — September 9, 2026 (Pacific)
 
-The matched live evaluation has finished and **failed end-to-end completion in all three modes**. Execution and approval assertions passed; independent review timed out. Eight separate scripted runtime trials pass. These are different kinds of evidence and must not be conflated.
+The fresh [completion-review verification](audit/agent-llm-comparison-completion-review-verification.json) **passed all three modes** using live `gpt-6-astra` actor and independent reviewer inference. Each task reached `COMPLETED`, read maintenance evidence, and performed exactly two ordered synthetic sends with the expected approvals. No reviewer timeout, malformed proposal, usage-limit error, or duplicate send occurred. This validates this isolated task, not live Slack delivery or general agent reliability.
 
-## September 9 validation result
+## Completion-review verification
+
+Started September 9 at 6:43:49 PM Pacific (2026-09-10 01:43:49 UTC).
+
+| Mode | Ordinary answer latency | Approvals | Adapter calls | Aval runtime | Recorded tokens | Review latency | Completion |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Supervised | 7.320 s | 2 | 2 | 48.012 s | 80,615 | 18.408 s | Completed |
+| Assisted | 4.823 s | 1 | 2 | 64.963 s | 123,841 | 18.704 s | Completed |
+| Autonomous | 4.973 s | 0 | 2 | 54.949 s | 94,626 | 19.040 s | Completed |
+
+The runtime checkpoints final proposals before review and resumes the same proposal in a fresh invocation when fewer than 26 seconds remain. A last-step proposal can finish review without another actor step. Cancellation, lease ownership, deadlines, token limits, numeric checks, and bounded semantic repair still apply. Packet-local source IDs shorten repeated citations while preserving original provenance. The evaluation bridge uses direct structured output for fixed verdict/answer schemas and records distinct malformed-proposal and timeout diagnostics. The 25-second reviewer cap, 35-second comparison invocation budget, and 200,000-token task ceiling remain unchanged.
+
+The saved [structured-output trial](audit/agent-llm-comparison-structured-review.json) still failed on review timeouts; the subsequent [supervised resumable-review trial](audit/agent-llm-comparison-resumable-review.json) passed. The [standalone latency diagnostic](audit/reviewer-latency-diagnostic.json) used a 60-second timeout and is not a runtime completion trial. All artifacts are preserved alongside the new three-mode result.
+
+Validation: `npm test` passed typecheck, translation parity, production build, 506 unit tests and 147 runtime tests. After adding the saved-answer rejection/repair regression, `npm run test:runtime` passed 148 tests. Desktop tests passed 20/20. Lint passed with zero errors and five existing image warnings. Regression coverage verifies deferred last-step review, exact token/step accounting, cancellation/deadline/token enforcement, fabricated-number rejection, and feedback plus separate review of a repaired answer.
+
+## Earlier September 9 validation failure
 
 The fresh [three-mode live comparison](audit/agent-llm-comparison-2026-09-09.json) has finished with **0 of 3 tasks completed successfully**. Codex capacity was available; this run had no usage-limit errors. All three ordinary responses correctly said they could not execute the task. All three Aval tasks read maintenance evidence and made exactly the requested two synthetic adapter calls, in order, with the expected approvals and no duplicates.
 
@@ -38,7 +54,7 @@ The final evaluation fixture uses an explicit 200,000-token task ceiling and a c
 | Assisted | Accurately said it could not read/send; 4.642 s, zero adapter calls | Read evidence; proposed separate single-action plans; first adapter call accepted, second approval recorded; 35.278 s, 81,191 tokens | Codex usage limit stopped execution; reviewer not reached |
 | Autonomous | No new baseline completed | No final-run execution | Codex usage limit |
 
-Times are individual observations, not benchmark estimates; runtime measurements include model calls and automatic test approvals. No successful matched run exists yet. Raw evidence is retained in [the earlier baseline](audit/agent-llm-comparison-baseline.json) and [the final interrupted run](audit/agent-llm-comparison.json).
+Times are individual observations, not benchmark estimates; runtime measurements include model calls and automatic test approvals. No successful matched run existed at that checkpoint; the completion-review verification above supersedes it. Raw evidence is retained in [the earlier baseline](audit/agent-llm-comparison-baseline.json) and [the final interrupted run](audit/agent-llm-comparison.json).
 
 The earlier baseline exercised all three modes, but all failed completion: it revealed missing maintenance evidence tools, redundant approvals, fixture billing exhaustion, and the citation-number false positive. Synthetic sends in a failed task do not establish successful completion.
 
@@ -61,7 +77,7 @@ The ordinary responses correctly reported no execution: 5.690 seconds in Supervi
 
 Regression tests verify UUID citations reach independent review, fabricated quantities remain blocked, and all messaging-capable built-in agents execute two actions with the correct two/one/zero approval checkpoints. Other built-in agents remain unable to send. The eight independent scripted trials also cover rejection, a missing connection, an unknown outcome, a mode change, and a restricted agent.
 
-The latest prompt changes and numeric fix have now been exercised with live inference as described above. Completion remains blocked by review failures. Preserve every failed artifact and choose a new output path when rerunning:
+The latest prompt changes and numeric fix have now been exercised with live inference as described above. The completion-review changes subsequently passed all three modes as recorded above. Preserve every artifact and choose a new output path when rerunning:
 
 ```sh
 npm run compare:agents:codex -- docs/audit/agent-llm-comparison-next.json

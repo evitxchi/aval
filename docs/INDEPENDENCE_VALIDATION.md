@@ -26,17 +26,17 @@ The user-facing **Test independence & agents** module has been removed. Setup ha
 
 Synthetic validation runs from the terminal via `npm run validate:independence`; it does not create a testing surface in the product. The mode examples are illustrations and are not evidence of runtime or model accuracy.
 
-The September 9 live comparison finished with zero successful task completions: all three execution/approval sequences passed, but reviewer timeouts and invalid repair proposals blocked completion. It uses `npm run compare:agents:codex`. See [AGENT_LLM_COMPARISON.md](AGENT_LLM_COMPARISON.md) for the measured results, failed baseline, and limits.
+The latest September 9 completion-review comparison passed all three modes with live actor and independent reviewer inference, exactly two synthetic sends per task, and the expected two/one/zero approvals. Earlier reviewer-timeout failures remain preserved. It uses `npm run compare:agents:codex`. See [AGENT_LLM_COMPARISON.md](AGENT_LLM_COMPARISON.md) for the measured results, failed baseline, and limits.
 
 ## Current executed validation (0.1.12)
 
-- `npm test` passed: TypeScript, translation parity, production build, **504 unit tests and 145 runtime tests**.
+- `npm test` passed: TypeScript, translation parity, production build, **506 unit tests and 147 runtime tests**, followed by **148 runtime tests** after the saved-answer repair regression.
 - ESLint passed with zero errors and five existing image warnings.
 - **20 desktop tests** and **eight independent synthetic runtime trials** passed.
 - DMG integrity, deep code signature and DMG/ZIP SHA-256 verification passed; embedded metadata confirms version 0.1.12 and local port 3010.
 - Both language pages return HTTP 200 from the refreshed local server.
 - Refreshed native-app inspection confirmed mode examples and the tour launcher in Settings preferences. Full tour interaction was not completed: the app window became unavailable during inspection. Pointer geometry has automated regression coverage.
-- The September 9 live comparison exercised all three modes; execution assertions passed but end-to-end completion failed on reviewer timeouts and invalid repair proposals. Failed earlier runs and usage-limit evidence are preserved. No claims of live provider certification are made.
+- The latest September 9 live comparison completed all three tasks with successful independent review; no timeout or malformed proposal occurred. Failed earlier runs and usage-limit evidence are preserved. No claims of live provider certification are made.
 
 ## Earlier executed validation (0.1.10)
 
@@ -79,6 +79,6 @@ Native UI inspection confirmed aligned mode cards, the startup introduction, and
 
 `desktop/dist/Aval-0.1.12-local-arm64.dmg` targets **http://127.0.0.1:3010**. It is ad-hoc signed and **not notarized**. ZIP and SHA-256 checksums are alongside it. Production release signing settings remain enabled.
 
-Run `AVAL_LOCAL_PORT=3010 npm run start:local` from the repo when the local server is not already running. Server log for this follow-up: `/tmp/aval-resume-sep9-server.log`.
+Run `AVAL_LOCAL_PORT=3010 npm run start:local` from the repo when the local server is not already running. Server log for this follow-up: `/tmp/aval-completion-review-server.log`. The refreshed DMG passed deep signature, disk integrity and Electron startup checks; embedded metadata confirms local port 3010, and both language pages returned HTTP 200.
 
 Regional software references: [EasyBroker API](https://ayuda.easybroker.com/article/330-api-de-easybroker-beta), [Tokko Broker Mexico](https://www.tokkobroker.com/es-mx/), [Wasi](https://wasi.co/softwareinmobiliario/).

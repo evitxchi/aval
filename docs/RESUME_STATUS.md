@@ -2,9 +2,15 @@
 
 ## Current delivery
 
-September 9 validation follow-up: the fresh three-mode live comparison finished with **zero successful task completions**. All modes read maintenance evidence and performed two exact synthetic sends with two/one/zero approvals; no duplicate or real business messages were sent. Each mode had two reviewer timeouts followed by an invalid actor proposal. No usage-limit error occurred in this run. See `docs/AGENT_LLM_COMPARISON.md` and `docs/audit/agent-llm-comparison-2026-09-09.json`. The earlier interrupted rerun is preserved as `agent-llm-comparison-rerun.json`. Application code, the private site and the 0.1.12 local installer are unchanged by this validation-only follow-up. Next: completion-review latency/scheduling and malformed-proposal recovery, followed by another full live comparison.
+September 9 completion-review resumption: **all three modes now pass end-to-end completion**. The fresh live `gpt-6-astra` run read evidence, executed exactly two ordered synthetic sends with two/one/zero approvals, and passed independent review in Supervised/Assisted/Autonomous. Review latencies were 18.408/18.704/19.040 seconds; no timeouts, invalid proposals or usage-limit failures occurred. See `docs/AGENT_LLM_COMPARISON.md` and `docs/audit/agent-llm-comparison-completion-review-verification.json`. Earlier failed and supervised-only evidence is preserved.
 
-### Latest checkpoint
+Final proposals now survive invocation boundaries without consuming another actor step, including at the step limit. Review citations use short packet-local IDs with original provenance, and the Codex evaluation bridge uses direct structured verdicts plus clearer failure diagnostics. Regression tests cover deferred completion, budget/cancellation/deadline/numeric enforcement, and rejected saved answers receiving repair feedback before an independently reviewed replacement.
+
+Validation: full `npm test` passed (506 unit, 147 runtime, typecheck, translation parity, build); the runtime suite passed 148 after the additional repair regression. Desktop: 20 tests. Lint: zero errors, five existing image warnings. Refreshed `desktop/dist/Aval-0.1.12-local-arm64.dmg`, ZIP and SHA-256 checksums target **http://127.0.0.1:3010**; ad-hoc signed and **not notarized**. Signature, DMG integrity, embedded metadata and startup smoke passed. Both local language pages returned HTTP 200; server log: `/tmp/aval-completion-review-server.log`.
+
+All current repository changes and the three pending commits are prepared for the user-requested GitHub push on `fix/codex-live-validation`. This branch push does not trigger the `main`-only Cloudflare/desktop release workflows. The hosted Sites deployment remains at the historical checkpoint below. Real business-provider validation remains separate; these trials used synthetic HTTP and automatic test approvals.
+
+### Previous delivery checkpoint
 
 - Source commit: `5178da1ccc02f43561a881b043b5da7b64c8c2b6` on `fix/codex-live-validation`; pushed to the existing Sites source repository, not GitHub `main`.
 - Private Sites version **6** deployed successfully at 2026-09-09 05:28:44 UTC with environment revision **2**. URL: https://portero-operations-mx.evalxnder.chatgpt.site. Owner-only access remains unchanged. Deployment: `appgdep_6aa0ee7f9dd08191ab211d476e52370f`.
