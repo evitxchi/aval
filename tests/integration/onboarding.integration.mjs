@@ -40,7 +40,7 @@ test("onboarding cannot target another user or workspace and requires authentica
 });
 test("invalid choices and oversized requests never persist", async () => {
   const { route, rules, sqlite } = await setup();
-  for (const patch of [{ step: -1 }, { step: 7 }, { revision: 0.1 }, { completed: "true" }, { preferences: { ...rules.DEFAULT_PREFERENCES, focus: ["all", "maintenance"] } }, { preferences: { ...rules.DEFAULT_PREFERENCES, autonomy: ["supervised", "autonomous"] } }, { preferences: { ...rules.DEFAULT_PREFERENCES, pms: ["made-up"] } }]) {
+  for (const patch of [{ step: -1 }, { step: rules.ONBOARDING_STEPS.length }, { revision: 0.1 }, { completed: "true" }, { preferences: { ...rules.DEFAULT_PREFERENCES, focus: ["all", "maintenance"] } }, { preferences: { ...rules.DEFAULT_PREFERENCES, autonomy: ["supervised", "autonomous"] } }, { preferences: { ...rules.DEFAULT_PREFERENCES, pms: ["made-up"] } }]) {
     assert.equal((await route.PUT(request("alice", { ...rules.DEFAULT_ONBOARDING, ...patch }))).status, 400);
   }
   assert.equal((await route.PUT(request("alice", { ...rules.DEFAULT_ONBOARDING, padding: "x".repeat(12000) }))).status, 413);

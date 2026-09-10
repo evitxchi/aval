@@ -1,7 +1,7 @@
 import { and, eq, sql, asc } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { agentChecks, communicationDeliveries, learnedPreferences, agentPlanNodes, agentTasks, conversations, integrationConnections } from '@/db/schema';
-import { getTool } from './registry';
+import { implementedTools } from './registry';
 import type { TaskRecord } from './tasks';
 import type { Message } from '@/lib/ask-aval/anthropic';
 export type TaskCheck = {
@@ -20,20 +20,24 @@ export type TaskCheck = {
     kind: 'plan';
 };
 export const MAX_CHECK_REPAIRS = 2;
-/** Model-facing shape; parseTaskCheck enforces the condition-specific rules. */
+export const EVIDENCE_TOOL_NAMES = implementedTools().filter(t => !t.mutates && !['plan_goal', 'get_goal_plan', 'read_memory', 'read_task_history', 'request_execution_plan'].includes(t.name)).map(t => t.name);
+/** Shared model-facing shape; parseTaskCheck remains the runtime authority. */
 export const TASK_CHECK_SCHEMA = {
     type: 'object',
-    description: 'Evidence: {"kind":"evidence","tools":["read_document"]}. Delivery: kind, operation and status. Preference: kind, topic and statement. Use real tool names from the supplied capability list.',
+    description: 'Evidence: {"kind":"evidence","tools":["read_document"]}. Delivery: kind, operation and status. Preference: kind, topic and statement. Use exact names from the tool enum. Nested plan checks are forbidden.',
     properties: {
         kind: { type: 'string', enum: ['evidence', 'delivery', 'preference'] },
-        tools: { type: 'array', minItems: 1, maxItems: 4, items: { type: 'string' }, description: 'Required for evidence: exact executable read-tool names, not descriptions or search queries.' },
+        tools: { type: 'array', minItems: 1, maxItems: 4, items: { type: 'string', enum: EVIDENCE_TOOL_NAMES }, description: 'Required for evidence: exact executable read-tool names, not descriptions or search queries.' },
         operation: { type: 'string', enum: ['message', 'call', 'listing'] },
         status: { type: 'string', enum: ['accepted', 'delivered'] },
         conversationId: { type: 'string' },
-        topic: { type: 'string' },
-        statement: { type: 'string' },
+        topic: { type: 'string', maxLength: 99 },
+        statement: { type: 'string', maxLength: 499 },
     },
     required: ['kind'],
+    anyOf: [{ required: ['tools'], properties: { kind: { enum: ['evidence'] } } },
+        { required: ['operation', 'status'], properties: { kind: { enum: ['delivery'] } } },
+        { required: ['topic', 'statement'], properties: { kind: { enum: ['preference'] } } }],
 };
 export function parseTaskCheck(value: unknown): TaskCheck {
     if (!value || typeof value !== 'object' || Array.isArray(value))
@@ -41,7 +45,7 @@ export function parseTaskCheck(value: unknown): TaskCheck {
     const c = value as Record<string, unknown>;
     if (c.kind === 'plan')
         return { kind: 'plan' };
-    if (c.kind === 'evidence' && Array.isArray(c.tools) && c.tools.length > 0 && c.tools.length <= 4 && c.tools.every(t => typeof t === 'string' && getTool(t) && !getTool(t)!.mutates && !['plan_goal', 'get_goal_plan', 'read_memory', 'read_task_history', 'request_execution_plan'].includes(t)))
+    if (c.kind === 'evidence' && Array.isArray(c.tools) && c.tools.length > 0 && c.tools.length <= 4 && c.tools.every(t => typeof t === 'string' && EVIDENCE_TOOL_NAMES.includes(t)))
         return { kind: 'evidence', tools: [...new Set(c.tools as string[])] };
     if (c.kind === 'delivery' && ['message', 'call', 'listing'].includes(String(c.operation)) && ['accepted', 'delivered'].includes(String(c.status)) && (c.conversationId === undefined || typeof c.conversationId === 'string'))
         return { kind: 'delivery', operation: c.operation as 'message' | 'call' | 'listing', status: c.status as 'accepted' | 'delivered', ...(typeof c.conversationId === 'string' ? { conversationId: c.conversationId } : {}) };

@@ -1,0 +1,114 @@
+{
+  "yardi": {
+    "path": "/brand/providers/yardi.png",
+    "source": "https://www.yardi.com/favicon.ico",
+    "width": 16
+  },
+  "yardi_breeze": {
+    "path": "/brand/providers/yardi_breeze.png",
+    "source": "https://www.yardibreeze.com/wp-content/themes/cmw-standard-theme-child-breeze/images/favicons/apple-touch-icon.png",
+    "width": 180
+  },
+  "reapit": {
+    "path": "/brand/providers/reapit.png",
+    "source": "https://cdn.prod.website-files.com/65cc1dfdc4913d1034befe43/65f4ec800a019f1d78665d75_webclip-reapit.png",
+    "width": 256
+  },
+  "sme_professional": {
+    "missing": "https://smeprofessional.co.uk"
+  },
+  "10ninety": {
+    "path": "/brand/providers/10ninety.png",
+    "source": "https://www.10ninety.co.uk/android-chrome-192x192.png",
+    "width": 192
+  },
+  "arthur": {
+    "path": "/brand/providers/arthur.png",
+    "source": "https://www.arthuronline.co.uk/hubfs/arthur-logo-square-colour%202.png",
+    "width": 256
+  },
+  "joblogic": {
+    "path": "/brand/providers/joblogic.png",
+    "source": "https://www.joblogic.com/hubfs/raw_assets/public/joblogic-release-2/images/favicon/favicon-192x192.png",
+    "width": 192
+  },
+  "rentvine": {
+    "path": "/brand/providers/rentvine.png",
+    "source": "https://www.rentvine.com/favicon.png",
+    "width": 40
+  },
+  "buildingstack": {
+    "path": "/brand/providers/buildingstack.png",
+    "source": "https://www.buildingstack.com/wp-content/uploads/2019/04/cropped-favicon-1-192x192.png",
+    "width": 192
+  },
+  "gohighlevel": {
+    "path": "/brand/providers/gohighlevel.png",
+    "source": "https://storage.googleapis.com/msgsndr/knES3eSWYIsc5YSZ3YLl/media/62b48689c85eccb36ca941fc.png",
+    "width": 32
+  },
+  "igloohome": {
+    "path": "/brand/providers/igloohome.png",
+    "source": "https://igloohome-web-assets.s3.us-east-1.amazonaws.com/igloo-pinge.png",
+    "width": 96
+  },
+  "propstack": {
+    "path": "/brand/providers/propstack.png",
+    "source": "https://www.propstack.de/wp-content/uploads/2023/05/cropped-favi_propstack_new-300x300.png",
+    "width": 256
+  },
+  "resharmonics": {
+    "path": "/brand/providers/resharmonics.png",
+    "source": "https://cdn.prod.website-files.com/621f309d5724470a81b5eccf/621f309d572447f914b5ef14_webclip.png",
+    "width": 256
+  },
+  "realpad": {
+    "path": "/brand/providers/realpad.png",
+    "source": "https://cdn.prod.website-files.com/6265ac87e8939f62604ccf64/651abdfc222dfe87ff64c5be_Logo_ICO.png",
+    "width": 256
+  },
+  "rentvision": {
+    "path": "/brand/providers/rentvision.png",
+    "source": "https://www.rentvision.com/hubfs/Favicon.png",
+    "width": 200
+  },
+  "showmojo": {
+    "path": "/brand/providers/showmojo.png",
+    "source": "https://showmojo.com/favicon.ico",
+    "width": 48
+  },
+  "tenantcloud": {
+    "missing": "https://www.tenantcloud.com"
+  },
+  "street": {
+    "path": "/brand/providers/street.png",
+    "source": "https://street.co.uk/apple-touch-icon.png",
+    "width": 180
+  },
+  "yardi_kube": {
+    "path": "/brand/providers/yardi_kube.png",
+    "source": "https://www.yardikube.com/wp-content/uploads/sites/101/2025/06/cropped-Kube-Icon-Small-1.png?w=192",
+    "width": 192
+  },
+  "rightmove": {
+    "path": "/brand/providers/rightmove.png",
+    "source": "https://media.rightmove.co.uk/assets/shared-assets/favicons/light/favicon.ico",
+    "width": 48
+  },
+  "zoopla": {
+    "missing": "https://www.zoopla.co.uk"
+  },
+  "onthemarket": {
+    "path": "/brand/providers/onthemarket.png",
+    "source": "https://www.onthemarket.com/assets/images/icons-otm2/icon128.png",
+    "width": 128
+  },
+  "microsoft_teams": {
+    "path": "/brand/providers/microsoft_teams.png",
+    "source": "https://teams.public.onecdn.static.microsoft/evergreen-assets/icons/microsoft_teams_logo_refresh_v2025.ico",
+    "width": 256
+  },
+  "onedrive": {
+    "missing": "https://onedrive.live.com"
+  }
+}

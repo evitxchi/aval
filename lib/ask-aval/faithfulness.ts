@@ -108,7 +108,19 @@ export function extractClaimedNumbers(answer: unknown): number[] {
       Object.values(value).forEach(walk);
     }
   };
-  walk(answer);
+  // The final-answer schema's top-level evidence_ids are opaque row references,
+  // not quantities. UUID fragments must not be interpreted as financial claims.
+  // Only exclude the declared string-array metadata; nested/malformed fields
+  // and every user-facing claim still go through the numeric gate. This does
+  // not establish citation validity; durable tasks also undergo evidence review.
+  if (answer && typeof answer === "object" && !Array.isArray(answer)) {
+    for (const [key, value] of Object.entries(answer)) {
+      if (key === "evidence_ids" && Array.isArray(value) && value.every(id => typeof id === "string")) continue;
+      walk(value);
+    }
+  } else {
+    walk(answer);
+  }
   return claimed;
 }
 

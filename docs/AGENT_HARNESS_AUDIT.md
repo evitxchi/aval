@@ -222,7 +222,7 @@ No learning of model weights or superiority over general LLMs has been demonstra
 
 ### Validation and remaining decisions
 
-Current executed suites: 486 unit/render/desktop tests and 126 runtime integration tests.
+Current executed suites: 486 unit/render/desktop tests and 127 runtime integration tests.
 TypeScript passes; both locales contain 1,554 matching keys. Lint has zero errors and five
 existing image warnings. Build, local migration, packaging, and publication results are
 recorded in `RESUME_STATUS.md` after delivery.
@@ -294,3 +294,22 @@ real-account integration validation, universal semantic success verification, lo
 billing, upstream desktop sandbox proof, and matched real-task accuracy/latency comparison.
 The new review gate narrows the original semantic finding; it does not justify blanket
 certification. A funded model and connected business accounts are required for the next live run.
+
+
+## Codex live follow-up — September 8, 2026
+
+Live Codex inference now validates all 16 labeled synthetic semantic cases: 13 negative
+cases rejected and three positive controls approved. A complete isolated durable run
+also passes with real actor/reviewer calls, real SQLite reads, child allocation and
+persisted independently checked completion. See `CODEX_LIVE_VALIDATION.md` and the
+`audit/codex-*.json` reports for the scope, baseline failure, latency and token usage.
+
+The baseline exposed an underspecified planner schema and reviewer approval of an
+invented evidence tool. Plan schemas now enumerate valid completion conditions and
+evidence tools; structural validation precedes model review. This fixes that concrete
+planning failure without trusting a model verdict to establish tool availability.
+
+The Codex run uses a larger explicit evaluation budget for native App Server overhead;
+production budgets are unchanged. The original Anthropic credit failure still applies
+to hosted validation. One small synthetic evaluation does not close universal semantic
+correctness, real-account integration validation, or the other remaining audit findings.

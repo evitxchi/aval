@@ -25,5 +25,8 @@ export async function semanticPacket(task: TaskRecord, messages: Message[], phas
         const receipts = await getDb().select().from(communicationDeliveries).where(and(eq(communicationDeliveries.organizationId, task.organizationId), sql`substr(${communicationDeliveries.requestKey},1,${id.length + 1}) = ${id + ':'}`));
         for (const receipt of receipts) sources.push({ id: `receipt:${receipt.id}`, tool: 'stored_delivery_receipt', arguments: {}, data: receipt, failed: false });
     }
-    return { phase, goal: task.goal, check: JSON.parse(task.checkJson ?? '{}'), proposal, sources, completedTasks };
+    // Citations repeat these IDs many times. Use packet-local keys to avoid
+    // spending the review's output budget on UUIDs; retain exact provenance.
+    return { phase, goal: task.goal, check: JSON.parse(task.checkJson ?? '{}'), proposal,
+        sources: sources.map((source, index) => ({ ...source, id: `s${index}`, originId: source.id })), completedTasks };
 }

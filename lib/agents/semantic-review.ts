@@ -1,6 +1,6 @@
 import type { Message, MessagesResponse, ToolSchema } from '@/lib/ask-aval/anthropic';
 
-export type ReviewSource = { id: string; tool: string; arguments: unknown; data: unknown; failed: boolean };
+export type ReviewSource = { id: string; originId?: string; tool: string; arguments: unknown; data: unknown; failed: boolean };
 export type ReviewPacket = {
     phase: 'plan' | 'answer';
     goal: string;

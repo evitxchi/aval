@@ -1537,13 +1537,15 @@
   },
   "Onboarding": {
     "questions": {
-      "pms": "What PMS do you use?",
+      "pms": "Which property software or PMS do you use?",
       "focus": "Where should I start?",
       "chat": "Where does your team chat?",
       "documents": "Where do you keep your documents?",
       "calls": "Want me to answer calls and route them to your team?",
       "marketing": "Where do you market your properties?",
-      "autonomy": "Last one. How much should I run on my own?"
+      "autonomy": "Last one. How much should I run on my own?",
+      "language": "Which language would you like to use?",
+      "region": "Where do you operate?"
     },
     "step": "{current} of {total}",
     "progress": "Setup progress",
@@ -1576,7 +1578,9 @@
       "documents": "Documents",
       "calls": "Call handling",
       "marketing": "Marketing",
-      "autonomy": "Independence"
+      "autonomy": "Independence",
+      "language": "Language",
+      "region": "Region"
     },
     "options": {
       "all": "All of it",
@@ -1595,7 +1599,17 @@
       "autonomous": "Autonomous",
       "other": "Something else",
       "imessage": "iMessage",
-      "gmail": "Gmail / Email"
+      "gmail": "Gmail / Email",
+      "en": "English",
+      "es-mx": "Español (Latinoamérica)",
+      "us": "United States & Canada",
+      "mx": "México",
+      "latam": "Rest of Latin America",
+      "uk": "United Kingdom & Ireland",
+      "other_region": "Another region",
+      "easybroker": "EasyBroker",
+      "tokko": "Tokko Broker",
+      "wasi": "Wasi"
     },
     "autonomy": {
       "supervised": {
@@ -1613,7 +1627,11 @@
         "visibility": "Aval investigates, executes permitted routine work, and reports outcomes in your workspace.",
         "control": "Prefer fewer check-ins. Sensitive actions still follow your workspace’s approval rules."
       }
-    }
+    },
+    "regionalHint": "Choices for your region. Selecting an app does not connect it.",
+    "showRegional": "Show regional choices",
+    "showAll": "Show all apps",
+    "regionalUnavailable": "Preference available · connection not yet implemented"
   },
   "Imports": {
     "title": "Automatic imports",
@@ -1676,5 +1694,214 @@
     "automatic": "Keep this inbox refreshed automatically",
     "active": "Automatic refresh enabled",
     "stop": "Stop automatic refresh"
+  },
+  "Independence": {
+    "title": "Independence",
+    "guide": "How to use Aval",
+    "howTitle": "How to use Aval",
+    "howConnect": "Choose your language and region, then tell Aval which apps you use. Connect a source in Connections when you are ready.",
+    "howAsk": "Open chat, choose an agent, and describe the outcome you want. Aval reads available evidence and proposes the next steps.",
+    "howReview": "Follow progress in Tasks and review requests in chat or the Review Center. Find the module tour and independence examples in Settings → Preferences.",
+    "limits": "Independence applies to your actions in this workspace. Agent permissions still apply. Sensitive actions need approval, and missing evidence or an unconfirmed provider result stops execution. Switching modes affects future actions; it cannot undo work already executed.",
+    "modes": {
+      "supervised": "Aval investigates; you approve each action before it runs.",
+      "assisted": "Aval proposes an exact plan; you approve it once, then Aval carries it out. Changed actions need new approval.",
+      "autonomous": "Aval carries out routine permitted work and reports results. Sensitive actions still need approval."
+    },
+    "active": "Active: {mode}",
+    "switching": "Switching independence mode…",
+    "changed": "Switched to {mode}",
+    "bootTitle": "Aval is starting in {mode} mode",
+    "bootDescription": "Choose how Aval should work with you. This choice is shared by Setup, chat, and your agent tasks in this workspace.",
+    "enter": "Enter Aval · {mode}",
+    "labTitle": "Test independence & agents",
+    "synthetic": "Synthetic data",
+    "labDescription": "Run a maintenance follow-up with two sample messages. Choose a test agent here and change the independence mode above to compare approval stops, permissions, and failure handling.",
+    "labContext": "Testing {agent} · {mode}",
+    "scenario": "Scenario",
+    "scenarios": {
+      "routine": "Routine follow-up",
+      "missing": "Missing source evidence",
+      "failure": "Unconfirmed provider response"
+    },
+    "fixtureTitle": "Sample workspace · Harbor Court",
+    "fixtureDescription": "A resident reported a leaking tap. The sample work order is open and the maintenance channel is available. Aval proposes an acknowledgment and a follow-up.",
+    "fixtureDestination": "Destination: synthetic maintenance outbox. No real recipient.",
+    "run": "Run rehearsal",
+    "reset": "Reset",
+    "counts": "{count} sample actions · {approvals} approvals",
+    "statuses": {
+      "ready": "Ready to test",
+      "waiting": "Waiting for your review",
+      "completed": "Rehearsal complete",
+      "blocked": "Stopped by evidence or permissions",
+      "failed": "Stopped: response unconfirmed",
+      "cancelled": "Rejected; remaining actions cancelled"
+    },
+    "reviewPlan": "Review the exact two-action plan",
+    "reviewAction": "Review this action",
+    "approve": "Approve sample work",
+    "reject": "Reject and stop",
+    "events": {
+      "routed": "Recommended specialist for this request:",
+      "read": "Read synthetic source evidence",
+      "denied": "This agent does not have permission for this action",
+      "missing": "No source evidence available; no action proposed",
+      "failed": "Response unconfirmed; no automatic resend",
+      "planWaiting": "Paused before the plan executes",
+      "actionWaiting": "Paused before this action executes",
+      "planApproved": "Exact plan approved",
+      "actionApproved": "Exact action approved",
+      "accepted": "Sample outbox accepted the action; delivery not claimed",
+      "sensitiveApproval": "Sensitive publication still requires approval",
+      "sensitiveDenied": "Publication denied by this agent’s permissions",
+      "sensitiveAllowed": "Publication permitted",
+      "cancelled": "Rejected; no further actions executed"
+    },
+    "outbox": "Inspect synthetic outbox",
+    "labLimits": "This isolated rehearsal uses Aval’s actual routing and permission rules with scripted decisions and a temporary sample outbox. It does not call an AI model, connect a provider, or change workspace records. Changing mode or agent resets the rehearsal. It does not certify live provider delivery. Choosing a test agent does not change your workspace default.",
+    "startTask": "Start agent task",
+    "startingTask": "Starting…",
+    "taskStarted": "Your task is queued. Progress and approval requests will appear here using your saved independence mode.",
+    "viewTask": "View tasks and approvals",
+    "testAgent": "Test agent",
+    "tour": "Take a module tour"
+  },
+  "AgentExperience": {
+    "windowTitle": "Aval agent task",
+    "live": "Live task",
+    "example": "Synthetic example",
+    "yes": "Yes, approve",
+    "no": "No, reject",
+    "approvePlan": "May I carry out this exact plan?",
+    "approveAction": "May I carry out this action?",
+    "loading": "Loading task…",
+    "loadError": "Task updates are unavailable. Retrying…",
+    "decisionError": "The decision could not be saved. Please retry.",
+    "retry": "Retry",
+    "approvalCount": "{received} of {required} required approvals recorded.",
+    "statuses": {
+      "QUEUED": "Queued for the agent",
+      "RUNNING": "Aval is working",
+      "WAITING_FOR_APPROVAL": "Waiting for your decision",
+      "WAITING_FOR_TOOL": "Waiting for a tool result",
+      "COMPLETED": "Completion checks passed",
+      "FAILED": "Stopped; review the failure",
+      "CANCELLED": "Task cancelled"
+    },
+    "examplesTitle": "See each mode in action",
+    "examplesIntro": "Explore how Aval works in each mode. Watch an example or try the Yes/No decisions before choosing your preferences.",
+    "exampleMode": "Example independence mode",
+    "exampleLimits": "Illustrative sample data; no messages are sent. Real tasks use these same approval controls and require connected sources.",
+    "watch": "Watch example",
+    "try": "Try it yourself",
+    "pause": "Pause example",
+    "resume": "Resume example",
+    "reset": "Reset example",
+    "ready": "Ready to play",
+    "investigating": "Reading the available evidence",
+    "sampleComplete": "Sample actions accepted; delivery not claimed",
+    "proposalRejected": "Proposal rejected. No further sample actions execute.",
+    "sampleGoal": "Acknowledge the maintenance request, then send a short follow-up to the maintenance channel.",
+    "sampleRead": "I’ll read the work order and check the destination before proposing any messages.",
+    "invitation": "Watch the cursor, or try the Yes/No decisions yourself.",
+    "source": "Synthetic source record",
+    "sampleEvidence": "Harbor Court · leaking tap · open work order · maintenance channel available",
+    "samplePlan": "Acknowledge the request and follow up in the same channel.",
+    "accepted": "Action {n} accepted by the sample outbox",
+    "sampleResult": "Both sample messages were accepted, with {approvals} approval checkpoints. No real messages were sent.",
+    "tools": {
+      "send_external_message": "Send a message",
+      "request_execution_plan": "Execution plan",
+      "record_preference": "Save a preference",
+      "place_call": "Place a call",
+      "publish_listing": "Publish a listing"
+    },
+    "fields": {
+      "provider": "Channel",
+      "to": "Destination",
+      "body": "Message",
+      "conversation_id": "Conversation",
+      "script": "Call script",
+      "summary": "Summary"
+    }
+  },
+  "Tour": {
+    "start": "Take a module tour",
+    "step": "Step {current} of {total}",
+    "close": "Close tour",
+    "back": "Back",
+    "next": "Next",
+    "finish": "Finish tour",
+    "modules": {
+      "overview": {
+        "title": "Portfolio overview",
+        "body": "Start with portfolio performance and recent workspace activity. Figures reflect the records available to Aval; connect or import data to fill gaps."
+      },
+      "setup": {
+        "title": "Setup & independence",
+        "body": "Choose your default specialist, set how independently Aval works, and try the animated examples or synthetic rehearsal. Teach Aval the preferences you want it to remember."
+      },
+      "tasks": {
+        "title": "Aval Tasks",
+        "body": "Give an agent a concrete goal and follow its plan, evidence, checks, and results. Durable tasks keep their progress when you leave this screen."
+      },
+      "reviewCenter": {
+        "title": "Review Center",
+        "body": "Review the exact content and destination of proposed actions. Yes approves that proposal; No rejects it. Sensitive actions retain their approval requirements in every mode."
+      },
+      "inbox": {
+        "title": "Shared inbox",
+        "body": "Read connected conversations and coordinate replies in one place. Channel availability depends on verified connections and their supported capabilities."
+      },
+      "properties": {
+        "title": "Properties",
+        "body": "Keep the portfolio’s properties and units organized. This is the foundation for occupancy, leasing, and operating analysis."
+      },
+      "leasing": {
+        "title": "Leasing",
+        "body": "Follow available units and the path from an inquiry to a lease. Use the connected evidence to understand where the process needs attention."
+      },
+      "maintenance": {
+        "title": "Maintenance",
+        "body": "Review work orders, aging, and service performance. Ask the maintenance specialist to investigate an issue and propose a supported next step."
+      },
+      "accounting": {
+        "title": "Accounting",
+        "body": "Review financial records, receivables, and operating results. Aval uses source records for figures; selecting Autonomous does not enable unsupported money movement."
+      },
+      "infrastructure": {
+        "title": "Infrastructure",
+        "body": "Track meters, utility usage, and supporting bills. Use this module to connect resource consumption with the buildings you manage."
+      },
+      "calendar": {
+        "title": "Calendar",
+        "body": "See scheduled workspace activity and upcoming dates. Coordinate timing without losing the context of your operations."
+      },
+      "projects": {
+        "title": "Projects",
+        "body": "Organize work into projects with clear ownership and progress. Use projects to keep larger operational efforts easy to follow."
+      },
+      "teams": {
+        "title": "Teams",
+        "body": "Organize the people working together in your workspace. Team structure and workspace access help keep responsibilities clear."
+      },
+      "connections": {
+        "title": "Connections",
+        "body": "Connect the apps that hold your records and conversations. Each app shows its actual readiness; a saved credential or catalog listing alone does not prove a working integration."
+      },
+      "documents": {
+        "title": "Documents",
+        "body": "Bring documents into Aval and ask questions grounded in their contents. A document’s statements remain attributed to that source."
+      },
+      "settings": {
+        "title": "Settings",
+        "body": "Manage your account, appearance, model connections, and onboarding preferences. Return here to update your language, region, or selected apps."
+      },
+      "chat": {
+        "title": "Chat with Aval",
+        "body": "Ask questions or choose Start agent task for work that needs execution. Task progress and Yes/No approval requests now appear in chat; full traces remain in Tasks."
+      }
+    }
   }
 }

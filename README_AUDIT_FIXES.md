@@ -1,6 +1,6 @@
 # Aval agent audit fixes
 
-This branch contains focused fixes discovered while auditing and live-testing Aval's durable agent runtime on September 10, 2026. It is based on commit `810257ccfb7b0152ed798ba5b18c35d3d7ae6950`.
+This branch contains focused fixes discovered while auditing and live-testing Aval's durable agent runtime on September 10, 2026. The audit work originally started from commit `810257ccfb7b0152ed798ba5b18c35d3d7ae6950`; the branch now also includes current `main` through merge commit `668b97e`.
 
 The work improves agent planning and document-backed answers. It does not claim that Aval is production-ready. The final local live evaluation completed one of six root goals end to end; several child investigations produced correct results but their parent goals failed during review or finalization.
 
@@ -71,7 +71,7 @@ The following passed locally on Windows:
 - TypeScript type checking;
 - targeted ESLint checks for the changed files;
 - local production build;
-- 130 integration tests across 19 files;
+- 152 integration tests across 20 files after merging current `main`;
 - 38 focused unit tests covering task state, SQL boundaries, transcript evidence, tool safeguards, and document evidence;
 - browser rendering of the local Agent execution screen and the successful result.
 

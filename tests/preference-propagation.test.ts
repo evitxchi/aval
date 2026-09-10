@@ -44,7 +44,7 @@ test("no unlisted file starts the Ask Aval loop", async () => {
 });
 
 test("the persona registry never overrides the hard rules preferences ride alongside", async () => {
-  const source = await readFile(new URL("../lib/ask-aval/personas.ts", import.meta.url), "utf8");
+  const source = await readFile(new URL("../lib/ask-aval/persona-catalog.ts", import.meta.url), "utf8");
   // Every persona contributes framing only; the faithfulness and injection
   // rules in the base prompt stay identical for all of them.
   assert.match(source, /systemPromptAddition/);

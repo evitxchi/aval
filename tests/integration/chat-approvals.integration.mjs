@@ -1,0 +1,33 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { registerHooks } from 'node:module';
+import { bootRuntime, writeReviewedPlan } from './harness.mjs';
+registerHooks({resolve(specifier,context,next){return next(specifier==='next/headers'?'next/headers.js':specifier,context);}});
+
+test('chat approval scope survives a busy inbox and enforces organization boundaries',async()=>{
+ const sqlite=await bootRuntime();
+ const route=await import('../../app/api/agents/approvals/route.ts');
+ const {getApiIdentity}=await import('../../lib/integrations/session.ts');
+ const {ensureOrganization}=await import('../../lib/integrations/organizations.ts');
+ const request=(user,path='')=>new Request(`https://aval.test/api/agents/approvals${path}`,{headers:{'oai-authenticated-user-id':user,'oai-authenticated-user-email':`${user}@example.test`}});
+ const identity=await getApiIdentity(request('chat-reader'));await ensureOrganization(identity);
+ const org=identity.organizationId;
+ const {createTask}=await import('../../lib/agents/tasks.ts');
+ const {requestApproval}=await import('../../lib/agents/approvals.ts');
+ const {getTool}=await import('../../lib/agents/registry.ts');
+ const {goalPlan}=await import('../../lib/agents/goal-plan.ts');
+ const root=await createTask({organizationId:org,userId:identity.userId,agentId:'maintenance',goal:'Coordinate follow-up',check:{kind:'plan'}});
+ await writeReviewedPlan(org,root.id,[{key:'follow_up',goal:'Send follow-up',agentId:'maintenance',dependsOn:[],check:{kind:'delivery',operation:'message',status:'accepted'}}],'chat-plan');
+ const plan=await goalPlan(org,root.id);
+ const create=async(taskId,stepIndex)=>requestApproval({organizationId:org,taskId,stepIndex,tool:getTool('send_external_message'),evidence:{review:{provider:'slack',to:'SYNTHETIC',body:'Sample'}}});
+ const rootApproval=await create(root.id,1);const childApproval=await create(plan.nodes[0].id,1);
+ const unrelated=await createTask({organizationId:org,userId:identity.userId,agentId:'maintenance',goal:'Unrelated work',check:{kind:'delivery',operation:'message',status:'accepted'}});
+ for(let i=0;i<55;i++)await create(unrelated.id,i);
+ sqlite.prepare('UPDATE agent_approvals SET requested_at=? WHERE task_id=?').run(Date.now()+1000,unrelated.id);
+ const inbox=await (await route.GET(request('chat-reader'))).json();assert.equal(inbox.approvals.length,50);assert.ok(inbox.approvals.every(a=>a.taskId===unrelated.id));
+ const scoped=await (await route.GET(request('chat-reader',`?rootTaskId=${root.id}`))).json();
+ assert.deepEqual(new Set(scoped.approvals.map(a=>a.id)),new Set([rootApproval.id,childApproval.id]));
+ assert.equal((await route.GET(request('other-user',`?rootTaskId=${root.id}`))).status,404);
+ assert.equal((await route.GET(request('chat-reader','?rootTaskId=missing'))).status,404);
+ sqlite.close();
+});

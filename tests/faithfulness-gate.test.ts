@@ -43,6 +43,22 @@ test("a figure a tool did return is accepted", () => {
   assert.equal(checkFaithfulness({ narrative: "NOI was $284,512.40." }, seen).ok, true);
 });
 
+test("opaque evidence IDs do not become claimed quantities", () => {
+  const answer = { narrative: "Slack accepted both messages. Delivery is not confirmed.", evidence_ids: ["7fdb5dc2-154a-41d3-a3d7-1b7dd85314f3"] };
+  assert.deepEqual(extractClaimedNumbers(answer), []);
+  assert.equal(checkFaithfulness(answer, new Set()).ok, true);
+  assert.equal(checkFaithfulness({ ...answer, narrative: "Collected $412,880.55." }, new Set()).ok, false);
+});
+
+test("evidence metadata cannot exempt malformed values or nested claims", () => {
+  for (const answer of [
+    { evidence_ids: [412880.55] },
+    { evidence_ids: { amount: 412880.55 } },
+    { document: { evidence_ids: ["Collected $412,880.55"] } },
+    { metrics: [{ value: 412880.55 }], evidence_ids: ["record:412880.55"] },
+  ]) assert.equal(checkFaithfulness(answer, new Set()).ok, false);
+});
+
 test("fabrication buried in a draft's markdown body is caught, not just the narrative", () => {
   const seen = withDerivedNumbers(new Set([284_512.4]));
   const answer = {

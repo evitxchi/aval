@@ -3,8 +3,7 @@ import { agentChecks, agentModelContexts } from '@/db/schema';
 import { semanticPacket } from './semantic-evidence';
 import { SEMANTIC_REVIEW_SYSTEM, SEMANTIC_REVIEW_TOOL, parseSemanticVerdict, type ReviewPacket } from './semantic-review';
 import { assembleContext, byteCount, MAX_CONTEXT_BYTES } from './context';
-import { planReadiness, goalPlan, validatePlanNodes } from './goal-plan';
-import { validateToolArguments } from './tool-schema';
+import { planReadiness, goalPlan, validateGoalPlanProposal } from './goal-plan';
 import { checkDocumentAnswerNumbers } from './document-evidence';
 import { getTool } from './registry';
 import { checkTask, failedCheckCount, MAX_CHECK_REPAIRS, parseTaskCheck } from './checks';
@@ -73,7 +72,7 @@ const GOAL_SYSTEM = `
 You are working a goal, not answering a single question. Investigate before you conclude.
 
 How to work:
-- Propose at most one mutating action per model turn. Execute each approved plan action in its own turn.
+- Call at most one mutating tool per model turn. A request_execution_plan call may describe multiple exact actions for one approval; describing them does not execute them. Execute each approved plan action in its own later turn.
 - Start by reading the broadest relevant tool, then follow what you find. Later steps should be chosen because of what earlier ones returned, not planned in advance.
 - When a result raises a question you cannot answer from it, call another tool. When a result contradicts an assumption you made, say so and change course.
 - You have a limited number of steps. Spend them on investigation, not on restating what you already have.
@@ -176,7 +175,11 @@ export async function advanceTask(
     :contract.kind==='evidence'?[...(contract.tools??[]),...(contract.tools?.includes('read_document')?['list_documents']:[])]
     :contract.kind==='delivery'?['read_conversation','list_conversations','get_communication_channels','get_marketing_channels','request_execution_plan','send_external_message','place_call','publish_listing']
     :contract.kind==='preference'?['record_preference']:[];
-  tools=tools.filter(t=>[...support,...selected].includes(t.name));
+  // Delivery still needs the specialist's source evidence before composing an
+  // action. The persona and permission intersection above remains the ceiling.
+  // This adds only registered reads, never additional mutation authority.
+  tools=tools.filter(t=>[...support,...selected].includes(t.name)
+    || (contract.kind==='delivery' && getTool(t.name)?.mutates===false));
 
   const onboarding = await readOnboarding(task.userId, organizationId);
   let system = buildSystem(persona.systemPromptAddition) + "\n" + autonomyInstructions(autonomyMode(onboarding.preferences.autonomy[0]));
@@ -248,6 +251,10 @@ Use these exact tool names in check.tools; do not invent search tools. For examp
   };
 
   const review = async (phase: ReviewPacket['phase'], proposal: unknown, stepIndex: number) => {
+    if (phase === 'plan') {
+      try { await validateGoalPlanProposal(task!, (proposal as { tasks?: unknown })?.tasks); }
+      catch (error) { return { phase, reviewer: 'structural-preflight', exitCode: 1, problems: [error instanceof Error ? error.message : 'Invalid goal plan.'] }; }
+    }
     const packet = await semanticPacket(task!, messages, phase, proposal);
     const params = { system: SEMANTIC_REVIEW_SYSTEM, messages: [{ role: 'user' as const, content: JSON.stringify(packet) }], tools: [SEMANTIC_REVIEW_TOOL], tool_choice: { type: 'tool' as const, name: 'semantic_verdict' }, max_tokens: 1800 };
     const proposalDigest = await digestPayload(proposal);
@@ -277,8 +284,30 @@ Use these exact tool names in check.tools; do not invent search tools. For examp
         return { ...scope, exitCode: 1, problems: ['The task stopped or exhausted its budget during semantic review.'] };
       return { ...scope, ...parseSemanticVerdict(response, packet) };
     } catch (err) {
+      await frame({ kind: 'semantic_error', ...scope, timeoutMs: timeout,
+        error: err instanceof AnthropicError ? err.message : 'Semantic review transport failed.' });
       return { ...scope, exitCode: 1, problems: [err instanceof AnthropicError ? `Semantic review unavailable: ${err.message}` : 'Semantic review failed; completion was withheld.'] };
     }
+  };
+
+  const completeAnswer = async (final: ToolUseBlock, stepIndex: number): Promise<AdvanceOutcome | null> => {
+    const answer = stripDashes(final.input);
+    const packet = await semanticPacket(task, messages, 'answer', answer);
+    const gate = checkDocumentAnswerNumbers(answer, withDerivedNumbers(seenNumbers), packet.sources);
+    if (!gate.ok) {
+      audit.push({ kind: 'verdict', label: 'fail', payloadDigest: await digestPayload(gate.unsupported), count: gate.unsupported.length });
+      return finish('FAILED', { error: "The conclusion referenced figures that aren't in the underlying data, so it was withheld." });
+    }
+    const verification = await checkTask(task, messages, stepIndex, () => review('answer', answer, stepIndex));
+    await persistStep({ taskId, organizationId, stepIndex, kind: 'verification_check', policyEffect: verification.exitCode ? 'deny' : 'allow', resultDigest: await digestPayload(verification), error: verification.exitCode ? verification.problems.join(' ') : undefined });
+    messages.push({ role: 'user', content: [{ type: 'tool_result', tool_use_id: final.id, ...(verification.exitCode ? { is_error: true } : {}), content: JSON.stringify(verification) }] });
+    if (verification.exitCode !== 0) {
+      if (await failedCheckCount(organizationId, taskId) > MAX_CHECK_REPAIRS) return finish('FAILED', { error: 'Completion checks failed after bounded repair: ' + verification.problems.join(' ') });
+      return checkpoint();
+    }
+    audit.push({ kind: 'verdict', label: 'pass', payloadDigest: await digestPayload([]), count: 0 });
+    audit.push({ kind: 'task_completed', label: task.agentId, payloadDigest: await digestPayload(answer), count: stepIndex });
+    return finish('COMPLETED', { resultJson: JSON.stringify(answer) });
   };
 
   try {
@@ -305,12 +334,16 @@ Use these exact tool names in check.tools; do not invent search tools. For examp
 
       task.maxSteps = fresh.maxSteps;
       task.maxTokens = fresh.maxTokens;
+      const last = messages.at(-1);
+      const pendingUses = last?.role === 'assistant' && Array.isArray(last.content)
+        ? last.content.filter((block): block is ToolUseBlock => block.type === 'tool_use') : [];
+      const pendingAnswer = pendingUses.length === 1 && pendingUses[0].name === 'render_answer' ? pendingUses[0] : undefined;
 
       // Cancellation, budgets and the lease are all checked here, at the step
       // boundary, so nothing is ever interrupted mid-execution.
       if(Date.now() >= (fresh.deadlineAt?.getTime() ?? fresh.createdAt.getTime()+30*60_000))return finish('FAILED',{error:'The task reached its total wall-clock limit.'});
       if (fresh.cancelRequested) return finish("CANCELLED");
-      if (task.stepCount + stepsRun >= task.maxSteps) {
+      if (!pendingAnswer && task.stepCount + stepsRun >= task.maxSteps) {
         return finish("FAILED", { error: `Reached the ${task.maxSteps}-step limit without a conclusion.` });
       }
       if (task.tokensUsed + inputTokens + outputTokens >= task.maxTokens) {
@@ -350,6 +383,14 @@ Use these exact tool names in check.tools; do not invent search tools. For examp
       }
       if (!(await heartbeat(taskId, workerId))) {
         return { taskId, status: fresh.status, stepsRun, error: "Lease lost to another worker." };
+      }
+
+      if (pendingAnswer) {
+        // This proposal already consumed its actor step. Review it before any
+        // further inference, including when it was the last permitted step.
+        const outcome = await completeAnswer(pendingAnswer, task.stepCount + stepsRun - 1);
+        if (outcome) return outcome;
+        continue;
       }
 
       const stepIndex = task.stepCount + stepsRun;
@@ -395,26 +436,14 @@ Use these exact tool names in check.tools; do not invent search tools. For examp
       const final = toolUses.find((use) => use.name === "render_answer");
 
       if (final) {
-        const answer = stripDashes(final.input);
-        const packet = await semanticPacket(task, messages, 'answer', answer);
-        const gate = checkDocumentAnswerNumbers(answer, withDerivedNumbers(seenNumbers), packet.sources);
-        if (!gate.ok) {
-          audit.push({ kind: "verdict", label: "fail", payloadDigest: await digestPayload(gate.unsupported), count: gate.unsupported.length });
-          return finish("FAILED", { error: "The conclusion referenced figures that aren't in the underlying data, so it was withheld." });
-        }
         messages.push({role:'assistant',content:res.content});
-        const verification=await checkTask(task,messages,stepIndex,()=>review('answer',answer,stepIndex));
-        await persistStep({taskId,organizationId,stepIndex,kind:'verification_check',policyEffect:verification.exitCode?'deny':'allow',resultDigest:await digestPayload(verification),error:verification.exitCode?verification.problems.join(' '):undefined});
-        if(verification.exitCode!==0){
-          messages.push({role:'user',content:[{type:'tool_result',tool_use_id:final.id,is_error:true,content:JSON.stringify(verification)}]});
-          if(await failedCheckCount(organizationId,taskId)>MAX_CHECK_REPAIRS)return finish('FAILED',{error:'Completion checks failed after bounded repair: '+verification.problems.join(' ')});
-          const lost=await checkpoint();if(lost)return lost;
-          continue;
-        }
-        messages.push({role:'user',content:[{type:'tool_result',tool_use_id:final.id,content:JSON.stringify(verification)}]});
-        audit.push({ kind: "verdict", label: "pass", payloadDigest: await digestPayload([]), count: 0 });
-        audit.push({ kind: "task_completed", label: task.agentId, payloadDigest: await digestPayload(answer), count: stepIndex });
-        return finish("COMPLETED", { resultJson: JSON.stringify(answer) });
+        const lost = await checkpoint(); if (lost) return lost;
+        // Do not spend an actor repair on a review starved by the current
+        // invocation. The next worker resumes this exact checkpointed answer.
+        if (deadline - Date.now() < 26_000) return finish('QUEUED');
+        const outcome = await completeAnswer(final, stepIndex);
+        if (outcome) return outcome;
+        continue;
       }
 
       if (res.stop_reason !== "tool_use" || toolUses.length === 0) {
@@ -430,19 +459,7 @@ Use these exact tool names in check.tools; do not invent search tools. For examp
 
       for (const use of toolUses) {
         if (use.name === 'plan_goal') {
-          // Reject malformed or unauthorized plans before spending a reviewer
-          // call or reserving a mutation. The same node validator runs at write.
-          let invalidPlan: string | undefined;
-          try {
-            const shape = validateToolArguments(TOOL_SCHEMAS.get('plan_goal'), use.input);
-            if (!shape.ok) throw Error(shape.problems.join(' '));
-            validatePlanNodes(use.input.tasks, task, dependencyPlan?.nodes.filter(node => node.status === 'COMPLETED').map(node => node.key));
-          } catch (error) {
-            invalidPlan = error instanceof Error ? error.message : 'Invalid plan structure.';
-          }
-          const verification = invalidPlan
-            ? { phase: 'plan', exitCode: 1, problems: [invalidPlan], reviewer: 'deterministic-plan-validation' }
-            : await review('plan', use.input, stepIndex);
+          const verification = await review('plan', use.input, stepIndex);
           await getDb().insert(agentChecks).values({ id: crypto.randomUUID(), organizationId, taskId, stepIndex, exitCode: verification.exitCode, outputJson: JSON.stringify(verification), createdAt: new Date() });
           await persistStep({ taskId, organizationId, stepIndex, kind: 'verification_check', toolName: 'plan_goal', policyEffect: verification.exitCode ? 'deny' : 'allow', resultDigest: await digestPayload(verification), error: verification.exitCode ? verification.problems.join(' ') : undefined });
           if (verification.exitCode) {

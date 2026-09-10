@@ -43,6 +43,11 @@ export function validatePlanNodes(value: unknown, parent: TaskRecord, completed:
         return { key: n.key, goal: n.goal.trim(), agentId, dependsOn: n.dependsOn as string[], check };
     });
 }
+/** Reject impossible tool names/contracts before spending a reviewer call. */
+export async function validateGoalPlanProposal(parent: TaskRecord, value: unknown) {
+    const prior = await goalPlan(parent.organizationId, parent.id);
+    validatePlanNodes(value, parent, prior?.nodes.filter(n => n.status === 'COMPLETED').map(n => n.key) ?? []);
+}
 export async function goalPlan(org: string, rootId: string) {
     const root = await getTask(org, rootId);
     if (!root)

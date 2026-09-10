@@ -27,7 +27,7 @@
 .onboarding-choice-heading .brand-mark { width: 38px; height: 38px; min-width: 38px; flex: 0 0 auto; border-radius: 10px; }
 .onboarding-choice-heading .onboarding-check { margin-left: auto; flex-shrink: 0; }
 .choice-flow .onboarding-choice { min-width: 170px; }
-.autonomy-grid .onboarding-choice { padding: 26px; align-self: stretch; }
+.autonomy-grid .onboarding-choice { padding: 26px; align-self: stretch; display:flex; flex-direction:column; justify-content:flex-start; }
 .onboarding-autonomy-copy { display: flex; flex-direction: column; gap: 12px; margin-top: 26px; font-size: .9375rem; line-height: 1.65; color: var(--muted); }
 .onboarding-autonomy-copy strong { color: var(--ink); font-weight: 500; }
 .onboarding-autonomy-copy strong:not(:first-child) { margin-top: 10px; }
@@ -46,3 +46,54 @@
 @media (max-width: 720px) { .pms-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .autonomy-grid { grid-template-columns: 1fr; } .onboarding-choice { padding: 16px; } .onboarding-choice-heading { gap: 10px; } }
 @media (max-width: 440px) { .pms-grid { grid-template-columns: 1fr; } .choice-flow .onboarding-choice { flex: 1 1 100%; } .onboarding-preferences dl > div { grid-template-columns: 1fr; gap: 4px; } .onboarding-actions .primary-button { min-width: 0; } }
 @media (prefers-reduced-motion: reduce) { .onboarding-choice { animation: none; } .onboarding-shell * { transition: none !important; } }
+
+/* Independence shares the existing Aval surfaces and uses a distinct mode accent. */
+.independence-session-bar { display:flex; flex-wrap:wrap; align-items:center; gap:8px 18px; padding:10px 24px; background:var(--surface); color:var(--ink); border-bottom:1px solid var(--line); border-left:4px solid var(--viz-blue); font-size:.875rem; }
+.independence-session-bar[data-mode="autonomous"] { border-left-color:var(--viz-green, #25815a); }
+.independence-session-bar[data-mode="assisted"] { border-left-color:var(--viz-orange, #ad6c19); }
+.independence-session-bar > span:first-child { font-weight:600; }
+.independence-session-bar > span:nth-child(2) { color:var(--muted); flex:1; }
+.independence-session-bar button { border:0; background:transparent; color:var(--ink); text-decoration:underline; cursor:pointer; }
+.independence-heading { display:flex; justify-content:space-between; align-items:center; gap:16px; margin-bottom:18px; }
+.independence-heading h3, .independence-heading button { display:flex; align-items:center; gap:8px; }
+.independence-options { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+.independence-option { display:flex; flex-direction:column; justify-content:flex-start; border:1px solid var(--line); border-radius:16px; padding:20px; background:var(--surface); color:var(--ink); text-align:left; cursor:pointer; }
+.independence-option > span { width:100%; display:flex; align-items:center; gap:8px; font-size:.9375rem; }
+.independence-option > span > svg:last-child { margin-left:auto; flex-shrink:0; }
+.independence-option small { display:block; color:var(--muted); line-height:1.6; font-size:.875rem; margin-top:12px; }
+.independence-option.selected { border-color:var(--ink); box-shadow:inset 0 0 0 1px var(--ink); background:var(--canvas); }
+.independence-option:focus-visible { outline:2px solid var(--viz-blue); outline-offset:3px; }
+.independence-option:disabled { opacity:.6; cursor:wait; }
+.independence-controls.compact { margin-bottom:14px; }
+.independence-controls.compact .independence-heading { margin-bottom:10px; font-size:.875rem; }
+.independence-options.compact { gap:5px; }
+.independence-options.compact .independence-option { padding:10px 7px; border-radius:10px; }
+.independence-options.compact .independence-option > span { font-size:.8125rem; gap:4px; justify-content:center; }
+.independence-options.compact .independence-option > span > svg { display:none; }
+.independence-options.compact .independence-option.selected > span > svg:last-child { display:block; margin:0; width:12px; }
+.independence-current { font-size:.875rem; color:var(--muted); line-height:1.6; margin-top:14px; }
+.independence-welcome { position:fixed; z-index:150; top:50%; left:50%; transform:translate(-50%,-50%); width:min(850px,calc(100vw - 32px)); max-height:90dvh; overflow:auto; padding:32px; background:var(--surface); color:var(--ink); border-radius:24px; }
+.independence-welcome h2 { font-size:1.8rem; letter-spacing:-.04em; margin:8px 0; }
+.independence-welcome > p { line-height:1.6; margin-bottom:20px; }
+.independence-welcome > .primary-button { margin-top:22px; }
+.aval-guide { border:1px solid var(--line); border-radius:16px; padding:20px 24px; margin-bottom:28px; line-height:1.65; }
+.aval-guide h3 { margin:0 0 12px; }
+.aval-guide ol { padding-left:20px; display:grid; gap:8px; }
+.aval-guide p { margin-top:14px; color:var(--muted); font-size:.875rem; }
+.independence-welcome .aval-guide { margin:24px 0 0; }
+.onboarding-region-note { margin:-20px 0 22px; font-size:.9375rem; line-height:1.6; }
+.regional-availability { display:block; color:var(--muted); margin-top:14px; line-height:1.5; }
+.independence-lab > p { line-height:1.65; margin:12px 0; }
+.lab-scenario { display:flex; align-items:center; flex-wrap:wrap; gap:16px; margin:18px 0; }
+.lab-scenario select { padding:10px 14px; border:1px solid var(--line); border-radius:10px; color:var(--ink); background:var(--surface); }
+.lab-fixture, .lab-review { border:1px solid var(--line); border-radius:14px; padding:18px; margin:16px 0; line-height:1.6; }
+.lab-fixture span { font-size:.875rem; color:var(--muted); }
+.lab-actions { display:flex; gap:12px; flex-wrap:wrap; margin:16px 0; }
+.lab-review ol { padding-left:22px; margin:12px 0; }
+.lab-trace { padding-left:24px; display:grid; gap:10px; margin:20px 0; }
+.lab-trace li > small, .lab-trace code { margin-left:12px; font-size:.8125rem; color:var(--muted); overflow-wrap:anywhere; }
+@media (max-width:720px) { .independence-options:not(.compact) { grid-template-columns:1fr; } .independence-welcome { padding:22px; } .independence-session-bar { padding:8px 14px; } }
+.mode-notice { display:grid; grid-template-rows:0fr; opacity:0; visibility:hidden; transition:grid-template-rows 360ms ease, opacity 280ms ease, visibility 360ms; }
+.mode-notice.is-visible { grid-template-rows:1fr; opacity:1; visibility:visible; }
+.mode-notice > div { overflow:hidden; min-height:0; }
+@media(prefers-reduced-motion:reduce) { .mode-notice { transition:none; } }
