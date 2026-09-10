@@ -1903,5 +1903,34 @@
         "body": "Ask questions or choose Start agent task for work that needs execution. Task progress and Yes/No approval requests now appear in chat; full traces remain in Tasks."
       }
     }
+  },
+  "ChatPanel": {
+    "popupBlocked": "Allow pop-up windows for Aval",
+    "popupHelp": "Use the pop-out button after allowing pop-ups in your browser.",
+    "dragHelp": "Drag to move. Drop at the right edge to dock, or outside the page to open a window.",
+    "connected": "Workspace connected",
+    "dock": "Dock to right",
+    "undock": "Float panel",
+    "detach": "Open in separate window",
+    "reattach": "Return to dashboard",
+    "dropDock": "Release to dock",
+    "dropWindow": "Release to open a window",
+    "placeholder": "Ask something…",
+    "taskPlaceholder": "What should {agent} work on?",
+    "agentLabel": "Agent: {agent}",
+    "agentHelp": "Select who answers your questions and runs your tasks",
+    "intent": "Message type",
+    "chat": "Chat",
+    "runTask": "Run task",
+    "runWith": "Run a task with {agent}",
+    "startingWith": "Starting a task with {agent}…",
+    "taskStartedWith": "{agent} is working on this task.",
+    "moduleInDashboard": "Return to the dashboard to select a module",
+    "thinkingWith": "{agent} is working on your question…",
+    "checking": "Checking the answer against the evidence…",
+    "usingTool": "Requesting {source}…",
+    "reviewingTool": "Reviewing the result from {source}…",
+    "workingOn": "Working on: {goal}",
+    "reviewingTask": "Reviewing the task result…"
   }
 }

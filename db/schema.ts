@@ -6,6 +6,7 @@ export const userOnboarding = sqliteTable("user_onboarding", {
   preferences: text("preferences").notNull(),
   step: integer("step").notNull().default(0),
   completed: integer("completed", { mode: "boolean" }).notNull().default(false),
+  introSeen: integer("intro_seen", { mode: "boolean" }).notNull().default(false),
   revision: integer("revision").notNull().default(1),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
 }, (table) => [uniqueIndex("user_onboarding_user_org_uq").on(table.userId, table.organizationId)]);

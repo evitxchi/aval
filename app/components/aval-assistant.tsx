@@ -2,6 +2,13 @@
 /* eslint-disable jsx-a11y/no-autofocus */
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { ChevronDown, ExternalLink, PanelRightClose, PanelRightOpen, ArrowDownLeft, ArrowUp } from "lucide-react";
+import { useChatPanel } from "./use-chat-panel";
+import { Foldout } from "./foldout";
+import { readAskStream, type AskProgress } from "@/lib/ask-aval/progress";
+import { autonomyMode } from "@/lib/agents/autonomy";
+import type { ResizeEdge } from "@/lib/ask-aval/panel-geometry";
 import type { FormEvent, MouseEvent as ReactMouseEvent } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { ChatLines, CheckCircle, Database, NavArrowRight, Page, Search, SendDiagonal, StatsUpSquare, ViewGrid, WarningTriangle, Xmark, Minus, ScaleFrameEnlarge, ScaleFrameReduce, ControlSlider } from "iconoir-react";
@@ -165,21 +172,6 @@ function useTypedText(text: string, active: boolean): string {
   return active ? typed.shown : "";
 }
 
-const THINKING_PHRASE_KEYS = [
-  "AvalAssistant.thinkingPhrase1",
-  "AvalAssistant.thinkingPhrase2",
-  "AvalAssistant.thinkingPhrase3",
-  "AvalAssistant.thinkingPhrase4",
-  "AvalAssistant.thinkingPhrase5",
-  "AvalAssistant.thinkingPhrase6",
-];
-
-// Isolated from the component body so the compiler's purity check doesn't
-// see a direct Math.random() call inside render/event-handler closures.
-function pickRandomThinkingPhraseKey(): string {
-  return THINKING_PHRASE_KEYS[Math.floor(Math.random() * THINKING_PHRASE_KEYS.length)];
-}
-
 const suggestionKeys = ["AvalAssistant.suggestion1", "AvalAssistant.suggestion2", "AvalAssistant.suggestion3"];
 const focusedSuggestionKeys = ["AvalAssistant.focusedSuggestion1", "AvalAssistant.focusedSuggestion2", "AvalAssistant.focusedSuggestion3"];
 
@@ -233,13 +225,13 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
     window.addEventListener("aval:tour:chat",show);
     return () => window.removeEventListener("aval:tour:chat",show);
   }, []);
-  const [minimized, setMinimized] = useState(false);
-  const [expanded, setExpanded] = useState(false);
+  const panel = useChatPanel(() => notify(t("ChatPanel.popupBlocked"), t("ChatPanel.popupHelp")));
+  const { minimized, expanded, popupRoot } = panel;
+  const [intent, setIntent] = useState<'chat' | 'task'>('chat');
   const toolsRef = useRef<HTMLDetailsElement>(null);
   const [input, setInput] = useState("");
   const [thinking, setThinking] = useState(false);
-  const [thinkingPhraseKey, setThinkingPhraseKey] = useState(THINKING_PHRASE_KEYS[0]);
-  const typedThinking = useTypedText(t(thinkingPhraseKey), thinking);
+  const [progress, setProgress] = useState<AskProgress>({ phase: 'thinking' });
   const [pickingModule, setPickingModule] = useState(false);
   const [selectedModule, setSelectedModule] = useState<SelectedModule | null>(null);
   const [pickingPersona, setPickingPersona] = useState(false);
@@ -284,6 +276,12 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
     return { shape: PERSONA_PRESETS.general.shape, theme: PERSONA_PRESETS.general.theme, label: t(PERSONA_PRESETS.general.labelKey), icon: PERSONA_PRESETS.general.icon };
   };
   const activePersona = personaDisplay(personaId);
+  const progressText = progress.phase === 'checking' ? t('ChatPanel.checking') : progress.tool
+    ? t(progress.phase === 'tool' ? 'ChatPanel.usingTool' : 'ChatPanel.reviewingTool', { source: readableToolName(progress.tool) })
+    : t('ChatPanel.thinkingWith', { agent: activePersonaName() });
+  function activePersonaName() { return PERSONA_PRESETS[personaId as PersonaId] ? t(PERSONA_PRESETS[personaId as PersonaId].labelKey) : customPersonas.find(p => p.id === personaId)?.label ?? t('AvalAssistant.askAval'); }
+  const typedThinking = useTypedText(progressText, thinking);
+
 
   const createAgent = async (event: FormEvent) => {
     event.preventDefault();
@@ -348,7 +346,7 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
 
   useEffect(() => {
     if (open) window.setTimeout(() => inputRef.current?.focus(), 80);
-  }, [open]);
+  }, [open, popupRoot]);
 
   useEffect(() => {
     streamRef.current?.scrollTo({ top: streamRef.current.scrollHeight, behavior: "smooth" });
@@ -416,14 +414,16 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
         setPickingModule(false);
         return;
       }
+      popupRoot?.ownerDocument.defaultView?.close();
       setOpen(false);
       selectedElementRef.current?.classList.remove("aval-ai-module-selected");
       selectedElementRef.current = null;
       setSelectedModule(null);
     };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [pickingModule]);
+    const chatWindow = popupRoot?.ownerDocument.defaultView ?? window;
+    chatWindow.addEventListener("keydown", closeOnEscape);
+    return () => chatWindow.removeEventListener("keydown", closeOnEscape);
+  }, [pickingModule, popupRoot]);
 
   // Answers are grounded in authenticated workspace records. Failures are
   // shown explicitly and never replaced with canned analysis.
@@ -438,7 +438,7 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
       const response = await fetch("/api/agents/tasks", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ goal, agentId: personaId }) });
       const data = await response.json() as { taskId?: string; error?: string };
       if (!response.ok || !data.taskId) throw new Error(data.error || t("AvalAssistant.unavailable"));
-      setMessages(current => [...current, { id: nextId.current++, role: "user", text: goal }, { id: nextId.current++, role: "assistant", taskId: data.taskId, text: t("Independence.taskStarted") }]);
+      setMessages(current => [...current, { id: nextId.current++, role: "user", text: goal }, { id: nextId.current++, role: "assistant", taskId: data.taskId, text: t("ChatPanel.taskStartedWith", { agent: activePersona.label }) }]);
       setInput(current => current.trim() === goal ? "" : current);
     } catch (error) {
       setMessages(current => [...current, { id: nextId.current++, role: "assistant", error: error instanceof Error ? error.message : t("AvalAssistant.unavailable") }]);
@@ -452,7 +452,7 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
     const userMessage: ChatMessage = { id: nextId.current++, role: "user", text: trimmed };
     setMessages((current) => [...current, userMessage]);
     setInput("");
-    setThinkingPhraseKey(pickRandomThinkingPhraseKey());
+    setProgress({ phase: "thinking" });
     setThinking(true);
     try {
       if (desktop.bridge && desktop.state?.active && desktop.state.account?.type === "chatgpt") {
@@ -478,12 +478,12 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
       }
       const response = await fetch("/api/assistant/ask", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", accept: "application/x-ndjson" },
         body: JSON.stringify({ question: trimmed, view, moduleLabel: focusedModule?.label, moduleSnapshot: focusedModule?.snapshot, locale, personaId }),
       });
       // The endpoint returns the render_answer payload flattened at the top
       // level (plus tools_used), not wrapped in an { answer: ... } envelope.
-      const data = (await response.json()) as Record<string, unknown> & { error?: string };
+      const data = await readAskStream(response, setProgress);
       if (!response.ok || !isAnswerShaped(data)) throw new Error(typeof data.error === "string" ? data.error : "The assistant is unavailable right now.");
       const answer = {
         ...data,
@@ -507,7 +507,7 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
 
   const onSubmit = (event: FormEvent) => {
     event.preventDefault();
-    submitQuestion(input);
+    if (intent === "task") void startAgentTask(); else void submitQuestion(input);
   };
 
   const prepareAction = (message: ChatMessage) => {
@@ -546,41 +546,45 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
 
   const closeAssistant = () => {
     clearSelectedModule();
-    setOpen(false);
+    panel.reattach(); setOpen(false);
   };
 
   const toggleAssistant = () => {
+    if (popupRoot) { panel.restore(); return; }
     if (open) closeAssistant();
-    else { setMinimized(false); setOpen(true); }
+    else { panel.restore(); setOpen(true); }
   };
 
   const promptSuggestions = selectedModule ? focusedSuggestionKeys : messages.length === 1 ? suggestionKeys : [];
 
-  return (
-    <div className={`aval-assistant ${open ? "is-open" : ""}`}>
-      {open && (
-        <section className="aval-assistant-panel" data-minimized={minimized} data-expanded={expanded} role="dialog" aria-label={t("AvalAssistant.avalAssistant")}>
-          <header className="aval-assistant-header">
+  const panelContent = (
+        <section ref={panel.panelRef} className="aval-assistant-panel aval-glass-chat" data-minimized={minimized} data-expanded={expanded} data-docked={panel.docked} data-detached={!!popupRoot} data-dragging={panel.dragging}
+          style={!popupRoot && panel.rect ? { left: panel.rect.x, top: panel.rect.y, width: panel.rect.width, height: panel.rect.height, right: 'auto', bottom: 'auto' } : undefined}
+          role="dialog" aria-label={t("AvalAssistant.avalAssistant")}>
+          {!popupRoot && !minimized && (['n','s','e','w','ne','nw','se','sw'] as ResizeEdge[]).map(edge => <div key={edge} className={`aval-resize-edge edge-${edge}`} aria-hidden="true" onPointerDown={event => panel.begin(event, edge)} {...panel.pointerHandlers}/>)}
+          <header className="aval-assistant-header" onPointerDown={event => panel.begin(event)} {...panel.pointerHandlers} title={!popupRoot ? t('ChatPanel.dragHelp') : undefined}>
             <div className="aval-assistant-identity">
               {personaId === "general" ? (
                 <span className="aval-assistant-mark" aria-hidden="true" />
               ) : (
                 <AvalAgentAvatar personaId={personaId} shape={activePersona.shape} theme={activePersona.theme} icon={activePersona.icon} size={38} label={activePersona.label} />
               )}
-              <span><strong>{activePersona.label}</strong><small><i />{t("AvalAssistant.liveDashboardContext")}</small></span>
+              <span><strong>{t("AvalAssistant.askAval")}</strong><small><i />{t("ChatPanel.connected")}</small></span>
             </div>
-            <div className="aval-window-controls"><button type="button" className="icon-button" onClick={()=>setMinimized(!minimized)} aria-label={t(minimized?"ChatPolish.restore":"ChatPolish.minimize")}>{minimized?<ScaleFrameEnlarge width={17} height={17}/>:<Minus width={17} height={17}/>}</button><button type="button" className="icon-button" onClick={()=>{setExpanded(!expanded);setMinimized(false);}} aria-label={t(expanded?"ChatPolish.compact":"ChatPolish.expand")}>{expanded?<ScaleFrameReduce width={17} height={17}/>:<ScaleFrameEnlarge width={17} height={17}/>}</button><button className="aval-assistant-close" type="button" onClick={closeAssistant} aria-label={t("AvalAssistant.closeAssistant")}><Xmark width={19} height={19} /></button></div>
+            <div className="aval-window-controls">
+              {!popupRoot && <><button type="button" className="icon-button" onClick={panel.toggleDock} aria-label={t(panel.docked ? 'ChatPanel.undock' : 'ChatPanel.dock')} title={t(panel.docked ? 'ChatPanel.undock' : 'ChatPanel.dock')}>{panel.docked ? <PanelRightOpen size={17}/> : <PanelRightClose size={17}/>}</button>
+              <button type="button" className="icon-button" onClick={panel.toggleMinimized} aria-label={t(minimized ? 'ChatPolish.restore' : 'ChatPolish.minimize')}>{minimized ? <ScaleFrameEnlarge width={17} height={17}/> : <Minus width={17} height={17}/>}</button>
+              <button type="button" className="icon-button" onClick={panel.toggleExpanded} aria-label={t(expanded ? 'ChatPolish.compact' : 'ChatPolish.expand')}>{expanded ? <ScaleFrameReduce width={17} height={17}/> : <ScaleFrameEnlarge width={17} height={17}/>}</button></>}
+              <button type="button" className="icon-button" onClick={() => popupRoot ? panel.reattach() : panel.detach()} aria-label={t(popupRoot ? 'ChatPanel.reattach' : 'ChatPanel.detach')} title={t(popupRoot ? 'ChatPanel.reattach' : 'ChatPanel.detach')}>{popupRoot ? <ArrowDownLeft size={17}/> : <ExternalLink size={17}/>}</button>
+              <button className="aval-assistant-close" type="button" onClick={closeAssistant} aria-label={t("AvalAssistant.closeAssistant")}><Xmark width={19} height={19}/></button>
+            </div>
           </header>
 
           <div className="aval-assistant-context">
-            <IndependenceControls compact/>
-            <div className="aval-chat-context-row">
-              <span className="aval-chat-scope"><Database width={15} height={15} /><span>{currentContext}</span><span>·</span><span>{t("ChatPolish.workspace")}</span></span>
-              <button className={`aval-module-picker ${pickingPersona ? "active" : ""}`} type="button" onClick={() => setPickingPersona((current) => !current)} aria-pressed={pickingPersona}>
-                <AvalAgentAvatar personaId={personaId} shape={activePersona.shape} theme={activePersona.theme} icon={activePersona.icon} size={17} />
-                {personaId === "general" ? t("AvalAssistant.selectAgent") : activePersona.label}
-              </button>
-            </div>
+            <Foldout className="aval-chat-settings" summary={`${t(`Onboarding.options.${autonomyMode(preferences?.state.preferences.autonomy[0])}`)} · ${currentContext}`}>
+              <IndependenceControls compact/>
+              <span className="aval-chat-scope"><Database width={15} height={15}/>{currentContext} · {t("ChatPolish.workspace")}</span>
+            </Foldout>
             {pickingModule && <p className="aval-module-picker-instruction"><span />{t("AvalAssistant.hoverOverADashboardModuleThen")}</p>}
             {pickingPersona && (
               <div className="aval-agent-picker">
@@ -729,15 +733,7 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
                 )}
               </div>
             ))}
-            {thinking && (
-              <div className="aval-chat-thinking" aria-label={t(thinkingPhraseKey)}>
-                <AvalAgentAvatar personaId={personaId} shape={activePersona.shape} theme={activePersona.theme} icon={activePersona.icon} size={20} />
-                <i className="aval-chat-thinking-ring" />
-                {/* The label above carries the full phrase for assistive tech,
-                    so the typed reveal stays decorative. */}
-                <span className="aval-chat-thinking-text" aria-hidden="true">{typedThinking}</span>
-              </div>
-            )}
+
           </div>
 
           {promptSuggestions.length > 0 && (
@@ -747,24 +743,33 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
           )}
 
           <form className="aval-chat-composer" onSubmit={onSubmit}>
-            <textarea ref={inputRef} rows={2} value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={event=>{if(event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing){event.preventDefault(); if(input.trim()&&!thinking)void submitQuestion(input);}}} placeholder={selectedModule ? t("AvalAssistant.askAboutModulePlaceholder", { module: selectedModule.label }) : t("AvalAssistant.askAboutYourPortfolio")} aria-label={t("AvalAssistant.askAval")} />
-            <div className="aval-composer-toolbar"><details ref={toolsRef} className="aval-tools-menu" onBlur={event=>{if(!event.currentTarget.contains(event.relatedTarget as Node))event.currentTarget.open=false;}}>
-              <summary><ControlSlider width={16} height={16}/>{t("ChatPolish.tools")}</summary>
-              <div className="aval-tools-popover" role="group" aria-label={t("ChatPolish.tools")}>
-                <button type="button" onClick={()=>{setPickingModule(true);if(toolsRef.current)toolsRef.current.open=false;}}><ViewGrid width={18} height={18}/><span>{t("AvalAssistant.selectModule")}<small>{t("ChatPolish.moduleHelp")}</small></span></button>
-                <button type="button" onClick={()=>{setDraftPanelOpen(true);if(toolsRef.current)toolsRef.current.open=false;}}><Page width={18} height={18}/><span>{t("AvalAssistant.draftDocument")}<small>{t("ChatPolish.draftHelp")}</small></span></button>
-                <button type="button" onClick={()=>{setPickingPersona(true);if(toolsRef.current)toolsRef.current.open=false;}}><AvalAgentAvatar personaId={personaId} shape={activePersona.shape} theme={activePersona.theme} icon={activePersona.icon} size={20}/><span>{t("AvalAssistant.selectAgent")}<small>{t("ChatPolish.agentHelp")}</small></span></button>
-              </div>
-            </details>{preferences && <button type="button" className="aval-start-task" disabled={!input.trim() || thinking || startingTask || preferences.busy} onClick={() => void startAgentTask()}>{t(startingTask ? "Independence.startingTask" : "Independence.startTask")}</button>}<span className="aval-enter-hint">{t("ChatPolish.newLine")}</span>
-            {thinking && desktop.bridge && desktop.state?.active
-              ? <button className="aval-composer-send" type="button" onClick={() => void desktop.bridge?.cancelTurn("ask-aval")} aria-label={t("AvalAssistant.cancelAnswer")}><Xmark width={18} height={18} /></button>
-              : <button className="aval-composer-send" type="submit" disabled={!input.trim() || thinking || startingTask} aria-label={t("AvalAssistant.sendMessage")}><SendDiagonal width={18} height={18} /></button>}
+            <textarea ref={inputRef} rows={2} value={input} onChange={event => setInput(event.target.value)} onKeyDown={event => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); if (intent === 'task') void startAgentTask(); else void submitQuestion(input); } }} placeholder={intent === 'task' ? t('ChatPanel.taskPlaceholder', { agent: activePersona.label }) : selectedModule ? t("AvalAssistant.askAboutModulePlaceholder", { module: selectedModule.label }) : t('ChatPanel.placeholder')} aria-label={t("AvalAssistant.askAval")}/>
+            <div className="aval-composer-toolbar">
+              <details ref={toolsRef} className="aval-tools-menu" onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node)) event.currentTarget.open = false; }}>
+                <summary aria-label={t('ChatPolish.tools')} title={t('ChatPolish.tools')}><ControlSlider width={17} height={17}/></summary>
+                <div className="aval-tools-popover" role="group" aria-label={t('ChatPolish.tools')}>
+                  <button type="button" disabled={!!popupRoot} onClick={() => { setPickingModule(true); if (toolsRef.current) toolsRef.current.open = false; }}><ViewGrid width={18} height={18}/><span>{t('AvalAssistant.selectModule')}<small>{t(popupRoot ? 'ChatPanel.moduleInDashboard' : 'ChatPolish.moduleHelp')}</small></span></button>
+                  <button type="button" onClick={() => { setDraftPanelOpen(true); if (toolsRef.current) toolsRef.current.open = false; }}><Page width={18} height={18}/><span>{t('AvalAssistant.draftDocument')}<small>{t('ChatPolish.draftHelp')}</small></span></button>
+                </div>
+              </details>
+              <button className="aval-composer-agent" type="button" disabled={thinking || startingTask} onClick={() => setPickingPersona(current => !current)} aria-expanded={pickingPersona} aria-label={t('ChatPanel.agentLabel', { agent: activePersona.label })} title={t('ChatPanel.agentHelp')}>
+                <AvalAgentAvatar personaId={personaId} shape={activePersona.shape} theme={activePersona.theme} icon={activePersona.icon} size={20}/><span>{activePersona.label}</span><ChevronDown size={13}/>
+              </button>
+              {preferences && <label className="aval-composer-intent"><span className="sr-only">{t('ChatPanel.intent')}</span><select value={intent} onChange={event => setIntent(event.target.value as 'chat' | 'task')} disabled={thinking || startingTask}><option value="chat">{t('ChatPanel.chat')}</option><option value="task">{t('ChatPanel.runTask')}</option></select><ChevronDown size={13} aria-hidden="true"/></label>}
+              {thinking && desktop.bridge && desktop.state?.active
+                ? <button className="aval-composer-send" type="button" onClick={() => void desktop.bridge?.cancelTurn("ask-aval")} aria-label={t("AvalAssistant.cancelAnswer")}><Xmark width={18} height={18}/></button>
+                : <button className="aval-composer-send" type="submit" disabled={!input.trim() || thinking || startingTask || (intent === 'task' && preferences?.busy)} aria-label={intent === 'task' ? t('ChatPanel.runWith', { agent: activePersona.label }) : t("AvalAssistant.sendMessage")} title={intent === 'task' ? t('ChatPanel.runWith', { agent: activePersona.label }) : t("AvalAssistant.sendMessage")}><ArrowUp size={18}/></button>}
             </div>
           </form>
-          <p className="aval-chat-disclaimer">{t("AvalAssistant.avalShowsItsEvidenceAndAsks")}</p>
+          <div className={`aval-composer-status ${thinking || startingTask ? 'is-working' : ''}`} role="status" aria-label={thinking ? progressText : undefined}>
+            {thinking || startingTask ? <><i className="aval-chat-thinking-ring" aria-hidden="true"/><span aria-hidden={thinking || undefined}>{startingTask ? t('ChatPanel.startingWith', { agent: activePersona.label }) : typedThinking}</span></> : <span>{intent === 'task' ? t('ChatPanel.runWith', { agent: activePersona.label }) : t('ChatPolish.newLine')}</span>}
+          </div>
         </section>
-      )}
-
+  );
+  return (
+    <div className={`aval-assistant ${open ? "is-open" : ""}`}>
+      {open && (popupRoot ? createPortal(panelContent, popupRoot) : panelContent)}
+      {panel.dragging && panel.dropTarget !== 'float' && <div className={`aval-chat-drop-target ${panel.dropTarget}`} aria-hidden="true">{t(panel.dropTarget === 'dock' ? 'ChatPanel.dropDock' : 'ChatPanel.dropWindow')}</div>}
       <button className="aval-assistant-launcher" data-tour-target="chat" type="button" onClick={toggleAssistant} aria-expanded={open} aria-label={open ? t("AvalAssistant.closeAvalAssistant") : t("AvalAssistant.askAval")}>
         {open ? <Xmark width={22} height={22} /> : <ChatLines width={23} height={23} />}
         {!open && <span aria-hidden="true" />}

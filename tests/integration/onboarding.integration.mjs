@@ -60,3 +60,17 @@ test("storage failures return retryable errors and never reset saved choices", a
   assert.equal((await route.GET(request("alice"))).status, 503);
   assert.equal((await route.PUT(request("alice", rules.DEFAULT_ONBOARDING))).status, 503);
 });
+
+test('the welcome acknowledgement persists per user and workspace and cannot be reset by an older client', async () => {
+  const { route, rules, storage } = await setup();
+  const saved = await (await route.PUT(request('intro-user', { ...rules.DEFAULT_ONBOARDING, completed: true }))).json();
+  assert.equal(saved.introSeen, false);
+  const seen = await (await route.PUT(request('intro-user', { ...saved, introSeen: true }))).json();
+  assert.equal(seen.introSeen, true);
+  const next = await (await route.PUT(request('intro-user', { ...seen, introSeen: false, preferences: { ...seen.preferences, autonomy: ['autonomous'] } }))).json();
+  assert.equal(next.introSeen, true);
+  assert.equal((await (await route.GET(request('intro-user'))).json()).introSeen, true);
+  assert.notEqual((await (await route.GET(request('another-user'))).json()).introSeen, true);
+  assert.notEqual((await storage.readOnboarding('intro-user', 'other-org')).introSeen, true);
+  assert.equal((await route.PUT(request('intro-user', { ...next, introSeen: 'true' }))).status, 400);
+});

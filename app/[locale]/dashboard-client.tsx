@@ -7,12 +7,13 @@ import { useLocale, useTranslations } from "next-intl";
 import * as Dialog from "@radix-ui/react-dialog";
 import {
   Bell, Calendar, ChatLines, Check, ClipboardCheck,
-  CoinsSwap, Dashboard, Database, Flash, Globe, HalfMoon, HomeSimpleDoor, Key,
+  Database, Flash, Globe, HalfMoon, Key,
   Language, LogOut, NetworkLeft, NavArrowDown, NavArrowRight, Page,
   Plus, Settings,
-  Refresh, SoundHigh, SoundOff, SunLight, TaskList, Tools, User, WarningTriangle,
+  Refresh, SoundHigh, SoundOff, SunLight, TaskList, User, WarningTriangle,
   ViewColumns3, Xmark,
 } from "iconoir-react";
+import { PanelLeftClose, PanelLeftOpen, LayoutGrid, Building2, KeyRound, Wrench, Landmark } from "lucide-react";
 import { AnimatedNumber, ExperienceProvider, useExperience, usePrefersReducedMotion } from "@/app/components/experience";
 import { useRouter, usePathname } from "./navigation";
 import { AvalAssistant } from "@/app/components/aval-assistant";
@@ -48,17 +49,17 @@ type T = ReturnType<typeof useTranslations>;
 
 const navGroups: { labelKey: string; items: { id: View; labelKey: string; icon: IconComponent; count?: number }[] }[] = [
   { labelKey: "Nav.agent", items: [
-    { id: "overview", labelKey: "Nav.portfolioOverview", icon: Dashboard },
+    { id: "overview", labelKey: "Nav.portfolioOverview", icon: LayoutGrid },
     { id: "setup", labelKey: "Nav.setup", icon: NetworkLeft },
     { id: "tasks", labelKey: "Nav.avalTasks", icon: TaskList },
     { id: "reviewCenter", labelKey: "Nav.reviewCenter", icon: ClipboardCheck },
     { id: "inbox", labelKey: "Nav.sharedInbox", icon: ChatLines },
   ]},
   { labelKey: "Nav.operations", items: [
-    { id: "properties", labelKey: "Nav.properties", icon: HomeSimpleDoor },
-    { id: "leasing", labelKey: "Nav.leasing", icon: User },
-    { id: "maintenance", labelKey: "Nav.maintenance", icon: Tools },
-    { id: "accounting", labelKey: "Nav.accounting", icon: CoinsSwap },
+    { id: "properties", labelKey: "Nav.properties", icon: Building2 },
+    { id: "leasing", labelKey: "Nav.leasing", icon: KeyRound },
+    { id: "maintenance", labelKey: "Nav.maintenance", icon: Wrench },
+    { id: "accounting", labelKey: "Nav.accounting", icon: Landmark },
     { id: "infrastructure", labelKey: "Nav.infrastructure", icon: Flash },
   ]},
   { labelKey: "Nav.planning", items: [
@@ -822,7 +823,7 @@ function DesktopApp({ authMode, displayName, email, initialView }: { authMode: A
   };
   const navCounts: Partial<Record<View, number>> = { reviewCenter: pendingReviewCount };
   const signOutOfPasswordAccount = () => { fetch("/api/auth/logout", { method: "POST" }).finally(() => { window.location.href = "/"; }); };
-  return <main data-workspace-mode="live" className={`app-shell ${collapsed ? "sidebar-is-collapsed" : ""}`}><aside className="sidebar"><div className="brand-lockup"><span className="brand-symbol">a</span><div><strong>aval</strong><small>{t("DesktopApp.propertyOperations")}</small></div><button className="icon-button sidebar-collapse" onClick={() => setCollapsed(!collapsed)} aria-label={t(collapsed ? "DesktopApp.expandSidebar" : "DesktopApp.collapseSidebar")} aria-expanded={!collapsed}><ViewColumns3 width={18} height={18}/></button></div><nav>{navGroups.map((group) => <div className="nav-group" key={group.labelKey}><p>{t(group.labelKey)}</p>{group.items.map((item) => { const Icon = item.icon; const count = navCounts[item.id] ?? item.count; return <button className={view === item.id ? "active" : ""} data-tour-target={item.id} onClick={() => setActiveView(item.id)} key={item.id} title={t(item.labelKey)}><Icon width={20} height={20}/><span>{t(item.labelKey)}</span>{Boolean(count) && <b>{count}</b>}{view === item.id && <NavArrowRight className="nav-chevron" width={16} height={16}/>}</button>; })}</div>)}</nav><button className="workspace-card" aria-expanded={profile} onClick={() => { setCollapsed(false); setProfile(!profile); }}><ProfileAvatar name={displayName} size={36}/><span><strong>{displayName}</strong><small>{email}</small></span><span className="icon-button"><NavArrowDown width={16} height={16}/></span></button>{profile && <div className="profile-menu"><div><ProfileAvatar name={displayName} size={36}/><span><strong>{displayName}</strong><small>{email}</small></span></div><button onClick={() => setActiveView("settings")}><Settings width={17} height={17}/>{t("DesktopApp.profileSettings")}</button><button onClick={() => switchLocale(currentLocale === "en" ? "es-mx" : "en")}><Language width={17} height={17}/>{currentLocale === "en" ? "Español (México)" : "English"}</button><button onClick={() => setMarket(market === "us" ? "latam" : "us")}><Globe width={17} height={17}/>{market === "us" ? t("DesktopApp.marketUnitedStates") : t("DesktopApp.marketLatam")}</button><button onClick={() => setTheme(theme === "light" ? "dark" : "light")}>{theme === "light" ? <HalfMoon width={17} height={17}/> : <SunLight width={17} height={17}/>} {theme === "light" ? t("DesktopApp.darkMode") : t("DesktopApp.lightMode")}</button><button onClick={() => setSounds(!sounds)}>{sounds ? <SoundHigh width={17} height={17}/> : <SoundOff width={17} height={17}/>} {sounds ? t("DesktopApp.soundsOn") : t("DesktopApp.soundsOff")}</button>{isGuest && <a href="?signin=1" className="profile-menu-signin"><Key width={17} height={17}/>{t("DesktopApp.signIn")}</a>}
+  return <main data-workspace-mode="live" className={`app-shell ${collapsed ? "sidebar-is-collapsed" : ""}`}><aside className="sidebar"><div className="brand-lockup"><span className="brand-symbol">a</span><div><strong>aval</strong><small>{t("DesktopApp.propertyOperations")}</small></div><button className="icon-button sidebar-collapse" onClick={() => setCollapsed(!collapsed)} aria-label={t(collapsed ? "DesktopApp.expandSidebar" : "DesktopApp.collapseSidebar")} aria-expanded={!collapsed}>{collapsed ? <PanelLeftOpen size={20}/> : <PanelLeftClose size={20}/>}</button></div><nav>{navGroups.map((group) => <div className="nav-group" key={group.labelKey}><p>{t(group.labelKey)}</p>{group.items.map((item) => { const Icon = item.icon; const count = navCounts[item.id] ?? item.count; return <button className={view === item.id ? "active" : ""} data-tour-target={item.id} onClick={() => setActiveView(item.id)} key={item.id} title={t(item.labelKey)}><Icon width={20} height={20}/><span>{t(item.labelKey)}</span>{Boolean(count) && <b>{count}</b>}{view === item.id && <NavArrowRight className="nav-chevron" width={16} height={16}/>}</button>; })}</div>)}</nav><button className="workspace-card" aria-expanded={profile} onClick={() => { setCollapsed(false); setProfile(!profile); }}><ProfileAvatar name={displayName} size={36}/><span><strong>{displayName}</strong><small>{email}</small></span><span className="icon-button"><NavArrowDown width={16} height={16}/></span></button>{profile && <div className="profile-menu"><div><ProfileAvatar name={displayName} size={36}/><span><strong>{displayName}</strong><small>{email}</small></span></div><button onClick={() => setActiveView("settings")}><Settings width={17} height={17}/>{t("DesktopApp.profileSettings")}</button><button onClick={() => switchLocale(currentLocale === "en" ? "es-mx" : "en")}><Language width={17} height={17}/>{currentLocale === "en" ? "Español (México)" : "English"}</button><button onClick={() => setMarket(market === "us" ? "latam" : "us")}><Globe width={17} height={17}/>{market === "us" ? t("DesktopApp.marketUnitedStates") : t("DesktopApp.marketLatam")}</button><button onClick={() => setTheme(theme === "light" ? "dark" : "light")}>{theme === "light" ? <HalfMoon width={17} height={17}/> : <SunLight width={17} height={17}/>} {theme === "light" ? t("DesktopApp.darkMode") : t("DesktopApp.lightMode")}</button><button onClick={() => setSounds(!sounds)}>{sounds ? <SoundHigh width={17} height={17}/> : <SoundOff width={17} height={17}/>} {sounds ? t("DesktopApp.soundsOn") : t("DesktopApp.soundsOff")}</button>{isGuest && <a href="?signin=1" className="profile-menu-signin"><Key width={17} height={17}/>{t("DesktopApp.signIn")}</a>}
       {authMode === "password"
         ? <button type="button" onClick={signOutOfPasswordAccount}><LogOut width={17} height={17}/>{t("DesktopApp.signOut")}</button>
         // eslint-disable-next-line @next/next/no-html-link-for-pages -- external platform sign-out route, not part of this app router

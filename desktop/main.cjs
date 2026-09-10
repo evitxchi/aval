@@ -5,6 +5,8 @@ const path = require("node:path");
 const { app, BrowserWindow, ipcMain, shell, session } = require("electron");
 const { CodexAppServerService } = require("./codex-app-server.cjs");
 
+const { isChatWindowRequest } = require("./chat-window.cjs");
+
 const DEFAULT_APP_URL = "https://aval.evalxnder.workers.dev";
 const appUrl = new URL(process.env.AVAL_DESKTOP_URL || require("./package.json").avalDesktopUrl || DEFAULT_APP_URL);
 const allowedOrigin = appUrl.origin;
@@ -47,11 +49,26 @@ function createWindow() {
     },
   });
   mainWindow.once("ready-to-show", () => mainWindow?.show());
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+  mainWindow.webContents.setWindowOpenHandler((details) => {
+    const { url } = details;
+    if (isChatWindowRequest(details, mainWindow.webContents.getURL(), allowedOrigin)) return {
+      action: "allow",
+      overrideBrowserWindowOptions: { title: "Ask Aval", width: 500, height: 720, minWidth: 360, minHeight: 420,
+        backgroundColor: "#f4f4f1", webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true } },
+    };
     try {
       if (new URL(url).protocol === "https:") void shell.openExternal(url);
     } catch { /* ignore malformed destinations */ }
     return { action: "deny" };
+  });
+  mainWindow.webContents.on("did-create-window", (child, details) => {
+    if (details.frameName !== "aval-chat") return;
+    child.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+    child.webContents.on("will-navigate", event => event.preventDefault());
+    const parent = mainWindow;
+    const closeChat = () => { if (!child.isDestroyed()) child.close(); };
+    parent?.once("closed", closeChat);
+    child.once("closed", () => parent?.removeListener("closed", closeChat));
   });
   mainWindow.webContents.on("will-navigate", (event, destination) => {
     try {

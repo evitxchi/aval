@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { userOnboarding } from "@/db/schema";
 import { DEFAULT_ONBOARDING, parseOnboarding, upgradeStoredOnboarding, type OnboardingState } from "./preferences";
@@ -6,7 +6,7 @@ import { DEFAULT_ONBOARDING, parseOnboarding, upgradeStoredOnboarding, type Onbo
 export async function readOnboarding(userId: string, organizationId: string): Promise<OnboardingState> {
   const [row] = await getDb().select().from(userOnboarding).where(and(eq(userOnboarding.userId, userId), eq(userOnboarding.organizationId, organizationId))).limit(1);
   if (!row) return structuredClone(DEFAULT_ONBOARDING);
-  const parsed = parseOnboarding(upgradeStoredOnboarding({ preferences: JSON.parse(row.preferences), step: row.step, completed: row.completed, revision: row.revision }));
+  const parsed = parseOnboarding(upgradeStoredOnboarding({ preferences: JSON.parse(row.preferences), step: row.step, completed: row.completed, revision: row.revision, introSeen: row.introSeen }));
   if (!parsed) throw new Error("Invalid stored onboarding preferences");
   return parsed;
 }
@@ -16,9 +16,9 @@ export async function writeOnboarding(userId: string, organizationId: string, st
   const next = { ...state, revision: state.revision + 1 };
   const values = { preferences: JSON.stringify(state.preferences), step: state.step, completed: state.completed, revision: next.revision, updatedAt: new Date() };
   const rows = state.revision === 0
-    ? await getDb().insert(userOnboarding).values({ userId, organizationId, ...values }).onConflictDoNothing().returning({ revision: userOnboarding.revision })
-    : await getDb().update(userOnboarding).set(values).where(and(eq(userOnboarding.userId, userId), eq(userOnboarding.organizationId, organizationId), eq(userOnboarding.revision, state.revision))).returning({ revision: userOnboarding.revision });
-  return rows.length ? next : null;
+    ? await getDb().insert(userOnboarding).values({ userId, organizationId, ...values, introSeen: state.introSeen === true }).onConflictDoNothing().returning({ revision: userOnboarding.revision, introSeen: userOnboarding.introSeen })
+    : await getDb().update(userOnboarding).set({ ...values, introSeen: sql`${userOnboarding.introSeen} OR ${state.introSeen === true ? 1 : 0}` }).where(and(eq(userOnboarding.userId, userId), eq(userOnboarding.organizationId, organizationId), eq(userOnboarding.revision, state.revision))).returning({ revision: userOnboarding.revision, introSeen: userOnboarding.introSeen });
+  return rows.length ? { ...next, introSeen: rows[0].introSeen } : null;
 }
 
 export async function onboardingContext(userId: string, organizationId: string): Promise<string> {

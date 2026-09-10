@@ -163,6 +163,40 @@
         }
       },
       "updatedAt": "2026-09-05T22:52:55.977853+00:00"
+    },
+    "chat:frosted-panel": {
+      "targetKind": "existing-ui",
+      "projectId": "d0d8e392-c082-412b-af30-d332521675c2",
+      "activeDraftId": "d367a900-48da-4039-8ff4-5e89c8030608",
+      "designSystemPath": ".superdesign/design-system.md",
+      "referenceIds": [
+        "9e804a43-054f-402e-999b-32ffed67ba37",
+        "25d5aa0d-eb73-48d2-a1c6-8f7ecf7e145b",
+        "40cb5ce7-7215-463a-bdf7-4b26d2a3ebbe",
+        "public-brand-aval-mark.png"
+      ],
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        "app/components/independence-controls.tsx",
+        "app/components/foldout.tsx",
+        "app/enterprise.css:1461:1664",
+        ".superdesign/init/theme.md:1:22"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "8585099fe271d3e94470a636384cebb291d4302c8e5fa17b41c5990bdd9dd220",
+        "app/components/independence-controls.tsx": "1fa8cf4345278ddf22adde63aa8ba841c7dfec3f54bf45e734fca53bc214e6e6",
+        "app/components/foldout.tsx": "c3abc9d3e5f412fdfadac65c4a9e46bf429f8827515611b97d41ab34d126c4a5",
+        "app/enterprise.css": "a78608706ba3482f8db9e12663e7be4cd8275f94d79c2d48d24a84c4d455ca22",
+        ".superdesign/init/theme.md": "f7a29994f6e9fdff8fc0bdab137d5db9f62ebebd245924d9c999bb081c4914e3"
+      },
+      "drafts": {
+        "d367a900-48da-4039-8ff4-5e89c8030608": {
+          "title": "Aval Frosted Chat",
+          "currentVersion": 2,
+          "visualDirection": "Frosted glass panel, collapsed independence, compact agent and intent pills, real progress, Lucide navigation icons"
+        }
+      },
+      "updatedAt": "2026-09-10T02:38:36.297019+00:00"
     }
   }
 }

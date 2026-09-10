@@ -62,3 +62,23 @@ alongside a newer local build. Local installers are ad-hoc signed and not notari
 If port 3000 belongs to another project, run `AVAL_LOCAL_PORT=3010 npm run start:local`
 and package with `--config.extraMetadata.avalDesktopUrl=http://127.0.0.1:3010`.
 The September 7 harness-audit delivery uses port 3010 to preserve the active KiraLabs server.
+
+## Chat window controls
+
+Ask Aval uses a frosted panel with independence and workspace context in an
+animated disclosure. The agent pill selects who handles both **Chat** and
+**Run task**; the message-type pill selects the operation, and the arrow submits it.
+Tool progress in web chat comes from existing execution events and costs no
+additional model calls. Desktop ChatGPT questions show a working indicator;
+agent tasks retain their server-generated plan and approval progress.
+
+Drag the title to move the panel, release at the right edge to dock, or release
+outside the page to open a separate window. The pop-out button provides the same
+window action. Drag any panel edge or corner to resize; shrink vertically below
+the collapse threshold to minimize. Header controls also minimize, expand, dock,
+and restore. Closing the separate window returns the conversation and draft to
+the dashboard. The dashboard must remain open: the separate window shares its
+React state and trusted desktop bridge. Browsers may require pop-ups to be enabled.
+
+The independence introduction is acknowledged once per user and workspace in
+saved preferences. The guide remains available from the expanded controls.

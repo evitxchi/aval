@@ -13,13 +13,14 @@ export const ONBOARDING_OPTIONS = {
 export const ONBOARDING_STEPS = Object.keys(ONBOARDING_OPTIONS) as (keyof typeof ONBOARDING_OPTIONS)[];
 export type OnboardingStep = keyof typeof ONBOARDING_OPTIONS;
 export type UserPreferences = { [K in OnboardingStep]: string[] };
-export type OnboardingState = { preferences: UserPreferences; step: number; completed: boolean; revision: number };
+export type OnboardingState = { preferences: UserPreferences; step: number; completed: boolean; revision: number; introSeen?: boolean };
 export const DEFAULT_PREFERENCES: UserPreferences = { language: [], region: [], pms: [], focus: [], chat: [], documents: [], calls: [], marketing: [], autonomy: ["assisted"] };
 export const DEFAULT_ONBOARDING: OnboardingState = { preferences: DEFAULT_PREFERENCES, step: 0, completed: false, revision: 0 };
 
 export function parseOnboarding(value: unknown): OnboardingState | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const input = value as Record<string, unknown>;
+  if (input.introSeen !== undefined && typeof input.introSeen !== "boolean") return null;
   if (!Number.isInteger(input.step) || Number(input.step) < 0 || Number(input.step) >= ONBOARDING_STEPS.length || typeof input.completed !== "boolean" || !Number.isSafeInteger(input.revision) || Number(input.revision) < 0) return null;
   if (!input.preferences || typeof input.preferences !== "object" || Array.isArray(input.preferences)) return null;
   const raw = input.preferences as Record<string, unknown>;
@@ -34,7 +35,7 @@ export function parseOnboarding(value: unknown): OnboardingState | null {
     if (key === "focus" && values.includes("all") && values.length > 1) return null;
     preferences[key] = [...values];
   }
-  return { preferences, step: Number(input.step), completed: input.completed, revision: Number(input.revision) };
+  return { preferences, step: Number(input.step), completed: input.completed, revision: Number(input.revision), ...(input.introSeen !== undefined ? { introSeen: input.introSeen as boolean } : {}) };
 }
 
 export function togglePreference(preferences: UserPreferences, key: OnboardingStep, value: string): UserPreferences {

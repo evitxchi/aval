@@ -14,6 +14,8 @@ import { stripDashes } from "./style";
 import { appendAuditEvents } from "@/lib/audit/log";
 import { digestPayload, type AuditEvent } from "@/lib/audit/chain";
 
+import type { AskProgress } from "./progress";
+
 const MAX_ROUNDS = 4;
 
 export const json = (body: unknown, status = 200) => Response.json(body, { status, headers: { "cache-control": "no-store" } });
@@ -40,6 +42,7 @@ export async function runAskAvalLoop(
   maxTokens = 2048,
   timeoutMs?: number,
   policy: LoopPolicyContext = { isGuest: false },
+  onProgress?: (progress: AskProgress) => void,
 ): Promise<Response> {
   const blockReason = await checkUsageBlocked(env, session);
   if (blockReason === "token_balance") return json({ error: "Aval has run out of tokens for this billing period. Purchase more to continue.", code: "token_balance" }, 402);
@@ -56,6 +59,7 @@ export async function runAskAvalLoop(
 
   try {
     for (let round = 0; round < MAX_ROUNDS; round++) {
+      onProgress?.({ phase: "thinking", tool: toolsUsed.at(-1) });
       const res = await callModel(env, session.orgId, {
         system,
         messages,
@@ -73,6 +77,7 @@ export async function runAskAvalLoop(
       const final = toolUses.find((use) => use.name === finalToolName);
 
       if (final) {
+        onProgress?.({ phase: "checking" });
         const answer = stripDashes(final.input);
         const gate = checkFaithfulness(answer, withDerivedNumbers(seenNumbers));
         if (!gate.ok) {
@@ -111,6 +116,7 @@ export async function runAskAvalLoop(
         // permissions. Now the schema list is framing and this is authority:
         // a tool_use block naming an ungranted tool is denied here, whatever
         // produced it and whatever a document it just read asked for.
+        onProgress?.({ phase: "tool", tool: use.name });
         const outcome = await executeTool({
           toolName: use.name,
           args: use.input,
