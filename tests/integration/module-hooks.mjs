@@ -45,10 +45,15 @@ registerHooks({
     }
     // vite resolves extensionless relative imports; node does not.
     if (specifier.startsWith(".") && context.parentURL?.startsWith("file:")) {
-      const base = new URL(specifier, context.parentURL);
-      if (!existsSync(base.pathname) || statSync(base.pathname).isDirectory()) {
+      const baseUrl = new URL(specifier, context.parentURL);
+      // URL.pathname is not a native Windows path and may still contain URL
+      // escapes (for example `%20`). Convert it before consulting the file
+      // system so the harness works from checkouts whose path contains spaces.
+      const basePath = fileURLToPath(baseUrl);
+      if (!existsSync(basePath) || statSync(basePath).isDirectory()) {
         for (const ext of [".ts", ".tsx", "/index.ts", ".js"]) {
-          if (existsSync(base.pathname + ext)) return { url: base.href + ext, shortCircuit: true };
+          const candidate = basePath + ext;
+          if (existsSync(candidate)) return { url: pathToFileURL(candidate).href, shortCircuit: true };
         }
       }
     }
