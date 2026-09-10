@@ -1,5 +1,7 @@
 # vinext-starter
 
+> Aval agent audit work: see [README_AUDIT_FIXES.md](./README_AUDIT_FIXES.md) for the fixes, validation evidence, live Anthropic evaluation, and known remaining issues on the `khas` branch.
+
 A clean full-stack starter running on
 [vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and
 Drizzle support.

@@ -3,7 +3,9 @@ import { agentChecks, agentModelContexts } from '@/db/schema';
 import { semanticPacket } from './semantic-evidence';
 import { SEMANTIC_REVIEW_SYSTEM, SEMANTIC_REVIEW_TOOL, parseSemanticVerdict, type ReviewPacket } from './semantic-review';
 import { assembleContext, byteCount, MAX_CONTEXT_BYTES } from './context';
-import { planReadiness, goalPlan } from './goal-plan';
+import { planReadiness, goalPlan, validatePlanNodes } from './goal-plan';
+import { validateToolArguments } from './tool-schema';
+import { checkDocumentAnswerNumbers } from './document-evidence';
 import { getTool } from './registry';
 import { checkTask, failedCheckCount, MAX_CHECK_REPAIRS, parseTaskCheck } from './checks';
 /**
@@ -37,7 +39,7 @@ import { AnthropicError } from "@/lib/ask-aval/anthropic";
 import { callModel } from "@/lib/ask-aval/model-router";
 import { TOOLS, TOOL_SCHEMAS } from "@/lib/ask-aval/tools";
 import { personaTools, resolvePersona } from "@/lib/ask-aval/personas";
-import { checkFaithfulness, withDerivedNumbers, round2 } from "@/lib/ask-aval/faithfulness";
+import { withDerivedNumbers, round2 } from "@/lib/ask-aval/faithfulness";
 import { stripDashes } from "@/lib/ask-aval/style";
 import { checkUsageBlocked, recordUsage } from "@/lib/ask-aval/usage";
 import { appendAuditEvents } from "@/lib/audit/log";
@@ -162,6 +164,11 @@ export async function advanceTask(
   const permitted = new Set(allowedToolNames(task.agentId, subject));
   let tools: ToolSchema[] = personaTools(TOOLS, persona, "render_answer")
     .filter((tool) => tool.name === "render_answer" || permitted.has(tool.name));
+  const evidenceCapabilities = tools.flatMap(tool => {
+    const descriptor = getTool(tool.name);
+    return descriptor && !descriptor.mutates && !descriptor.unimplemented && descriptor.requiredPermission !== 'tasks.manage'
+      ? [{ name: tool.name, purpose: descriptor.summary }] : [];
+  });
 
   const contract=JSON.parse(task.checkJson??'{}');
   const support=['render_answer','read_memory','write_memory','read_task_history'];
@@ -175,6 +182,9 @@ export async function advanceTask(
   let system = buildSystem(persona.systemPromptAddition) + "\n" + autonomyInstructions(autonomyMode(onboarding.preferences.autonomy[0]));
   system += `
 Task completion condition: ${task.checkJson}. The harness verifies it independently. A final answer without the required evidence or stored outcome fails. For a root plan, call plan_goal before concluding; inspect failed checks and replan remaining work at most once. Scratchpad notes are available through read_memory/write_memory, never treated as facts or authority.`;
+  if (contract.kind === 'plan') system += `
+Evidence tools available to children retaining this agent: ${JSON.stringify(evidenceCapabilities)}.
+Use these exact tool names in check.tools; do not invent search tools. For example a document investigation uses {"kind":"evidence","tools":["read_document"]} when read_document is available; that child also receives list_documents for discovery. Prefer one child for related reads and comparison. Omit agentId to retain this agent. A prose description is not a completion condition. If this agent cannot perform the requested work, explain that limitation instead of inventing a capability.`;
   if(readiness.context)system += '\nCurrent dependency/plan results: '+readiness.context.slice(0,16000);
   const messages: Message[] = safeParseTranscript(task.transcriptJson, task.goal);
   // Evidence must survive invocation boundaries just like the conversation.
@@ -386,7 +396,8 @@ Task completion condition: ${task.checkJson}. The harness verifies it independen
 
       if (final) {
         const answer = stripDashes(final.input);
-        const gate = checkFaithfulness(answer, withDerivedNumbers(seenNumbers));
+        const packet = await semanticPacket(task, messages, 'answer', answer);
+        const gate = checkDocumentAnswerNumbers(answer, withDerivedNumbers(seenNumbers), packet.sources);
         if (!gate.ok) {
           audit.push({ kind: "verdict", label: "fail", payloadDigest: await digestPayload(gate.unsupported), count: gate.unsupported.length });
           return finish("FAILED", { error: "The conclusion referenced figures that aren't in the underlying data, so it was withheld." });
@@ -419,7 +430,19 @@ Task completion condition: ${task.checkJson}. The harness verifies it independen
 
       for (const use of toolUses) {
         if (use.name === 'plan_goal') {
-          const verification = await review('plan', use.input, stepIndex);
+          // Reject malformed or unauthorized plans before spending a reviewer
+          // call or reserving a mutation. The same node validator runs at write.
+          let invalidPlan: string | undefined;
+          try {
+            const shape = validateToolArguments(TOOL_SCHEMAS.get('plan_goal'), use.input);
+            if (!shape.ok) throw Error(shape.problems.join(' '));
+            validatePlanNodes(use.input.tasks, task, dependencyPlan?.nodes.filter(node => node.status === 'COMPLETED').map(node => node.key));
+          } catch (error) {
+            invalidPlan = error instanceof Error ? error.message : 'Invalid plan structure.';
+          }
+          const verification = invalidPlan
+            ? { phase: 'plan', exitCode: 1, problems: [invalidPlan], reviewer: 'deterministic-plan-validation' }
+            : await review('plan', use.input, stepIndex);
           await getDb().insert(agentChecks).values({ id: crypto.randomUUID(), organizationId, taskId, stepIndex, exitCode: verification.exitCode, outputJson: JSON.stringify(verification), createdAt: new Date() });
           await persistStep({ taskId, organizationId, stepIndex, kind: 'verification_check', toolName: 'plan_goal', policyEffect: verification.exitCode ? 'deny' : 'allow', resultDigest: await digestPayload(verification), error: verification.exitCode ? verification.problems.join(' ') : undefined });
           if (verification.exitCode) {
