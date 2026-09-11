@@ -1,6 +1,6 @@
 {
   "name": "aval-desktop",
-  "version": "0.1.12",
+  "version": "0.1.14",
   "private": true,
   "description": "Trusted desktop shell for Aval with a local Codex App Server bridge",
   "main": "main.cjs",
@@ -32,7 +32,8 @@
       "preload.cjs",
       "codex-app-server.cjs",
       "package.json",
-      "!node_modules/**"
+      "!node_modules/**",
+      "chat-window.cjs"
     ],
     "extraResources": [
       {

@@ -32,3 +32,9 @@ test("every selectable avatar ships an animated WebP and a PNG motion fallback",
     }
   }
 });
+
+test('chat backgrounds are allowlisted and old appearance records keep their default', () => {
+  assert.equal(parseAppearance(DEFAULT_APPEARANCE)?.chatWindowBackground ?? 'white', 'white');
+  for (const mode of ['white', 'glass'] as const) assert.equal(parseAppearance({ ...DEFAULT_APPEARANCE, chatWindowBackground: mode })?.chatWindowBackground, mode);
+  assert.equal(parseAppearance({ ...DEFAULT_APPEARANCE, chatWindowBackground: 'transparent-script' }), null);
+});

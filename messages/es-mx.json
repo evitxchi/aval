@@ -1903,5 +1903,39 @@
         "body": "Haz preguntas o elige Iniciar tarea de agente para ejecutar trabajo. El progreso y las aprobaciones Sí/No aparecen en el chat; las trazas completas están en Tareas."
       }
     }
+  },
+  "ChatPanel": {
+    "popupBlocked": "Permite las ventanas emergentes de Aval",
+    "popupHelp": "Después de permitirlas en el navegador, usa el botón para abrir otra ventana.",
+    "dragHelp": "Arrastra para mover. Suelta en el borde derecho para acoplar o fuera de la página para abrir una ventana.",
+    "connected": "Espacio conectado",
+    "dock": "Acoplar a la derecha",
+    "undock": "Panel flotante",
+    "detach": "Abrir en otra ventana",
+    "reattach": "Volver al panel",
+    "dropDock": "Suelta para acoplar",
+    "dropWindow": "Suelta para abrir una ventana",
+    "placeholder": "Pregunta algo…",
+    "taskPlaceholder": "¿En qué debe trabajar {agent}?",
+    "agentLabel": "Agente: {agent}",
+    "agentHelp": "Selecciona quién responde tus preguntas y ejecuta tus tareas",
+    "intent": "Tipo de mensaje",
+    "chat": "Chat",
+    "runTask": "Ejecutar tarea",
+    "runWith": "Ejecutar una tarea con {agent}",
+    "startingWith": "Iniciando una tarea con {agent}…",
+    "taskStartedWith": "{agent} está trabajando en esta tarea.",
+    "moduleInDashboard": "Vuelve al panel para seleccionar un módulo",
+    "thinkingWith": "{agent} está trabajando en tu pregunta…",
+    "checking": "Verificando la respuesta con la evidencia…",
+    "usingTool": "Consultando {source}…",
+    "reviewingTool": "Revisando el resultado de {source}…",
+    "workingOn": "Trabajando en: {goal}",
+    "reviewingTask": "Revisando el resultado de la tarea…",
+    "windowBackground": "Fondo de la ventana de chat",
+    "windowBackgroundHelp": "Elige el fondo de la ventana de chat independiente. El vidrio esmerilado difumina el escritorio en Aval para Mac; los navegadores usan un fondo sólido con un tinte suave.",
+    "whiteBackground": "Blanco",
+    "glassBackground": "Vidrio esmerilado",
+    "thinkingAbout": "Pensando en «{topic}»…"
   }
 }

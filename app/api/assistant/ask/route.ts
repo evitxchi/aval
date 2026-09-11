@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 import { getApiIdentity, isGuestIdentity } from "@/lib/integrations/session";
 import { ensureOrganization } from "@/lib/integrations/organizations";
+import { streamAsk, type AskProgress } from "@/lib/ask-aval/progress";
 import { handleAskAval } from "@/lib/ask-aval/handler";
 import type { AskAvalEnv } from "@/lib/ask-aval/anthropic";
 
@@ -14,5 +15,6 @@ export async function POST(request: Request) {
   const locale = body.locale === "es-mx" ? "es-mx" : "en";
   const focusedModule = body.moduleLabel ? { label: body.moduleLabel, snapshot: body.moduleSnapshot ?? "" } : undefined;
 
-  return handleAskAval(question, env as unknown as AskAvalEnv, { orgId: identity.organizationId, userId: identity.userId }, locale, focusedModule, body.personaId, isGuestIdentity(identity));
+  const run = (onProgress?: (progress: AskProgress) => void) => handleAskAval(question, env as unknown as AskAvalEnv, { orgId: identity.organizationId, userId: identity.userId }, locale, focusedModule, body.personaId, isGuestIdentity(identity), onProgress);
+  return request.headers.get("accept")?.includes("application/x-ndjson") ? streamAsk(run) : run();
 }

@@ -6,6 +6,7 @@ const { contextBridge, ipcRenderer } = require("electron");
 const invoke = (method, payload) => ipcRenderer.invoke(`aval:codex:${method}`, payload);
 
 contextBridge.exposeInMainWorld("avalDesktop", Object.freeze({
+  setChatBackground: (background) => ipcRenderer.invoke("aval:chat:background", background),
   getState: () => invoke("get-state"),
   connect: () => invoke("connect"),
   cancelLogin: () => invoke("cancel-login"),

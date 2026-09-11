@@ -2306,3 +2306,103 @@ html.aval-desktop-runtime .demo-mode-banner {
 .aval-start-task:disabled { opacity:.45; cursor:default; }
 .aval-enter-hint { white-space:nowrap; margin-left:auto; }
 @media(max-width:600px) { .aval-enter-hint { display:none; } }
+
+/* Aval chat: one glass surface, a compact context disclosure, and a quiet composer. */
+.aval-glass-chat {
+  inset: 16px 16px 84px auto;
+  width: min(480px, calc(100vw - 32px));
+  height: min(720px, calc(100dvh - 100px));
+  min-height: 0;
+  border: 1px solid color-mix(in srgb, var(--surface-raised) 72%, var(--line));
+  border-radius: 22px;
+  background: color-mix(in srgb, var(--surface-raised) 78%, transparent);
+  -webkit-backdrop-filter: blur(28px) saturate(135%);
+  backdrop-filter: blur(28px) saturate(135%);
+  box-shadow: 0 24px 70px #14141a20, 0 2px 8px #14141a09, inset 0 1px 0 #ffffff60;
+  animation: aval-view-in 180ms var(--ease-ui);
+  transition: none;
+  container-type: inline-size;
+}
+[data-theme="dark"] .aval-glass-chat { background: color-mix(in srgb, var(--surface-raised) 80%, transparent); border-color: #ffffff18; }
+.aval-glass-chat[data-docked="true"] { border-radius: 18px; }
+.aval-glass-chat[data-dragging="true"] { user-select: none; box-shadow: 0 30px 80px #14141a30; }
+.aval-glass-chat .aval-assistant-header { min-height: 64px; padding: 12px 14px 12px 18px; border-bottom: 1px solid color-mix(in srgb, var(--line) 65%, transparent); cursor: grab; touch-action: none; }
+.aval-glass-chat[data-dragging="true"] .aval-assistant-header { cursor: grabbing; }
+.aval-glass-chat .aval-assistant-identity { gap: 10px; min-width: 0; }
+.aval-glass-chat .aval-assistant-mark { width: 32px; height: 32px; border-radius: 10px; }
+.aval-glass-chat .aval-assistant-identity strong { font-size: 15px; font-weight: 600; }
+.aval-glass-chat .aval-assistant-identity small { font-size: 12px; }
+.aval-glass-chat .aval-window-controls { gap: 1px; flex-shrink: 0; }
+.aval-glass-chat .aval-window-controls button { width: 28px; height: 30px; color: var(--muted); }
+.aval-glass-chat .aval-window-controls button:hover { color: var(--ink); background: color-mix(in srgb, var(--surface-sunken) 70%, transparent); }
+.aval-glass-chat .aval-assistant-context { padding: 0 18px; background: transparent; border-bottom: 0; gap: 0; max-height: min(300px, 40vh); }
+.aval-chat-settings .foldout-summary { width: 100%; min-height: 42px; padding: 10px 0; border: 0; color: var(--muted); background: transparent; font-size: 12px; font-weight: 450; gap: 12px; text-align: left; }
+.aval-chat-settings .foldout-body-inner { padding: 0; }
+.aval-chat-settings .independence-option > span { display: flex; margin: 0; color: inherit; font: inherit; overflow-wrap: normal; }
+.aval-chat-settings .aval-chat-scope { display: flex; margin: 8px 0 14px; color: var(--muted); font: inherit; overflow-wrap: normal; }
+.aval-chat-settings .independence-controls.compact { margin-bottom: 12px; }
+.aval-chat-settings .independence-heading { font-size: 13px; }
+.aval-chat-settings .independence-option { min-width: 0; padding: 10px 6px; border-radius: 10px; font-size: 12px; }
+.aval-chat-settings .independence-current { font-size: 13px; line-height: 1.5; margin: 10px 0 0; }
+.aval-glass-chat .aval-assistant-stream { padding: 16px 20px; }
+.aval-glass-chat .aval-chat-message { font-size: 14px; line-height: 1.6; }
+.aval-glass-chat .aval-chat-message.user { padding: 10px 14px; border: 0; background: color-mix(in srgb, var(--surface-sunken) 74%, transparent); border-radius: 16px 16px 4px 16px; }
+.aval-glass-chat .aval-chat-answer { padding: 0; border: 0; background: transparent; box-shadow: none; }
+.aval-glass-chat .aval-chat-answer-heading strong { font-weight: 550; }
+.aval-glass-chat .aval-chat-suggestions { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 18px 14px; }
+.aval-glass-chat .aval-chat-suggestions button { width: auto; padding: 8px 11px; min-height: 32px; border-radius: 10px; font-size: 12px; background: color-mix(in srgb, var(--surface-raised) 55%, transparent); }
+.aval-glass-chat .aval-chat-suggestions button svg { display: none; }
+.aval-glass-chat .aval-chat-composer { margin: 0 14px; padding: 13px; border: 1px solid color-mix(in srgb, var(--line) 75%, transparent); border-radius: 18px; background: color-mix(in srgb, var(--surface-raised) 86%, transparent); box-shadow: 0 2px 4px #00000006; }
+.aval-glass-chat .aval-chat-composer:focus-within { border-color: color-mix(in srgb, var(--ink) 30%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ink) 4%, transparent); }
+.aval-glass-chat .aval-chat-composer textarea { font: inherit; font-size: 14px; line-height: 1.5; min-height: 52px; max-height: 140px; resize: none; }
+.aval-glass-chat .aval-chat-composer textarea::placeholder { color: var(--quiet); }
+.aval-glass-chat .aval-composer-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; }
+/* Explicit widths override the legacy generic 36px composer button rule. */
+.aval-glass-chat .aval-chat-composer .aval-composer-agent { display: inline-flex; align-items: center; gap: 6px; width: auto; max-width: 190px; height: 30px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 20px; color: var(--ink); background: transparent; font: inherit; font-size: 12px; }
+.aval-composer-agent > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.aval-composer-agent > svg, .aval-composer-agent .aval-agent-avatar { flex-shrink: 0; }
+.aval-composer-intent { position: relative; display: inline-flex; align-items: center; flex-shrink: 0; height: 30px; }
+.aval-composer-intent select { appearance: none; height: 30px; padding: 4px 25px 4px 10px; border: 1px solid var(--line); border-radius: 20px; color: var(--ink); background: transparent; font: inherit; font-size: 12px; cursor: pointer; }
+.aval-composer-intent > svg { position: absolute; right: 8px; pointer-events: none; color: var(--muted); }
+.aval-glass-chat .aval-tools-menu > summary { width: 30px; height: 30px; justify-content: center; padding: 0; border: 1px solid var(--line); border-radius: 50%; }
+.aval-glass-chat .aval-tools-popover { bottom: calc(100% + 14px); width: min(280px, calc(100vw - 60px)); }
+.aval-glass-chat .aval-tools-popover button { width: 100%; height: auto; display: flex; min-height: 52px; padding: 10px; border-radius: 8px; background: transparent; color: var(--ink); }
+.aval-glass-chat .aval-tools-popover button:disabled { opacity: .5; }
+.aval-glass-chat .aval-chat-composer .aval-composer-send { width: 32px; height: 32px; margin-left: auto; border-radius: 50%; background: var(--ink); color: var(--inverse-ink); }
+.aval-glass-chat .aval-chat-composer .aval-composer-send:disabled { background: var(--surface-sunken); color: var(--quiet); }
+.aval-composer-status { min-height: 36px; padding: 9px 24px 13px; display: flex; align-items: center; gap: 8px; color: var(--quiet); font-size: 12px; line-height: 1.4; }
+.aval-composer-status.is-working { color: var(--muted); }
+.aval-composer-status .aval-chat-thinking-ring { width: 12px; height: 12px; flex-shrink: 0; }
+.aval-glass-chat .aval-agent-picker { padding: 10px 0; max-height: 230px; overflow-y: auto; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.aval-resize-edge { position: absolute; z-index: 20; touch-action: none; }
+.aval-resize-edge.edge-n, .aval-resize-edge.edge-s { left: 14px; right: 14px; height: 7px; cursor: ns-resize; }
+.aval-resize-edge.edge-n { top: 0; } .aval-resize-edge.edge-s { bottom: 0; }
+.aval-resize-edge.edge-e, .aval-resize-edge.edge-w { top: 14px; bottom: 14px; width: 7px; cursor: ew-resize; }
+.aval-resize-edge.edge-e { right: 0; } .aval-resize-edge.edge-w { left: 0; }
+.aval-resize-edge.edge-ne, .aval-resize-edge.edge-nw, .aval-resize-edge.edge-se, .aval-resize-edge.edge-sw { width: 14px; height: 14px; }
+.aval-resize-edge.edge-ne { top: 0; right: 0; cursor: nesw-resize; } .aval-resize-edge.edge-nw { top: 0; left: 0; cursor: nwse-resize; }
+.aval-resize-edge.edge-se { bottom: 0; right: 0; cursor: nwse-resize; } .aval-resize-edge.edge-sw { bottom: 0; left: 0; cursor: nesw-resize; }
+.aval-chat-drop-target { position: fixed; z-index: 96; pointer-events: none; display: grid; place-items: center; border: 1px dashed var(--muted); border-radius: 18px; background: color-mix(in srgb, var(--surface-raised) 65%, transparent); backdrop-filter: blur(8px); color: var(--ink); font-size: 14px; }
+.aval-chat-drop-target.dock { inset: 8px 8px 8px auto; width: min(480px, 45vw); }
+.aval-chat-drop-target.window { left: 50%; top: 24px; transform: translateX(-50%); padding: 12px 20px; }
+body.aval-chat-popout { margin: 0; min-width: 0; background: var(--canvas); }
+.aval-chat-popout .aval-glass-chat[data-detached="true"] { inset: 0; width: 100vw; height: 100dvh; max-width: none; border: 0; border-radius: 0; }
+.aval-chat-popout .aval-assistant-header { cursor: default; }
+@container (max-width: 390px) { .aval-composer-agent { max-width: 120px !important; } .aval-glass-chat .aval-composer-toolbar { gap: 5px; } .aval-glass-chat .aval-window-controls button { width: 25px; } }
+@media (prefers-reduced-motion: reduce) { .aval-glass-chat, .aval-chat-drop-target { animation: none; } }
+@media (prefers-reduced-transparency: reduce) { .aval-glass-chat { background: var(--surface-raised); backdrop-filter: none; } }
+
+/* Status is complete on arrival: foreground pop-outs cannot stall a typewriter. */
+.aval-chat-progress { display: flex; align-items: flex-start; gap: 8px; padding: 4px 22px 10px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.aval-chat-progress > span { min-width: 0; overflow-wrap: anywhere; }
+.aval-chat-progress .aval-chat-thinking-ring { width: 12px; height: 12px; margin-top: 3px; flex-shrink: 0; }
+.chat-window-preferences .settings-choice-group { width: fit-content; margin-top: 14px; }
+.chat-window-preference-save { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-top: 14px; }
+.chat-window-preference-save p { margin: 0; color: var(--muted); font-size: 12px; }
+html[data-chat-background="white"], [data-chat-background="white"] .aval-chat-popout, [data-chat-background="white"] .aval-glass-chat[data-detached="true"] { background: #fff; }
+html[data-chat-background="glass"] { background: var(--canvas); }
+[data-chat-background="glass"] .aval-chat-popout { background: var(--canvas); }
+html[data-chat-background="glass"][data-native-glass="true"], [data-chat-background="glass"][data-native-glass="true"] .aval-chat-popout { background: transparent; }
+[data-chat-background="glass"][data-native-glass="true"] .aval-glass-chat[data-detached="true"] { background: color-mix(in srgb, var(--surface-raised) 18%, transparent); -webkit-backdrop-filter: none; backdrop-filter: none; }
+[data-chat-background="glass"][data-native-glass="true"] .aval-assistant-header { background: transparent; }
+@media (prefers-reduced-transparency: reduce) { [data-chat-background="glass"] .aval-glass-chat[data-detached="true"] { background: var(--surface-raised); } }

@@ -13,6 +13,7 @@
  *  - bounded: 4 tool rounds, 25s per call, per-org daily cap
  */
 
+import type { AskProgress } from "./progress";
 import type { AskAvalEnv, Message } from "./anthropic";
 import type { AskAvalSession } from "./usage";
 import { runAskAvalLoop, json } from "./loop";
@@ -54,6 +55,7 @@ export async function handleAskAval(
   focusedModule?: { label: string; snapshot: string },
   personaId?: string,
   isGuest = false,
+  onProgress?: (progress: AskProgress) => void,
 ): Promise<Response> {
   const question = rawQuestion.trim();
   if (!question) return json({ error: "A question is required" }, 400);
@@ -97,6 +99,7 @@ export async function handleAskAval(
     2048,
     undefined,
     { personaId: persona.id, isGuest },
+    onProgress,
   );
 
   // Tell the client which agent actually answered, so an auto-routed turn is

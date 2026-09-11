@@ -62,3 +62,35 @@ alongside a newer local build. Local installers are ad-hoc signed and not notari
 If port 3000 belongs to another project, run `AVAL_LOCAL_PORT=3010 npm run start:local`
 and package with `--config.extraMetadata.avalDesktopUrl=http://127.0.0.1:3010`.
 The September 7 harness-audit delivery uses port 3010 to preserve the active KiraLabs server.
+
+## Chat window controls
+
+Ask Aval uses a frosted panel with independence and workspace context in an
+animated disclosure. The agent pill selects who handles both **Chat** and
+**Run task**; the message-type pill selects the operation, and the arrow submits it.
+Tool progress in web chat comes from existing execution events and costs no
+additional model calls. Desktop ChatGPT questions show a working indicator;
+agent tasks retain their server-generated plan and approval progress.
+
+Drag the title to move the panel, release at the right edge to dock, or release
+outside the page to open a separate window. The pop-out button provides the same
+window action. Drag any panel edge or corner to resize; shrink vertically below
+the collapse threshold to minimize. Header controls also minimize, expand, dock,
+and restore. Closing the separate window returns the conversation and draft to
+the dashboard. The dashboard must remain open: the separate window shares its
+React state and trusted desktop bridge. Browsers may require pop-ups to be enabled.
+
+The independence introduction is acknowledged once per user and workspace in
+saved preferences. The guide remains available from the expanded controls.
+
+In **Settings → Preferences → Chat window background**, choose **White** or
+**Frosted glass**, then save. Changes preview in an already-open chat window.
+White uses a light, opaque surface. On macOS, glass uses the native `under-window`
+vibrancy material with a transparent renderer; browser pop-outs use a solid tint.
+The preference syncs with the account's appearance settings. Existing profiles
+without this preference default to White. macOS Reduce Transparency is respected.
+
+Question progress appears above the composer as a complete, task-specific label.
+It does not depend on main-window typewriter timers, which can be throttled while
+the detached window is active. Tool events update that label without another
+model request.

@@ -102,7 +102,7 @@ export function OnboardingBoundary({ children }: { children: ReactNode }) {
   const t = useTranslations("Onboarding");
   const [state, setState] = useState<OnboardingState | null>(null);
   const [editing, setEditing] = useState(false);
-  const [welcome, setWelcome] = useState(true);
+  const [welcome, setWelcome] = useState(false);
   const [modeBusy, setModeBusy] = useState(false);
   const modeSaving = useRef(false);
   const [modeError, setModeError] = useState("");
@@ -125,6 +125,21 @@ export function OnboardingBoundary({ children }: { children: ReactNode }) {
     } catch (error) { setModeError(error instanceof Error ? error.message : t("saveError")); }
     finally { modeSaving.current = false; setModeBusy(false); }
   };
+  const dismissWelcome = async () => {
+    const current = stateRef.current;
+    if (!current || modeSaving.current) return;
+    if (current.introSeen) { setWelcome(false); return; }
+    modeSaving.current = true; setModeBusy(true); setModeError("");
+    try {
+      const response = await fetch("/api/preferences", { method: "PUT", headers: { "content-type": "application/json" }, signal: AbortSignal.timeout(15000), body: JSON.stringify({ ...current, introSeen: true }) });
+      if (!response.ok) throw new Error(t(response.status === 409 ? "conflict" : "saveError"));
+      const saved = parseOnboarding(await response.json());
+      if (!saved) throw new Error(t("saveError"));
+      stateRef.current = saved; setState(saved); setWelcome(false);
+      const channel = new BroadcastChannel("aval-preferences"); channel.postMessage("changed"); channel.close();
+    } catch (error) { setModeError(error instanceof Error ? error.message : t("saveError")); }
+    finally { modeSaving.current = false; setModeBusy(false); }
+  };
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
@@ -133,7 +148,7 @@ export function OnboardingBoundary({ children }: { children: ReactNode }) {
       if (!response.ok) throw new Error("Preferences unavailable");
       const loaded = parseOnboarding(await response.json());
       if (!loaded) throw new Error("Invalid preferences");
-      if (!controller.signal.aborted) setState(loaded);
+      if (!controller.signal.aborted) { setState(loaded); setWelcome(loaded.completed && !loaded.introSeen); }
     }).catch(() => { if (!controller.signal.aborted) setFailed(true); });
     return () => controller.abort();
   }, [attempt]);
@@ -145,8 +160,10 @@ export function OnboardingBoundary({ children }: { children: ReactNode }) {
         if (!response.ok) return;
         const next = parseOnboarding(await response.json());
         if (next && (!stateRef.current || next.revision > stateRef.current.revision)) {
+          const modeChanged = stateRef.current?.preferences.autonomy[0] !== next.preferences.autonomy[0];
           setState(next); stateRef.current = next;
-          setAnnouncement(i("changed", { mode: t(`options.${next.preferences.autonomy[0]}`) }));
+          if (next.introSeen) setWelcome(false);
+          if (modeChanged) setAnnouncement(i("changed", { mode: t(`options.${next.preferences.autonomy[0]}`) }));
           setModeError("");
         }
       }).catch(() => {});
@@ -158,9 +175,9 @@ export function OnboardingBoundary({ children }: { children: ReactNode }) {
   if (!state) return <main className="onboarding-loading"><div className="onboarding-brand"><img src="/brand/aval-mark.png" alt=""/><span>Aval</span></div><p role="status">{t(failed ? "loadError" : "loading")}</p>{failed && <button className="primary-button" onClick={() => { setFailed(false); setAttempt((n) => n + 1); }}>{t("retry")}</button>}</main>;
   const mode = autonomyMode(state.preferences.autonomy[0]);
   return <PreferenceContext.Provider value={{ state, edit: () => setEditing(true), setMode, busy: modeBusy, error: modeError, help: () => setWelcome(true) }}>
-    {!state.completed || editing ? <OnboardingWizard initial={state} editing={editing} onProgress={setState} onCancel={() => setEditing(false)} onSave={(saved) => { setState(saved); setEditing(false); setWelcome(true); }}/>
-      : <><ModeNotice key={`${mode}:${announcement}`} mode={mode} paused={welcome}><span role="status">{announcement || i("active", { mode: t(`options.${mode}`) })}</span><span>{i(`modes.${mode}`)}</span><button type="button" onClick={() => setWelcome(true)}>{i("guide")}</button></ModeNotice>{children}
-      <Dialog.Root open={welcome} onOpenChange={setWelcome}><Dialog.Portal><Dialog.Overlay className="dialog-overlay"/><Dialog.Content className="independence-welcome panel">
+    {!state.completed || editing ? <OnboardingWizard initial={state} editing={editing} onProgress={setState} onCancel={() => setEditing(false)} onSave={(saved) => { setState(saved); setEditing(false); setWelcome(!saved.introSeen); }}/>
+      : <>{announcement && <ModeNotice key={`${mode}:${announcement}`} mode={mode} paused={welcome}><span role="status">{announcement || i("active", { mode: t(`options.${mode}`) })}</span><span>{i(`modes.${mode}`)}</span><button type="button" onClick={() => setWelcome(true)}>{i("guide")}</button></ModeNotice>}{children}
+      <Dialog.Root open={welcome} onOpenChange={next => { if (next) setWelcome(true); else void dismissWelcome(); }}><Dialog.Portal><Dialog.Overlay className="dialog-overlay"/><Dialog.Content className="independence-welcome panel">
         <p className="eyebrow">Aval</p><Dialog.Title>{i("bootTitle", { mode: t(`options.${mode}`) })}</Dialog.Title><Dialog.Description>{i("bootDescription")}</Dialog.Description>
         <ModeChoices mode={mode} onChange={next => void setMode(next)} disabled={modeBusy}/>
         <p role="status">{modeBusy ? i("switching") : i("active", { mode: t(`options.${mode}`) })}</p>
