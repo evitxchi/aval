@@ -28,6 +28,15 @@ import { defaultTerms, type TermMap } from "./vocabulary.ts";
 import { questionForSuggestion, suggestionsFor } from "./suggestions.ts";
 import { renderAnswer, renderPlain, type AskAnswer, type RenderedMessage } from "./whatsapp/render.ts";
 import type { InboundChannelMessage } from "./registry.ts";
+import {
+  completionMessage,
+  confirmButtons,
+  parseActionPayload,
+  previewText,
+  type PendingAction,
+  type RecipientPreview,
+} from "./action-format.ts";
+import { mayConfirm } from "./hooks.ts";
 
 /**
  * What the pipeline decided, without having done it.
@@ -54,7 +63,12 @@ export interface PipelineOutcome {
     | "answered"
     | "answer_failed"
     | "budget_exhausted"
-    | "pending_action"
+    | "action_confirmed"
+    | "action_cancelled"
+    | "action_previewed"
+    | "action_expired"
+    | "action_refused"
+    | "action_undone"
     | "ignored";
   /** Set when this turn produced overflow text a later MORE should return. */
   overflow?: string | null;
@@ -78,8 +92,106 @@ export interface PipelineDeps {
   }): Promise<{ answer: AskAnswer | null; toolsUsed: string[]; degraded?: string | null } | null>;
   /** The text left over from this thread's last truncated answer, if any. */
   readOverflow(channelIdentityId: string, organizationId: string): Promise<string | null>;
+  /** The write path. Omitted in read-only deployments, in which case a confirmation is refused rather than guessed at. */
+  actions?: ActionDeps;
   /** Per-org vocabulary. Defaults are used when this is omitted. */
   terms?(organizationId: string, locale: ChannelLocale): Promise<TermMap>;
+}
+
+/** The write path, injected so the routing above can be tested without a database. */
+export interface ActionDeps {
+  load(id: string, channelIdentityId: string): Promise<PendingAction | null>;
+  claim(id: string, channelIdentityId: string): Promise<boolean>;
+  cancel(id: string, channelIdentityId: string): Promise<boolean>;
+  drop(id: string, channelIdentityId: string, index: number): Promise<RecipientPreview[] | null>;
+  /** Runs the claimed action. Returns whether the effect can be undone. */
+  execute(action: PendingAction): Promise<{ ok: boolean; reversible: boolean }>;
+  undo(organizationId: string, actionId: string): Promise<{ outcome: string }>;
+}
+
+/**
+ * Resolve a tap on an action button.
+ *
+ * Every branch re-loads the action bound to *this* identity rather than
+ * trusting the id in the payload. A button lives in a message, a message can
+ * be forwarded, and a forwarded button must be inert in anyone else's hands.
+ */
+async function resolveAction(
+  action: { intent: "confirm" | "cancel" | "list" | "drop" | "undo"; id: string; index?: number },
+  identity: InboundIdentity,
+  locale: ChannelLocale,
+  from: string,
+  deps: PipelineDeps,
+): Promise<PipelineOutcome> {
+  const plain = (
+    text: string,
+    reason: PipelineOutcome["reason"],
+    buttons: Parameters<typeof renderPlain>[1] = [],
+  ): PipelineOutcome => ({
+    reply: renderPlain(text, buttons, locale),
+    to: from,
+    modelCalled: false,
+    reason,
+    identity,
+  });
+
+  // Without a write path wired, a confirmation is refused rather than guessed
+  // at. Silently doing nothing would leave the operator believing something
+  // happened.
+  if (!deps.actions) return plain(copy(locale, "confirmExpired"), "action_refused");
+
+  if (action.intent === "undo") {
+    const result = await deps.actions.undo(identity.organizationId, action.id);
+    if (result.outcome === "reverted") return plain(copy(locale, "undoDone"), "action_undone");
+    if (result.outcome === "expired") return plain(copy(locale, "undoExpired"), "action_expired");
+    return plain(copy(locale, "actionIrreversible"), "action_refused");
+  }
+
+  const pending = await deps.actions.load(action.id, identity.channelIdentityId);
+  // Expired, already resolved, or never this identity's — all the same reply,
+  // because from the outside they are the same situation, and distinguishing
+  // them would confirm that someone else's action id exists.
+  if (!pending) return plain(copy(locale, "confirmExpired"), "action_expired");
+
+  if (action.intent === "cancel") {
+    await deps.actions.cancel(action.id, identity.channelIdentityId);
+    return plain(copy(locale, "actionCancelled"), "action_cancelled");
+  }
+
+  if (action.intent === "list") {
+    return plain(
+      previewText(pending, locale),
+      "action_previewed",
+      confirmButtons(pending.id, pending.recipients.length, locale),
+    );
+  }
+
+  if (action.intent === "drop") {
+    const remaining = await deps.actions.drop(action.id, identity.channelIdentityId, action.index ?? -1);
+    if (!remaining) return plain(copy(locale, "confirmExpired"), "action_expired");
+    return plain(
+      previewText({ ...pending, recipients: remaining }, locale),
+      "action_previewed",
+      confirmButtons(pending.id, remaining.length, locale),
+    );
+  }
+
+  // Confirming. Separation of duties is re-checked here, not only at proposal
+  // time: a coordinator may ask for a thing to happen and may not be the one
+  // who says yes.
+  if (!mayConfirm(identity.role)) return plain(copy(locale, "confirmNotPermitted"), "action_refused");
+
+  // The claim is a compare-and-set, so two taps on the same button — which
+  // happens, because a slow reply looks like a failed one — execute once.
+  if (!(await deps.actions.claim(action.id, identity.channelIdentityId))) {
+    return plain(copy(locale, "confirmExpired"), "action_expired");
+  }
+
+  const executed = await deps.actions.execute(pending);
+  if (!executed.ok) return plain(copy(locale, "unavailable"), "action_refused");
+
+  const completion = completionMessage(executed.reversible, pending.id, locale);
+  return plain(completion.text, "action_confirmed", completion.buttons);
 }
 
 /**
@@ -167,9 +279,13 @@ export async function handleInbound(message: InboundChannelMessage, deps: Pipeli
     }
     const mapped = questionForSuggestion(message.buttonPayload, locale);
     if (mapped) question = mapped;
-    else if (message.buttonPayload.startsWith("action:")) {
-      // Confirmations are handled by the write path, not here.
-      return { reply: null, to: null, modelCalled: false, reason: "pending_action", identity };
+    else {
+      const action = parseActionPayload(message.buttonPayload);
+      // An action payload that parses is resolved here; one that does not is
+      // dropped without comment. The ids are ours, so an id we do not
+      // recognise is not a request, it is noise or an attempt.
+      if (action) return resolveAction(action, identity, locale, message.from, deps);
+      return { reply: null, to: null, modelCalled: false, reason: "ignored", identity };
     }
   }
 
