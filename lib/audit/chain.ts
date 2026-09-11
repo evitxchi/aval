@@ -53,7 +53,19 @@ export type AuditEntryKind =
   | "membership_changed"
   | "invitation_issued"
   | "invitation_accepted"
-  | "invitation_revoked";
+  | "invitation_revoked"
+  // messaging channels — a WhatsApp identity is a way into this tenant's data
+  // and a way to act on it, so linking one belongs in the same tamper-evident
+  // record as a membership change. An action taken by the agent over a channel
+  // and one taken by a coordinator in the dashboard differ only in the actor
+  // field: the agent is a first-class actor here, not a special case.
+  | "channel_linked"
+  | "channel_action_proposed"
+  | "channel_action_confirmed"
+  | "channel_action_cancelled"
+  | "channel_action_undone"
+  | "channel_escalated"
+  | "channel_handoff";
 
 /** One link, before it is chained. */
 export interface AuditEvent {

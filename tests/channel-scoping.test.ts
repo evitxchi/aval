@@ -66,6 +66,17 @@ const PARENT_SCOPED: Record<string, string> = {
 };
 
 /**
+ * The escape hatch, deliberately per-query rather than per-table.
+ *
+ * A maintenance sweep — expiring stale rows across every tenant on a cron —
+ * is genuinely cross-org and correct that way. Marking it inline forces the
+ * author to state that intent at the query, where a reviewer reading the query
+ * will see it, rather than in a table-level list nobody revisits. Grep for the
+ * marker to audit every one of them at once.
+ */
+const SWEEP_MARKER = "cross-tenant-sweep:";
+
+/**
  * Tables keyed by something globally unique, where a lookup legitimately has
  * no org predicate — and each entry says why, because "it's fine" is how the
  * next one gets added.
@@ -128,6 +139,10 @@ test("every channel query against a tenant-aware table is org-scoped", () => {
 
     for (const { table, chunk, line } of queryChunks(source)) {
       if (EXEMPT[table]) continue;
+      // A sweep declares itself in a comment just above the query. The window is
+      // generous because the declaration is expected to carry a real reason,
+      // and a real reason runs to several lines.
+      if (source.split("\n").slice(Math.max(0, line - 12), line).join("\n").includes(SWEEP_MARKER)) continue;
 
       const parentKey = PARENT_SCOPED[table];
       if (parentKey) {
@@ -159,6 +174,21 @@ test("the exemption list stays short and explains itself", () => {
     assert.ok(reason.length > 30, `exemption for ${table} needs a real reason, not a shrug`);
     assert.ok(TENANT_TABLES.includes(table), `${table} is exempted but not listed as tenant-aware`);
   }
+});
+
+test("a cross-tenant sweep must declare itself, and every declaration is auditable", () => {
+  // Not a formality: this asserts the marker is rare and always accompanied by
+  // a reason, so the escape hatch cannot quietly become the norm.
+  const declared: string[] = [];
+  for (const file of sourceFiles(CHANNELS_DIR)) {
+    for (const [index, text] of readFileSync(file, "utf8").split("\n").entries()) {
+      if (text.includes(SWEEP_MARKER)) {
+        declared.push(`${file.slice(file.indexOf("lib/channels"))}:${index + 1}`);
+        assert.ok(text.trim().length > SWEEP_MARKER.length + 20, `${file}:${index + 1} — a sweep marker needs a reason after it`);
+      }
+    }
+  }
+  assert.ok(declared.length <= 3, `too many cross-tenant sweeps (${declared.join(", ")}) — each one bypasses the scoping check`);
 });
 
 test("the checker actually catches an unscoped query", () => {
