@@ -82,3 +82,15 @@ React state and trusted desktop bridge. Browsers may require pop-ups to be enabl
 
 The independence introduction is acknowledged once per user and workspace in
 saved preferences. The guide remains available from the expanded controls.
+
+In **Settings → Preferences → Chat window background**, choose **White** or
+**Frosted glass**, then save. Changes preview in an already-open chat window.
+White uses a light, opaque surface. On macOS, glass uses the native `under-window`
+vibrancy material with a transparent renderer; browser pop-outs use a solid tint.
+The preference syncs with the account's appearance settings. Existing profiles
+without this preference default to White. macOS Reduce Transparency is respected.
+
+Question progress appears above the composer as a complete, task-specific label.
+It does not depend on main-window typewriter timers, which can be throttled while
+the detached window is active. Tool events update that label without another
+model request.

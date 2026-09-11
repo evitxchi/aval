@@ -4,7 +4,7 @@ import { dockPanel, dragDestination, fitPanel, resizePanel, type PanelRect, type
 
 const STORAGE_KEY = 'aval.chat.placement.v1';
 const viewport = () => ({ width: window.innerWidth, height: window.innerHeight });
-export function useChatPanel(onPopupBlocked: () => void) {
+export function useChatPanel(onPopupBlocked: () => void, background: "white" | "glass" = "white") {
   const panelRef = useRef<HTMLElement>(null);
   const [rect, setRect] = useState<PanelRect | null>(null);
   const [docked, setDocked] = useState(false);
@@ -14,6 +14,21 @@ export function useChatPanel(onPopupBlocked: () => void) {
   const [dropTarget, setDropTarget] = useState<'window' | 'dock' | 'float'>('float');
   const [popupRoot, setPopupRoot] = useState<HTMLElement | null>(null);
   const popup = useRef<Window | null>(null);
+  useEffect(() => {
+    let live = true;
+    const doc = popupRoot?.ownerDocument;
+    if (doc) {
+      doc.documentElement.setAttribute("data-chat-background", background);
+      doc.documentElement.setAttribute('data-theme', background === 'white' ? 'light' : document.documentElement.dataset.theme ?? 'light');
+    }
+    const bridge = window.avalDesktop;
+    if (bridge?.setChatBackground) {
+      void bridge.setChatBackground(background).then(result => {
+        if (live && doc) doc.documentElement.setAttribute('data-native-glass', String(result.nativeGlass));
+      }).catch(() => { if (live && doc) doc.documentElement.setAttribute('data-native-glass', 'false'); });
+    }
+    return () => { live = false; };
+  }, [background, popupRoot]);
   const popupCleanup = useRef<() => void>(() => {});
   const previousRect = useRef<PanelRect | null>(null);
   const drag = useRef<{ pointerId: number; x: number; y: number; rect: PanelRect; edge?: ResizeEdge; moved: boolean } | null>(null);
@@ -55,6 +70,7 @@ export function useChatPanel(onPopupBlocked: () => void) {
       const syncStyles = () => {
         styles.replaceChildren(...Array.from(document.querySelectorAll('style, link[rel="stylesheet"]')).map(node => node.cloneNode(true)));
         for (const attr of Array.from(document.documentElement.attributes)) child.document.documentElement.setAttribute(attr.name, attr.value);
+        if (child.document.documentElement.dataset.chatBackground === 'white') child.document.documentElement.dataset.theme = 'light';
         child.document.body.className = document.body.className;
         child.document.body.classList.add('aval-chat-popout');
       };

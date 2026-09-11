@@ -1931,6 +1931,11 @@
     "usingTool": "Consultando {source}…",
     "reviewingTool": "Revisando el resultado de {source}…",
     "workingOn": "Trabajando en: {goal}",
-    "reviewingTask": "Revisando el resultado de la tarea…"
+    "reviewingTask": "Revisando el resultado de la tarea…",
+    "windowBackground": "Fondo de la ventana de chat",
+    "windowBackgroundHelp": "Elige el fondo de la ventana de chat independiente. El vidrio esmerilado difumina el escritorio en Aval para Mac; los navegadores usan un fondo sólido con un tinte suave.",
+    "whiteBackground": "Blanco",
+    "glassBackground": "Vidrio esmerilado",
+    "thinkingAbout": "Pensando en «{topic}»…"
   }
 }

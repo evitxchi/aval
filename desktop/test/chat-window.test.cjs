@@ -13,3 +13,16 @@ test('only a trusted dashboard can create the blank chat portal window', () => {
     [{ ...request, frameName: 'other' }, origin],
   ]) assert.equal(isChatWindowRequest(details, sender, origin), false);
 });
+
+test('native chat background changes are reversible and cannot request arbitrary materials', () => {
+  const { applyChatBackground } = require('../chat-window.cjs');
+  const calls = [];
+  const window = { setVibrancy: value => calls.push(['vibrancy', value]), setBackgroundColor: value => calls.push(['color', value]) };
+  assert.deepEqual(applyChatBackground(window, 'glass', 'darwin'), { nativeGlass: true });
+  assert.deepEqual(applyChatBackground(window, 'white', 'darwin'), { nativeGlass: false });
+  assert.deepEqual(calls, [['vibrancy', 'under-window'], ['color', '#00000000'], ['vibrancy', null], ['color', '#ffffff']]);
+  calls.length = 0;
+  assert.deepEqual(applyChatBackground(window, 'glass', 'linux'), { nativeGlass: false });
+  assert.deepEqual(calls, [['color', '#ffffff']]);
+  assert.throws(() => applyChatBackground(window, 'sidebar', 'darwin'), /Invalid/);
+});

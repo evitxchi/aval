@@ -2391,3 +2391,18 @@ body.aval-chat-popout { margin: 0; min-width: 0; background: var(--canvas); }
 @container (max-width: 390px) { .aval-composer-agent { max-width: 120px !important; } .aval-glass-chat .aval-composer-toolbar { gap: 5px; } .aval-glass-chat .aval-window-controls button { width: 25px; } }
 @media (prefers-reduced-motion: reduce) { .aval-glass-chat, .aval-chat-drop-target { animation: none; } }
 @media (prefers-reduced-transparency: reduce) { .aval-glass-chat { background: var(--surface-raised); backdrop-filter: none; } }
+
+/* Status is complete on arrival: foreground pop-outs cannot stall a typewriter. */
+.aval-chat-progress { display: flex; align-items: flex-start; gap: 8px; padding: 4px 22px 10px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.aval-chat-progress > span { min-width: 0; overflow-wrap: anywhere; }
+.aval-chat-progress .aval-chat-thinking-ring { width: 12px; height: 12px; margin-top: 3px; flex-shrink: 0; }
+.chat-window-preferences .settings-choice-group { width: fit-content; margin-top: 14px; }
+.chat-window-preference-save { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-top: 14px; }
+.chat-window-preference-save p { margin: 0; color: var(--muted); font-size: 12px; }
+html[data-chat-background="white"], [data-chat-background="white"] .aval-chat-popout, [data-chat-background="white"] .aval-glass-chat[data-detached="true"] { background: #fff; }
+html[data-chat-background="glass"] { background: var(--canvas); }
+[data-chat-background="glass"] .aval-chat-popout { background: var(--canvas); }
+html[data-chat-background="glass"][data-native-glass="true"], [data-chat-background="glass"][data-native-glass="true"] .aval-chat-popout { background: transparent; }
+[data-chat-background="glass"][data-native-glass="true"] .aval-glass-chat[data-detached="true"] { background: color-mix(in srgb, var(--surface-raised) 18%, transparent); -webkit-backdrop-filter: none; backdrop-filter: none; }
+[data-chat-background="glass"][data-native-glass="true"] .aval-assistant-header { background: transparent; }
+@media (prefers-reduced-transparency: reduce) { [data-chat-background="glass"] .aval-glass-chat[data-detached="true"] { background: var(--surface-raised); } }

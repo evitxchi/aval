@@ -2,6 +2,7 @@
 /* eslint-disable jsx-a11y/no-autofocus */
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useAppearance } from "./appearance-provider";
 import { createPortal } from "react-dom";
 import { ChevronDown, ExternalLink, PanelRightClose, PanelRightOpen, ArrowDownLeft, ArrowUp } from "lucide-react";
 import { useChatPanel } from "./use-chat-panel";
@@ -139,39 +140,6 @@ function readableToolName(tool: string): string {
   return tool.replace(/^(get|list|read|record|fetch)_/, "").replace(/_/g, " ");
 }
 
-/**
- * Reveals `text` a character at a time.
- *
- * A spinner says only "wait". A phrase that types itself says what is being
- * waited on, and the reveal is what makes it read as work in progress rather
- * than a label that happens to be sitting there.
- */
-function useTypedText(text: string, active: boolean): string {
-  // Reset during render rather than in an effect: React's documented way to
-  // adjust state when an input changes, and it avoids the cascading-render
-  // the effect form causes — the old phrase never flashes at the new one's
-  // length while a first interval tick catches up.
-  const [typed, setTyped] = useState({ source: text, shown: "" });
-  if (typed.source !== text) setTyped({ source: text, shown: "" });
-
-  useEffect(() => {
-    if (!active || !text) return;
-    if (typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
-      const settle = window.setTimeout(() => setTyped({ source: text, shown: text }), 0);
-      return () => window.clearTimeout(settle);
-    }
-    let index = 0;
-    const timer = window.setInterval(() => {
-      index += 1;
-      setTyped({ source: text, shown: text.slice(0, index) });
-      if (index >= text.length) window.clearInterval(timer);
-    }, 26);
-    return () => window.clearInterval(timer);
-  }, [text, active]);
-
-  return active ? typed.shown : "";
-}
-
 const suggestionKeys = ["AvalAssistant.suggestion1", "AvalAssistant.suggestion2", "AvalAssistant.suggestion3"];
 const focusedSuggestionKeys = ["AvalAssistant.focusedSuggestion1", "AvalAssistant.focusedSuggestion2", "AvalAssistant.focusedSuggestion3"];
 
@@ -225,12 +193,14 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
     window.addEventListener("aval:tour:chat",show);
     return () => window.removeEventListener("aval:tour:chat",show);
   }, []);
-  const panel = useChatPanel(() => notify(t("ChatPanel.popupBlocked"), t("ChatPanel.popupHelp")));
+  const { appearance } = useAppearance();
+  const panel = useChatPanel(() => notify(t("ChatPanel.popupBlocked"), t("ChatPanel.popupHelp")), appearance.chatWindowBackground ?? "white");
   const { minimized, expanded, popupRoot } = panel;
   const [intent, setIntent] = useState<'chat' | 'task'>('chat');
   const toolsRef = useRef<HTMLDetailsElement>(null);
   const [input, setInput] = useState("");
   const [thinking, setThinking] = useState(false);
+  const [workingQuestion, setWorkingQuestion] = useState("");
   const [progress, setProgress] = useState<AskProgress>({ phase: 'thinking' });
   const [pickingModule, setPickingModule] = useState(false);
   const [selectedModule, setSelectedModule] = useState<SelectedModule | null>(null);
@@ -278,9 +248,8 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
   const activePersona = personaDisplay(personaId);
   const progressText = progress.phase === 'checking' ? t('ChatPanel.checking') : progress.tool
     ? t(progress.phase === 'tool' ? 'ChatPanel.usingTool' : 'ChatPanel.reviewingTool', { source: readableToolName(progress.tool) })
-    : t('ChatPanel.thinkingWith', { agent: activePersonaName() });
-  function activePersonaName() { return PERSONA_PRESETS[personaId as PersonaId] ? t(PERSONA_PRESETS[personaId as PersonaId].labelKey) : customPersonas.find(p => p.id === personaId)?.label ?? t('AvalAssistant.askAval'); }
-  const typedThinking = useTypedText(progressText, thinking);
+    : t('ChatPanel.thinkingAbout', { topic: Array.from(workingQuestion.replace(/\s+/g, ' ').trim()).slice(0, 90).join('') + (Array.from(workingQuestion).length > 90 ? '…' : '') });
+
 
 
   const createAgent = async (event: FormEvent) => {
@@ -452,6 +421,7 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
     const userMessage: ChatMessage = { id: nextId.current++, role: "user", text: trimmed };
     setMessages((current) => [...current, userMessage]);
     setInput("");
+    setWorkingQuestion(trimmed);
     setProgress({ phase: "thinking" });
     setThinking(true);
     try {
@@ -742,6 +712,7 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
             </div>
           )}
 
+          {(thinking || startingTask) && <div className="aval-chat-progress" role="status"><i className="aval-chat-thinking-ring" aria-hidden="true"/><span>{startingTask ? t('ChatPanel.startingWith', { agent: activePersona.label }) : progressText}</span></div>}
           <form className="aval-chat-composer" onSubmit={onSubmit}>
             <textarea ref={inputRef} rows={2} value={input} onChange={event => setInput(event.target.value)} onKeyDown={event => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); if (intent === 'task') void startAgentTask(); else void submitQuestion(input); } }} placeholder={intent === 'task' ? t('ChatPanel.taskPlaceholder', { agent: activePersona.label }) : selectedModule ? t("AvalAssistant.askAboutModulePlaceholder", { module: selectedModule.label }) : t('ChatPanel.placeholder')} aria-label={t("AvalAssistant.askAval")}/>
             <div className="aval-composer-toolbar">
@@ -761,9 +732,7 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
                 : <button className="aval-composer-send" type="submit" disabled={!input.trim() || thinking || startingTask || (intent === 'task' && preferences?.busy)} aria-label={intent === 'task' ? t('ChatPanel.runWith', { agent: activePersona.label }) : t("AvalAssistant.sendMessage")} title={intent === 'task' ? t('ChatPanel.runWith', { agent: activePersona.label }) : t("AvalAssistant.sendMessage")}><ArrowUp size={18}/></button>}
             </div>
           </form>
-          <div className={`aval-composer-status ${thinking || startingTask ? 'is-working' : ''}`} role="status" aria-label={thinking ? progressText : undefined}>
-            {thinking || startingTask ? <><i className="aval-chat-thinking-ring" aria-hidden="true"/><span aria-hidden={thinking || undefined}>{startingTask ? t('ChatPanel.startingWith', { agent: activePersona.label }) : typedThinking}</span></> : <span>{intent === 'task' ? t('ChatPanel.runWith', { agent: activePersona.label }) : t('ChatPolish.newLine')}</span>}
-          </div>
+          <div className="aval-composer-status"><span>{intent === 'task' ? t('ChatPanel.runWith', { agent: activePersona.label }) : t('ChatPolish.newLine')}</span></div>
         </section>
   );
   return (

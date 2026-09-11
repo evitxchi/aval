@@ -5,13 +5,15 @@ const path = require("node:path");
 const { app, BrowserWindow, ipcMain, shell, session } = require("electron");
 const { CodexAppServerService } = require("./codex-app-server.cjs");
 
-const { isChatWindowRequest } = require("./chat-window.cjs");
+const { isChatWindowRequest, applyChatBackground } = require("./chat-window.cjs");
 
 const DEFAULT_APP_URL = "https://aval.evalxnder.workers.dev";
 const appUrl = new URL(process.env.AVAL_DESKTOP_URL || require("./package.json").avalDesktopUrl || DEFAULT_APP_URL);
 const allowedOrigin = appUrl.origin;
 let mainWindow = null;
 let service = null;
+let chatBackground = "white";
+const chatWindows = new Set();
 
 function isTrustedSender(event) {
   try {
@@ -54,7 +56,8 @@ function createWindow() {
     if (isChatWindowRequest(details, mainWindow.webContents.getURL(), allowedOrigin)) return {
       action: "allow",
       overrideBrowserWindowOptions: { title: "Ask Aval", width: 500, height: 720, minWidth: 360, minHeight: 420,
-        backgroundColor: "#f4f4f1", webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true } },
+        transparent: process.platform === "darwin", visualEffectState: "active",
+        backgroundColor: "#ffffff", webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true } },
     };
     try {
       if (new URL(url).protocol === "https:") void shell.openExternal(url);
@@ -63,6 +66,9 @@ function createWindow() {
   });
   mainWindow.webContents.on("did-create-window", (child, details) => {
     if (details.frameName !== "aval-chat") return;
+    chatWindows.add(child);
+    applyChatBackground(child, chatBackground);
+    child.once('closed', () => chatWindows.delete(child));
     child.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
     child.webContents.on("will-navigate", event => event.preventDefault());
     const parent = mainWindow;
@@ -105,6 +111,13 @@ app.whenReady().then(async () => {
   registerIpc("set-model", ({ modelId } = {}) => service.setModel(modelId));
   registerIpc("ask", (payload) => service.ask(payload));
   registerIpc("cancel-turn", async (payload) => { await service.cancelTurn(payload || {}); return null; });
+  ipcMain.handle('aval:chat:background', (event, background) => {
+    if (event.sender !== mainWindow?.webContents || !isTrustedSender(event)) throw new Error('Untrusted chat appearance request.');
+    if (background !== 'white' && background !== 'glass') throw new Error('Invalid chat background.');
+    chatBackground = background;
+    for (const child of chatWindows) if (!child.isDestroyed()) applyChatBackground(child, background);
+    return { nativeGlass: process.platform === 'darwin' && background === 'glass' };
+  });
   createWindow();
   await service.start();
   app.on("activate", () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });

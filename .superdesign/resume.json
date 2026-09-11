@@ -186,17 +186,17 @@
         ".superdesign/design-system.md": "8585099fe271d3e94470a636384cebb291d4302c8e5fa17b41c5990bdd9dd220",
         "app/components/independence-controls.tsx": "1fa8cf4345278ddf22adde63aa8ba841c7dfec3f54bf45e734fca53bc214e6e6",
         "app/components/foldout.tsx": "c3abc9d3e5f412fdfadac65c4a9e46bf429f8827515611b97d41ab34d126c4a5",
-        "app/enterprise.css": "a78608706ba3482f8db9e12663e7be4cd8275f94d79c2d48d24a84c4d455ca22",
+        "app/enterprise.css": "eb116e02ffe8bb826d57a3c26035d1490da27ce243522b069539e97e02e20a43",
         ".superdesign/init/theme.md": "f7a29994f6e9fdff8fc0bdab137d5db9f62ebebd245924d9c999bb081c4914e3"
       },
       "drafts": {
         "d367a900-48da-4039-8ff4-5e89c8030608": {
           "title": "Aval Frosted Chat",
-          "currentVersion": 2,
+          "currentVersion": 3,
           "visualDirection": "Frosted glass panel, collapsed independence, compact agent and intent pills, real progress, Lucide navigation icons"
         }
       },
-      "updatedAt": "2026-09-10T02:38:36.297019+00:00"
+      "updatedAt": "2026-09-11T00:57:18.838785+00:00"
     }
   }
 }

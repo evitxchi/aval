@@ -1931,6 +1931,11 @@
     "usingTool": "Requesting {source}…",
     "reviewingTool": "Reviewing the result from {source}…",
     "workingOn": "Working on: {goal}",
-    "reviewingTask": "Reviewing the task result…"
+    "reviewingTask": "Reviewing the task result…",
+    "windowBackground": "Chat window background",
+    "windowBackgroundHelp": "Choose the background for the separate chat window. Frosted glass blurs the desktop in Aval for Mac; browsers use a solid tinted background.",
+    "whiteBackground": "White",
+    "glassBackground": "Frosted glass",
+    "thinkingAbout": "Thinking about “{topic}”…"
   }
 }
