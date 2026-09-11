@@ -127,6 +127,29 @@ on this stack there cannot be:
   `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` — as expected, since drizzle-kit targets
   SQLite here.
 
+**Correction to an earlier draft of this answer.** The first version of this
+report said there is no RLS work anywhere and implied there was no plan for
+any. That was incomplete. There is an **in-flight Postgres + RLS spike** in this
+repository, and it uses precisely the session-claim mechanism P0.4 step 3
+describes:
+
+- `supabase/benchmark/001_spike.sql` — five tables under an `aval_benchmark`
+  schema with `ENABLE`/`FORCE ROW LEVEL SECURITY` and a `tenant` policy reading
+  `current_setting('aval.organization_id', true)`.
+- `db/postgres/session.ts` — `withDbSession`, which opens a transaction, does
+  `SET LOCAL ROLE`, sets the four `aval.*` claims with `set_config(..., true)`,
+  and optionally asserts the transaction context was clean beforehand.
+- `infra/benchmark/` — a Worker that exercises it through Hyperdrive.
+- `pg` and `@types/pg` are already in `package.json`.
+
+It is a **benchmark spike, not production**: a separate schema, a separate role
+(`aval_benchmark_app`), five tables rather than the real sixty, and nothing in
+the application path touches it. Production remains D1 with application-only
+scoping, so the answer above stands for what protects customers today. But RLS
+here is an active initiative rather than a hypothetical, which changes the
+recommendation below from "consider adding it" to "the isolation test should be
+written so it survives the migration".
+
 What *does* exist, and is genuinely good, is structural defence one layer up:
 
 - `lib/agents/policy.ts` — a deterministic policy engine, explicitly documented as the
