@@ -183,7 +183,7 @@ function describeModule(element: HTMLElement): SelectedModule {
 
 
 export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateDraft: (input: CreateDraftInput) => void }) {
-  const { notify } = useExperience();
+  const { notify, theme } = useExperience();
   const desktop = useDesktopCodex();
   const t = useTranslations();
   const locale = useLocale();
@@ -194,7 +194,7 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
     return () => window.removeEventListener("aval:tour:chat",show);
   }, []);
   const { appearance } = useAppearance();
-  const panel = useChatPanel(() => notify(t("ChatPanel.popupBlocked"), t("ChatPanel.popupHelp")), appearance.chatWindowBackground ?? "white");
+  const panel = useChatPanel(() => notify(t("ChatPanel.popupBlocked"), t("ChatPanel.popupHelp")), appearance.chatWindowBackground ?? "white", theme, appearance.chatWindowTransparency);
   const { minimized, expanded, popupRoot } = panel;
   const [intent, setIntent] = useState<'chat' | 'task'>('chat');
   const toolsRef = useRef<HTMLDetailsElement>(null);
@@ -531,6 +531,7 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
         <section ref={panel.panelRef} className="aval-assistant-panel aval-glass-chat" data-minimized={minimized} data-expanded={expanded} data-docked={panel.docked} data-detached={!!popupRoot} data-dragging={panel.dragging}
           style={!popupRoot && panel.rect ? { left: panel.rect.x, top: panel.rect.y, width: panel.rect.width, height: panel.rect.height, right: 'auto', bottom: 'auto' } : undefined}
           role="dialog" aria-label={t("AvalAssistant.avalAssistant")}>
+          {popupRoot && <div className="aval-chat-native-titlebar" title={t('ChatPanel.moveWindow')}><span>{t('AvalAssistant.askAval')}</span></div>}
           {!popupRoot && !minimized && (['n','s','e','w','ne','nw','se','sw'] as ResizeEdge[]).map(edge => <div key={edge} className={`aval-resize-edge edge-${edge}`} aria-hidden="true" onPointerDown={event => panel.begin(event, edge)} {...panel.pointerHandlers}/>)}
           <header className="aval-assistant-header" onPointerDown={event => panel.begin(event)} {...panel.pointerHandlers} title={!popupRoot ? t('ChatPanel.dragHelp') : undefined}>
             <div className="aval-assistant-identity">

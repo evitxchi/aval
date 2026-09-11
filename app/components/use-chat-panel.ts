@@ -2,9 +2,11 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { dockPanel, dragDestination, fitPanel, resizePanel, type PanelRect, type ResizeEdge } from '@/lib/ask-aval/panel-geometry';
 
+import { DEFAULT_CHAT_TRANSPARENCY } from '@/lib/appearance';
+
 const STORAGE_KEY = 'aval.chat.placement.v1';
 const viewport = () => ({ width: window.innerWidth, height: window.innerHeight });
-export function useChatPanel(onPopupBlocked: () => void, background: "white" | "glass" = "white") {
+export function useChatPanel(onPopupBlocked: () => void, background: "white" | "glass" = "white", theme: "light" | "dark" = "light", transparency = DEFAULT_CHAT_TRANSPARENCY) {
   const panelRef = useRef<HTMLElement>(null);
   const [rect, setRect] = useState<PanelRect | null>(null);
   const [docked, setDocked] = useState(false);
@@ -15,20 +17,27 @@ export function useChatPanel(onPopupBlocked: () => void, background: "white" | "
   const [popupRoot, setPopupRoot] = useState<HTMLElement | null>(null);
   const popup = useRef<Window | null>(null);
   useEffect(() => {
+    popupRoot?.style.setProperty('--aval-glass-opacity', String(1 - transparency / 100));
+  }, [popupRoot, transparency]);
+  useEffect(() => {
     let live = true;
     const doc = popupRoot?.ownerDocument;
     if (doc) {
       doc.documentElement.setAttribute("data-chat-background", background);
-      doc.documentElement.setAttribute('data-theme', background === 'white' ? 'light' : document.documentElement.dataset.theme ?? 'light');
+      doc.documentElement.setAttribute('data-theme', background === 'white' ? 'light' : theme);
     }
     const bridge = window.avalDesktop;
     if (bridge?.setChatBackground) {
-      void bridge.setChatBackground(background).then(result => {
-        if (live && doc) doc.documentElement.setAttribute('data-native-glass', String(result.nativeGlass));
+      void bridge.setChatBackground(background, theme).then(result => {
+        if (live && doc) {
+          doc.documentElement.setAttribute('data-native-glass', String(result.nativeGlass));
+          doc.documentElement.setAttribute('data-native-titlebar', String(result.nativeTitlebar === true));
+          doc.documentElement.setAttribute('data-native-window', 'true');
+        }
       }).catch(() => { if (live && doc) doc.documentElement.setAttribute('data-native-glass', 'false'); });
     }
     return () => { live = false; };
-  }, [background, popupRoot]);
+  }, [background, popupRoot, theme]);
   const popupCleanup = useRef<() => void>(() => {});
   const previousRect = useRef<PanelRect | null>(null);
   const drag = useRef<{ pointerId: number; x: number; y: number; rect: PanelRect; edge?: ResizeEdge; moved: boolean } | null>(null);

@@ -38,3 +38,9 @@ test('chat backgrounds are allowlisted and old appearance records keep their def
   for (const mode of ['white', 'glass'] as const) assert.equal(parseAppearance({ ...DEFAULT_APPEARANCE, chatWindowBackground: mode })?.chatWindowBackground, mode);
   assert.equal(parseAppearance({ ...DEFAULT_APPEARANCE, chatWindowBackground: 'transparent-script' }), null);
 });
+
+ test('chat transparency validates numeric bounds and preserves zero', () => {
+  for (const value of [0, 20, 55, 100]) assert.equal(parseAppearance({ ...DEFAULT_APPEARANCE, chatWindowTransparency: value })?.chatWindowTransparency, value);
+  for (const value of [-1, 101, 20.5, '20', null, NaN, Infinity]) assert.equal(parseAppearance({ ...DEFAULT_APPEARANCE, chatWindowTransparency: value }), null);
+  assert.equal(parseAppearance(DEFAULT_APPEARANCE)?.chatWindowTransparency, undefined);
+});

@@ -2,10 +2,10 @@
  
 
 const path = require("node:path");
-const { app, BrowserWindow, ipcMain, shell, session } = require("electron");
+const { app, BrowserWindow, ipcMain, shell, session, nativeTheme } = require("electron");
 const { CodexAppServerService } = require("./codex-app-server.cjs");
 
-const { isChatWindowRequest, applyChatBackground } = require("./chat-window.cjs");
+const { isChatWindowRequest, applyChatBackground, parseChatAppearance } = require("./chat-window.cjs");
 
 const DEFAULT_APP_URL = "https://aval.evalxnder.workers.dev";
 const appUrl = new URL(process.env.AVAL_DESKTOP_URL || require("./package.json").avalDesktopUrl || DEFAULT_APP_URL);
@@ -56,7 +56,10 @@ function createWindow() {
     if (isChatWindowRequest(details, mainWindow.webContents.getURL(), allowedOrigin)) return {
       action: "allow",
       overrideBrowserWindowOptions: { title: "Ask Aval", width: 500, height: 720, minWidth: 360, minHeight: 420,
-        transparent: process.platform === "darwin", visualEffectState: "active",
+        transparent: false, visualEffectState: "active",
+        titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
+        ...(process.platform === "darwin" ? { trafficLightPosition: { x: 14, y: 9 } } : {}),
+        movable: true, resizable: true, roundedCorners: true,
         backgroundColor: "#ffffff", webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true } },
     };
     try {
@@ -111,12 +114,13 @@ app.whenReady().then(async () => {
   registerIpc("set-model", ({ modelId } = {}) => service.setModel(modelId));
   registerIpc("ask", (payload) => service.ask(payload));
   registerIpc("cancel-turn", async (payload) => { await service.cancelTurn(payload || {}); return null; });
-  ipcMain.handle('aval:chat:background', (event, background) => {
+  ipcMain.handle('aval:chat:background', (event, payload) => {
     if (event.sender !== mainWindow?.webContents || !isTrustedSender(event)) throw new Error('Untrusted chat appearance request.');
-    if (background !== 'white' && background !== 'glass') throw new Error('Invalid chat background.');
+    const { background, theme } = parseChatAppearance(payload);
+    nativeTheme.themeSource = theme;
     chatBackground = background;
     for (const child of chatWindows) if (!child.isDestroyed()) applyChatBackground(child, background);
-    return { nativeGlass: process.platform === 'darwin' && background === 'glass' };
+    return { nativeGlass: process.platform === 'darwin' && background === 'glass', nativeTitlebar: process.platform === 'darwin' };
   });
   createWindow();
   await service.start();

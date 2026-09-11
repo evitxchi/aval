@@ -26,3 +26,10 @@ test('native chat background changes are reversible and cannot request arbitrary
   assert.deepEqual(calls, [['color', '#ffffff']]);
   assert.throws(() => applyChatBackground(window, 'sidebar', 'darwin'), /Invalid/);
 });
+
+test('chat appearance accepts only explicit app themes and supports older callers', () => {
+  const { parseChatAppearance } = require('../chat-window.cjs');
+  assert.deepEqual(parseChatAppearance('glass'), { background: 'glass', theme: 'light' });
+  for (const theme of ['light', 'dark']) assert.deepEqual(parseChatAppearance({ background: 'glass', theme }), { background: 'glass', theme });
+  for (const value of [null, {}, { background: 'glass', theme: 'system' }, { background: 'url(evil)', theme: 'dark' }]) assert.throws(() => parseChatAppearance(value), /Invalid/);
+});

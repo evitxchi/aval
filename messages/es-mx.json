@@ -1939,6 +1939,11 @@
     "windowBackgroundHelp": "Elige el fondo de la ventana de chat independiente. El vidrio esmerilado difumina el escritorio en Aval para Mac; los navegadores usan un fondo sólido con un tinte suave.",
     "whiteBackground": "Blanco",
     "glassBackground": "Vidrio esmerilado",
-    "thinkingAbout": "Pensando en «{topic}»…"
+    "thinkingAbout": "Pensando en «{topic}»…",
+    "moveWindow": "Arrastra para mover esta ventana",
+    "transparency": "Transparencia",
+    "transparencyValue": "{value}% transparente",
+    "opaque": "Opaco",
+    "moreTransparent": "Más transparente"
   }
 }
