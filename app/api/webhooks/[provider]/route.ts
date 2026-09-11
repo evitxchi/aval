@@ -10,6 +10,9 @@ import { parseInboundMessage } from "@/lib/integrations/inbound";
 import { draftAutoReply } from "@/lib/ask-aval/auto-reply";
 import type { AskAvalEnv } from "@/lib/ask-aval/anthropic";
 import { getRequestExecutionContext } from "vinext/shims/request-context";
+import { parseWhatsappPayload } from "@/lib/channels/whatsapp/adapter";
+import { enqueueInbound } from "@/lib/channels/queue";
+import { scrubError } from "@/lib/channels/scrub";
 
 const encoder = new TextEncoder();
 const bindings = () => env as unknown as Record<string, string | undefined>;
@@ -186,7 +189,27 @@ export async function POST(request: Request, context: { params: Promise<{ provid
       if (organizationId) await ingestInboundMessage(provider, organizationId, parsed, env as unknown as AskAvalEnv);
     }
   } catch (error) {
-    console.error("Inbound message ingestion failed", provider, error instanceof Error ? error.message : error);
+    console.error("Inbound message ingestion failed", provider, scrubError(error));
+  }
+
+  // The agent channel. Distinct from the Inbox ingestion above, which drafts a
+  // reply for a human to send; this enqueues the message for the agent worker
+  // to answer directly. Both can be true of one payload — an operator's
+  // question is also a conversation — so this runs alongside rather than
+  // instead of it.
+  //
+  // Nothing here calls a model. The webhook's whole job is verify, record,
+  // acknowledge, inside a second: Meta retries a slow handler, and a retry
+  // that produces a second reply is a message the customer receives twice.
+  if (provider === "whatsapp") {
+    try {
+      for (const message of parseWhatsappPayload(payload)) {
+        const organizationId = await resolveOrganizationId(provider, undefined, message.to);
+        await enqueueInbound(message, organizationId);
+      }
+    } catch (error) {
+      console.error("Channel enqueue failed", provider, scrubError(error));
+    }
   }
 
   return provider === "twilio" ? new Response("<Response/>", { headers: { "content-type": "text/xml" } }) : Response.json({ received: true }, { status: 202 });

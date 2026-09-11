@@ -1562,3 +1562,24 @@ export const channelSubscriptions = sqliteTable(
     index("channel_subscriptions_org_idx").on(table.organizationId),
   ],
 );
+
+/**
+ * Per-thread transient state: the tail of the last answer that did not fit.
+ *
+ * Separate from `channel_identities` on purpose. That table is the security
+ * boundary and is read on every inbound message; mixing a mutable scratch
+ * value into it would mean the identity row is rewritten on every answer, for
+ * a field that has nothing to do with identity.
+ *
+ * One row per identity, replaced each time. An operator asking for MORE wants
+ * the rest of the answer in front of them, not the rest of an answer from
+ * three questions ago, so history here would be a liability rather than a
+ * feature.
+ */
+export const channelThreadState = sqliteTable("channel_thread_state", {
+  channelIdentityId: text("channel_identity_id").primaryKey().references(() => channelIdentities.id),
+  organizationId: text("organization_id").notNull().references(() => organizations.id),
+  overflow: text("overflow"),
+  overflowExpiresAt: integer("overflow_expires_at", { mode: "timestamp_ms" }),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+});

@@ -2,6 +2,7 @@
 import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
 import type { AgentWorkerEnv } from "@/lib/agents/worker";
+import type { AskAvalEnv as ChannelWorkerEnv } from "@/lib/ask-aval/anthropic";
 
 interface Env {
   ASSETS: Fetcher;
@@ -62,6 +63,16 @@ const worker = {
     ctx.waitUntil(import("@/lib/communications/poll-worker").then(({ pollCommunicationSources }) => pollCommunicationSources()));
     ctx.waitUntil(import("@/lib/agents/worker").then(({ runAgentWorkerBatch }) =>
       runAgentWorkerBatch(env as unknown as AgentWorkerEnv, "scheduled"),
+    ));
+    // The WhatsApp agent's model calls live here rather than on the webhook's
+    // request path — Meta retries a handler that is slow to acknowledge, and a
+    // retry that produces a second reply is a message a customer receives
+    // twice. See lib/channels/queue.ts.
+    ctx.waitUntil(import("@/lib/channels/worker").then(({ runChannelWorker }) =>
+      runChannelWorker(env as unknown as ChannelWorkerEnv),
+    ));
+    ctx.waitUntil(import("@/lib/channels/subscription-worker").then(({ runSubscriptionWorker }) =>
+      runSubscriptionWorker(env as unknown as ChannelWorkerEnv),
     ));
   },
 };
