@@ -5,7 +5,7 @@
  */
 
 import { AnthropicError, type AskAvalEnv, type Message, type ContentBlock, type ToolUseBlock, type ToolSchema } from "./anthropic";
-import { callModel } from "./model-router";
+import { callModel, ModelConfigurationError } from "./model-router";
 import { TOOLS } from "./tools";
 import { checkUsageBlocked, recordUsage, type AskAvalSession } from "./usage";
 import { executeTool } from "@/lib/agents/executor";
@@ -150,6 +150,9 @@ export async function runAskAvalLoop(
     return json({ error: "Could not resolve the question within the tool budget." }, 504);
   } catch (err) {
     await recordUsage(session, inputTokens, outputTokens);
+    if (err instanceof ModelConfigurationError) {
+      return json({ error: err.message, code: "model_provider_required", retryable: false }, 409);
+    }
     if (err instanceof AnthropicError) {
       return json({ error: err.message, retryable: err.retryable }, err.status >= 500 ? 502 : 400);
     }

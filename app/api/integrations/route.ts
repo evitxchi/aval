@@ -41,7 +41,7 @@ export async function GET(request: Request) {
   }
 }
 
-/** Sets which connected model provider powers agents/Ask Aval for this org. `{ provider: null }` reverts to Aval's own bundled key. */
+/** Sets which connected model provider powers agents/Ask Aval for this org. `{ provider: null }` pauses model-backed features. */
 export async function POST(request: Request) {
   const identity = await getApiIdentity(request);
   if (!identity) return Response.json({ error: "Authentication required" }, { status: 401 });

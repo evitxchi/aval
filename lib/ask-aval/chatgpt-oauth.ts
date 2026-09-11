@@ -188,7 +188,7 @@ export async function callChatgptOAuth(
       // structural limit the user needs to know about to pick another path.
       if (isHostedEdgeChallenge(response.status, raw)) {
         throw new AnthropicError(
-          "OpenAI's edge is blocking Aval's ChatGPT requests from its hosted Cloudflare Worker. Reconnecting can't fix this deployment constraint. Switch to an OpenAI API key or Aval Intelligence in Settings → Intelligence.",
+          "OpenAI's edge is blocking Aval's ChatGPT requests from its hosted Cloudflare Worker. Reconnecting can't fix this deployment constraint. Switch to an OpenAI API key or another connected provider in Settings → Intelligence.",
           403,
           false,
         );

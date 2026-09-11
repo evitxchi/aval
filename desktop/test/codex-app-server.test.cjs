@@ -235,7 +235,9 @@ test("an existing Codex login is adopted into the isolated home", async (t) => {
 
   const imported = path.join(temporary, "codex-home", "auth.json");
   assert.equal(fs.readFileSync(imported, "utf8"), '{"tokens":{"refresh_token":"shared"}}');
-  assert.equal(fs.statSync(imported).mode & 0o777, 0o600);
+  // Windows does not expose POSIX permission bits; Unix packaging must retain
+  // owner-only access for the copied credential.
+  if (process.platform !== "win32") assert.equal(fs.statSync(imported).mode & 0o777, 0o600);
   assert.ok(service.diagnostics.some((entry) => entry.kind === "shared_login_imported"));
   // Credentials must never reach the renderer-visible state.
   assert.equal(JSON.stringify(service.getState()).includes("shared"), false);

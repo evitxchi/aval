@@ -2,6 +2,8 @@
 
 SELECT name, type, sql FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%' ORDER BY type, name;
 
+SELECT 'access_grants' AS table_name, count(*) AS row_count FROM "access_grants"
+UNION ALL
 SELECT 'agent_approval_decisions' AS table_name, count(*) AS row_count FROM "agent_approval_decisions"
 UNION ALL
 SELECT 'agent_approvals' AS table_name, count(*) AS row_count FROM "agent_approvals"
@@ -32,6 +34,8 @@ SELECT 'ai_usage' AS table_name, count(*) AS row_count FROM "ai_usage"
 UNION ALL
 SELECT 'answer_audit_log' AS table_name, count(*) AS row_count FROM "answer_audit_log"
 UNION ALL
+SELECT 'approval_authorities' AS table_name, count(*) AS row_count FROM "approval_authorities"
+UNION ALL
 SELECT 'automation_runs' AS table_name, count(*) AS row_count FROM "automation_runs"
 UNION ALL
 SELECT 'automation_steps' AS table_name, count(*) AS row_count FROM "automation_steps"
@@ -53,6 +57,8 @@ UNION ALL
 SELECT 'gl_accounts' AS table_name, count(*) AS row_count FROM "gl_accounts"
 UNION ALL
 SELECT 'gl_transactions' AS table_name, count(*) AS row_count FROM "gl_transactions"
+UNION ALL
+SELECT 'identity_links' AS table_name, count(*) AS row_count FROM "identity_links"
 UNION ALL
 SELECT 'insight_decisions' AS table_name, count(*) AS row_count FROM "insight_decisions"
 UNION ALL
@@ -84,17 +90,27 @@ SELECT 'organization_members' AS table_name, count(*) AS row_count FROM "organiz
 UNION ALL
 SELECT 'organizations' AS table_name, count(*) AS row_count FROM "organizations"
 UNION ALL
+SELECT 'ownership_entities' AS table_name, count(*) AS row_count FROM "ownership_entities"
+UNION ALL
 SELECT 'planning_items' AS table_name, count(*) AS row_count FROM "planning_items"
 UNION ALL
 SELECT 'planning_projects' AS table_name, count(*) AS row_count FROM "planning_projects"
 UNION ALL
 SELECT 'portfolio_snapshots' AS table_name, count(*) AS row_count FROM "portfolio_snapshots"
 UNION ALL
+SELECT 'portfolios' AS table_name, count(*) AS row_count FROM "portfolios"
+UNION ALL
+SELECT 'principals' AS table_name, count(*) AS row_count FROM "principals"
+UNION ALL
 SELECT 'properties' AS table_name, count(*) AS row_count FROM "properties"
 UNION ALL
 SELECT 'rate_limit_hits' AS table_name, count(*) AS row_count FROM "rate_limit_hits"
 UNION ALL
+SELECT 'regions' AS table_name, count(*) AS row_count FROM "regions"
+UNION ALL
 SELECT 'residents' AS table_name, count(*) AS row_count FROM "residents"
+UNION ALL
+SELECT 'sso_connections' AS table_name, count(*) AS row_count FROM "sso_connections"
 UNION ALL
 SELECT 'subscriptions' AS table_name, count(*) AS row_count FROM "subscriptions"
 UNION ALL
@@ -154,6 +170,8 @@ SELECT 'ai_usage' AS table_name, 'input_tokens' AS column_name, CAST(sum("input_
 
 SELECT 'ai_usage' AS table_name, 'output_tokens' AS column_name, CAST(sum("output_tokens") AS TEXT) AS total FROM "ai_usage";
 
+SELECT 'approval_authorities' AS table_name, 'maximum_amount_cents' AS column_name, CAST(sum("maximum_amount_cents") AS TEXT) AS total FROM "approval_authorities";
+
 SELECT 'automation_runs' AS table_name, status, count(*) AS row_count FROM "automation_runs" GROUP BY status;
 
 SELECT 'communication_deliveries' AS table_name, status, count(*) AS row_count FROM "communication_deliveries" GROUP BY status;
@@ -178,13 +196,21 @@ SELECT 'ledger_entries' AS table_name, 'amount_cents' AS column_name, CAST(sum("
 
 SELECT 'operations_conflicts' AS table_name, status, count(*) AS row_count FROM "operations_conflicts" GROUP BY status;
 
+SELECT 'ownership_entities' AS table_name, status, count(*) AS row_count FROM "ownership_entities" GROUP BY status;
+
 SELECT 'planning_items' AS table_name, status, count(*) AS row_count FROM "planning_items" GROUP BY status;
+
+SELECT 'portfolios' AS table_name, status, count(*) AS row_count FROM "portfolios" GROUP BY status;
+
+SELECT 'principals' AS table_name, status, count(*) AS row_count FROM "principals" GROUP BY status;
 
 SELECT 'properties' AS table_name, status, count(*) AS row_count FROM "properties" GROUP BY status;
 
 SELECT 'properties' AS table_name, 'acquisition_cost_cents' AS column_name, CAST(sum("acquisition_cost_cents") AS TEXT) AS total FROM "properties";
 
 SELECT 'properties' AS table_name, 'current_value_cents' AS column_name, CAST(sum("current_value_cents") AS TEXT) AS total FROM "properties";
+
+SELECT 'regions' AS table_name, status, count(*) AS row_count FROM "regions" GROUP BY status;
 
 SELECT 'residents' AS table_name, status, count(*) AS row_count FROM "residents" GROUP BY status;
 

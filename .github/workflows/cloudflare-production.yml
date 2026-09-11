@@ -58,10 +58,17 @@ jobs:
       - name: Deploy production Worker and cron
         run: npx wrangler deploy --config wrangler.deploy.jsonc
 
-      - name: Prove one authenticated live durable-agent run
+      - name: Remove retired shared Anthropic secret
+        run: |
+          set -euo pipefail
+          if npx wrangler secret list --config wrangler.deploy.jsonc | jq -e '.[] | select(.name == "ANTHROPIC_API_KEY")' >/dev/null; then
+            npx wrangler secret delete ANTHROPIC_API_KEY --config wrangler.deploy.jsonc
+          fi
+
+      - name: Verify authenticated production readiness without a model call
         env:
           AVAL_SMOKE_CREDENTIALS_FILE: ${{ runner.temp }}/aval-smoke-credentials.json
-        run: node scripts/smoke-durable-agent.mjs "$AVAL_PRODUCTION_URL"
+        run: node scripts/smoke-production-readiness.mjs "$AVAL_PRODUCTION_URL"
 
       - name: Remove temporary verification credentials
         if: always()

@@ -1,8 +1,8 @@
 {
   "version": 1,
-  "status": "unverified",
+  "status": "user-confirmed-empty",
   "observedAt": "2026-09-10",
-  "userReport": "The user believes there may be no production database and will configure Supabase later.",
+  "userReport": "The user confirmed there is no customer data in Cloudflare and will configure Supabase later.",
   "configuredSources": [
     {
       "kind": "standalone-cloudflare",
@@ -27,5 +27,6 @@
     }
   ],
   "cutoverAllowed": false,
-  "reason": "Neither missing account visibility nor an unverified absence of production data authorizes a destructive migration. Identify all active and historical deployment sources first."
+  "plannedPath": "clean-install",
+  "reason": "Create and benchmark the Supabase project first. Preserve any old D1 deployment untouched until its identity is confirmed and the clean-install smoke passes."
 }

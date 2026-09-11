@@ -1,19 +1,22 @@
 # Lean Supabase migration: implementation and handoff
 
-Status: **Phase 0 foundation implemented; hosted benchmark and production discovery pending.** Aval's application still runs on D1. Connecting a Supabase URL does **not** switch the application to PostgreSQL. The 59-table port, full application authorization, Supabase Auth, data import and cutover remain future phases.
+Status: **Clean-install PostgreSQL schema and RLS foundation implemented; hosted Supabase setup and runtime cutover pending.** Aval's application still runs on D1. Connecting a Supabase URL does **not** switch the application to PostgreSQL. The generated PostgreSQL schema now covers all 67 current tables, including the enterprise hierarchy and identity tables, but repository conversion, Supabase Auth, Hyperdrive configuration and cutover remain future work.
 
-The user will configure Supabase later. On September 10, 2026, the connected Cloudflare account returned no D1 databases and the registered Sites project was unavailable to the connected session. The user believes there may be no live database. This is recorded as **unverified**, not as zero production rows. Local D1 data and old deployments must still be considered before claiming an empty installation.
+The user confirmed there is no customer data in Cloudflare and will create the Supabase project later. The connected Cloudflare account returned no visible D1 databases and the registered Sites project was unavailable to this session, so no remote row count was independently collected. The implementation therefore uses a **clean Supabase install** and does not build an unnecessary customer-data exporter. Any old D1 instance must remain untouched until its deployment identity is confirmed and the new empty-install smoke passes.
 
 ## What this branch implements
 
 | Component | Implementation and limit |
 | --- | --- |
-| Generated inventory | Replays the current migration journal into SQLite, compares tables, columns, indexes and foreign keys with actual Drizzle metadata; includes migration hashes, trigger SQL/hashes and database consumers. Current result: 59 tables, 31 migrations, 6 triggers, 70 runtime `getDb()` consumers. Counts are derived, never acceptance constants. |
+| Generated inventory | Replays the current migration journal into SQLite, compares tables, columns, indexes and foreign keys with actual Drizzle metadata; includes migration hashes, trigger SQL/hashes and database consumers. Current result: 67 tables, 33 migrations, 6 triggers, 70 runtime `getDb()` consumers. Counts are derived, never acceptance constants. |
+| PostgreSQL schema | Generates a clean 67-table `pg-core` schema and Supabase migration from the checked-in D1 model. Existing text IDs stay text; timestamps become `timestamptz`; structured JSON becomes `jsonb`; money/token/micro-unit counters become `bigint`; utility usage becomes `numeric`. |
+| Enterprise hierarchy | Adds principals, identity links, SSO metadata, ownership entities, portfolios, regions, scoped access grants and scoped approval authority. Property and scope relationships include the organization in composite foreign keys. |
+| Default-deny RLS | Enables and forces RLS across all organization-owned tables, requires transaction-local principal/organization context, applies property/portfolio/region/owner scope checks and prevents removal of the final active organization administrator. The policies are generated from the current inventory. |
 | Production preflight | Generates read-only table counts, schema, integrity checks, status counts, money/token totals and audit heads. Does not export personal data or assume missing access means an empty database. |
 | PostgreSQL session | `pg` + Drizzle, one request-scoped client, explicit identity and transaction, fixed restricted database roles, parameterized transaction-local context, timeouts, rollback and connection cleanup. Currently used only by the spike. |
 | Representative fixture | Isolated `aval_benchmark` schema: 10 organizations, 10,000 properties, 10,000 tasks, memberships and append-only audit rows. Includes text IDs, bigint amounts, JSONB, timestamps and a composite tenant foreign key. |
 | Atomic operations | Fixture property mutation plus audit/head update in one transaction; parent-row audit locking; idempotent requests; `SKIP LOCKED` task claiming; increasing lease generations and expiry checks on checkpoints. These are tested patterns, not changes to the production domain repositories yet. |
-| Tenant controls | Fixture membership RLS, revoked/expired memberships, missing-context denial and restricted roles. Final hierarchy/capability RLS is deliberately not represented as complete. |
+| Tenant controls | The synthetic benchmark retains its isolated membership fixture. The clean application migration separately contains enterprise hierarchy policies; these still require local/hosted negative-policy validation before runtime cutover. |
 | Hosted benchmark | Separate, token-protected, synthetic-only Worker; 1/10/50/100 concurrent list/write/claim probes, read-after-write and tenant checks; source fingerprint and explicit evidence gate. No production app bindings are reused. |
 | Local environment/CI | Supabase CLI configuration plus a CI job using real PostgreSQL 17. Storage and Realtime remain disabled. No automatic cloud deployment. |
 
@@ -28,7 +31,20 @@ npm run test:migration
 
 Outputs are [inventory.json](./inventory.json) and [production-preflight.sql](./production-preflight.sql). Source hashes normalize CRLF to LF so Windows and Linux produce the same inventory. Future data-export manifests must hash exact exported bytes, not normalized source.
 
-The inventory preserves triggers from migrations as well as Drizzle declarations. It records the old column modes but intentionally does not guess which arbitrary text fields are structured JSON, date-only values or opaque evidence. Those conversions need explicit mappings during Phase 1. No ID remapper or `legacy_id_map` exists.
+The inventory preserves triggers from migrations as well as Drizzle declarations. The PostgreSQL generator converts fields explicitly named `*Json`, integer timestamp modes, money/token/micro counters and utility usage. Other text remains text and opaque provider evidence is not reinterpreted. No ID remapper or `legacy_id_map` exists.
+
+## Create the clean backend later
+
+After creating a dedicated Supabase project in US West:
+
+1. Install Docker and the Supabase CLI, then run `npx supabase start`.
+2. Run `npx supabase db reset` and execute `npm run test:postgres` against a fresh local test database.
+3. Run `npm run db:inventory`, `npm run db:postgres:schema`, and `npm run db:postgres:publish`; the generated files must produce no Git diff.
+4. Link the intended hosted project with `npx supabase link --project-ref YOUR_PROJECT_REF`.
+5. Run the dedicated Hyperdrive benchmark below before changing application repositories.
+6. Only after the benchmark and RLS tests pass, apply the checked-in migrations with `npx supabase db push`.
+
+The two production migrations are [the clean PostgreSQL backend](../../supabase/migrations/20260910000100_postgres_backend.sql) and [default-deny RLS](../../supabase/migrations/20260910000200_default_deny_rls.sql). Do not expose the direct database password to browser code.
 
 Before executing the SQL remotely, verify the exact account, database ID, Worker deployment and Sites deployment, and record the answers in [production-sources.json](./production-sources.json). A database's absence from the current account is not proof of nonexistence. Account classification, pending external outcomes and provider connectivity require a read-only operational review after the source is found. Keep query results private under `outputs/migration/`.
 
@@ -82,10 +98,10 @@ The approved scope and ordering remain intact:
 | Phase | Remaining work and gate |
 | --- | --- |
 | 0: production facts | Resolve all deployment/database sources or document evidence of no production installation. Count/classify data, users, pending operations and audit heads. Hosted benchmark must pass before broad repository conversion. |
-| 1: parity | Port all tables and adapters at identical behavior; keep text IDs and external IDs. Explicitly classify timestamp/date/JSON/bigint/numeric conversions; preserve migration-only triggers. Retain D1 adapter only for validation. Replace raw SQLite/D1 storage paths and test actual PostgreSQL queries. |
+| 1: parity | The 67-table PostgreSQL schema and clean migrations exist. Port all application repositories at identical behavior; keep text IDs and external IDs; preserve migration-only triggers. Retain D1 only during validation. Replace raw SQLite/D1 storage paths and test actual PostgreSQL queries. |
 | 2: atomicity | Migrate financial policy lock/reservation/event/audit, approvals/votes/finalization/resume/audit, audit append, imports, invitation redemption, initial task/audit and Stripe inbox+mutation. Extend fencing to all checkpoint/heartbeat/finalization paths, including reconciliation. |
-| 3: authorization/Auth | Add owner entities, portfolios, regions, grants and approval authority; then complete RLS. Add principals, identity links and SSO metadata; replace every global `getDb()` consumer with explicit sessions. Replace password hashes/HMAC sessions via verified Supabase Auth setup links and a documented rollback window. Never merge accounts by email alone. |
-| 4: rehearsal/cutover | Build the staging importer only from verified source inventory and explicit conversion mappings. Two production-snapshot rehearsals, counts/checksums/identities/tenant FKs/totals/audit-chain checks and idempotence. Verified encrypted backup restore. Maintenance/drain/final export/import/setup links/switch/smoke/reopen. If no production installation exists, document that evidence and use an empty-install path instead of pretending to migrate data. |
+| 3: authorization/Auth | Schema, hierarchy, identity-link tables and generated RLS exist. Validate the policies against local and hosted Postgres, integrate them into every route, and replace every global `getDb()` consumer with explicit sessions. Replace password hashes/HMAC sessions via verified Supabase Auth setup links and a documented rollback window. Never merge accounts by email alone. |
+| 4: rehearsal/cutover | Use the confirmed empty-install path: verify deployment identity, preserve old D1 without mutation, apply the clean Supabase migrations, create Auth users, switch the Worker, run Auth/RLS/agent smoke checks and reopen. If any customer data is discovered, stop and restore the snapshot/export rehearsal gates before proceeding. |
 | 5: separate releases | Billing ledger before charging customers, Storage/documents, maintenance, Realtime, larger evaluations, then queue/runtime split only if measurements justify it. |
 
 Nonnegotiable transaction boundary: commit the idempotent reservation/outbox command, call the external provider, then record the result in a new transaction. Never hold locks across model/provider HTTP. A lost commit response is an unknown outcome; the session helper does not blindly retry it.

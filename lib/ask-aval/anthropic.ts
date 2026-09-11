@@ -26,10 +26,14 @@ import { anthropicFailure } from "./anthropic-errors.ts";
 
 export interface AskAvalEnv {
   DB: D1Database;
-  /** Secret. Set via this hosting platform's own secret mechanism for a real deployment, or a gitignored .dev.vars file for local dev. */
-  ANTHROPIC_API_KEY: string | undefined;
-  ANTHROPIC_MODEL?: string;
   AI_DAILY_CALL_CAP?: string;
+  INTEGRATION_TOKEN_ENCRYPTION_KEY?: string;
+}
+
+export interface AnthropicCallEnv extends AskAvalEnv {
+  /** A workspace-owned credential passed only after its connected provider is resolved. */
+  ANTHROPIC_API_KEY: string;
+  ANTHROPIC_MODEL?: string;
 }
 
 const DEFAULT_MODEL = "claude-sonnet-5";
@@ -87,7 +91,7 @@ export class AnthropicError extends Error {
 }
 
 export async function callClaude(
-  env: AskAvalEnv,
+  env: AnthropicCallEnv,
   params: {
     system: string;
     messages: Message[];

@@ -7,7 +7,7 @@ import { getApiIdentity } from "@/lib/integrations/session";
 /**
  * POST /api/integrations/reset
  * Disconnects a provider: clears its stored credentials and, if it was the
- * org's active model provider, reverts to Aval's own default. Mirrors
+ * org's active model provider, pauses model-backed features. Mirrors
  * mentari2.0's per-provider "Reset" action.
  */
 export async function POST(request: Request) {

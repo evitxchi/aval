@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import {
   IMPORT_ORDER,
   planImport,
@@ -282,7 +283,7 @@ test("every importable entity has an existence check, so a re-send cannot report
   // Asserted against the source because the bug lives in the D1-bound applier,
   // where a behavioral test would need a Worker. Found by re-sending a batch
   // against production; caught here from now on.
-  const source = readFileSync(new URL("../lib/operations/import-apply.ts", import.meta.url).pathname, "utf8");
+  const source = readFileSync(fileURLToPath(new URL("../lib/operations/import-apply.ts", import.meta.url)), "utf8");
 
   const uncovered = IMPORT_ORDER.filter((entity) => {
     const guarded = source.includes(`ids.${entity}.has(externalId)`) || source.includes(`existingEvents.${entity}.has(externalId)`);
@@ -296,7 +297,7 @@ test("every importable entity has an existence check, so a re-send cannot report
 });
 
 test("the two idempotency loaders together cover every entity that needs one", () => {
-  const source = readFileSync(new URL("../lib/operations/import-apply.ts", import.meta.url).pathname, "utf8");
+  const source = readFileSync(fileURLToPath(new URL("../lib/operations/import-apply.ts", import.meta.url)), "utf8");
   // Each loader must actually query for the entities it claims to cover, so
   // adding a guard without adding the query cannot pass the test above.
   for (const entity of ["residents", "vendors", "glAccounts", "leases", "workOrders"]) {

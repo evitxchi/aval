@@ -6,9 +6,8 @@ import type { AgentWorkerEnv } from "@/lib/agents/worker";
 interface Env {
   ASSETS: Fetcher;
   DB: D1Database;
-  ANTHROPIC_API_KEY?: string;
-  ANTHROPIC_MODEL?: string;
   AI_DAILY_CALL_CAP?: string;
+  INTEGRATION_TOKEN_ENCRYPTION_KEY?: string;
   STRIPE_SECRET_KEY?: string;
   AGENT_HEALTH_TOKEN?: string;
   AGENT_ALERT_WEBHOOK_URL?: string;

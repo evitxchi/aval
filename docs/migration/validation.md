@@ -1,24 +1,25 @@
-# Validation evidence — September 10, 2026
+# Validation evidence — September 11, 2026
 
-Scope: the Phase 0 PostgreSQL foundation and isolated synthetic spike. **This is not proof that Aval has been migrated, that Supabase Auth works, or that agents are reliable in production.**
+Scope: the PostgreSQL clean-install schema, enterprise hierarchy/RLS foundation, and isolated synthetic spike. **This is not proof that Aval's runtime has been migrated, that Supabase Auth works, or that agents are reliable in production.**
 
 | Check | Result |
 | --- | --- |
 | Preserved faithfulness regression tests | 15 passed before the migration branch was created. |
-| Existing D1 agent/runtime integration suite | 152 passed. This suite uses scripted model fixtures and SQLite; it is not live model/provider validation. |
+| Runtime integration suite | 154 passed using scripted providers and local SQLite/D1-compatible fixtures. No provider network call was made. |
 | TypeScript | Passed on the final source. |
-| Translation parity | Passed: 1,725 English/Spanish keys. |
+| Translation parity | Passed: 1,760 English/Spanish keys. |
 | Full repository lint | Passed with five existing image-element warnings and no errors. Generated benchmark bundles are excluded from source linting. |
 | Focused migration lint | Passed. |
-| Application production build | Passed from a temporary source copy outside OneDrive; the original `dist/client` directory was locked. No credentials were copied. The build emitted existing middleware deprecation, plugin timing and chunk-size warnings. |
+| Application production build | Passed all five Vinext stages from the repository. Existing middleware deprecation, plugin timing and large-chunk warnings remain. |
 | Benchmark Worker bundle | Wrangler dry-run passed; no deployment. Approximately 393 KiB uncompressed / 78 KiB gzip. |
-| Inventory and gate tests | Three tests passed: actual migration replay/schema comparison; missing/orphaned/reordered migration rejection; rejection of local, stale, incomplete, slow, erroring or inadequately provisioned benchmark evidence. |
+| Migration suite | Five passed: D1 inventory/history checks, benchmark gate rejection cases, full PostgreSQL table/type coverage and exhaustive organization-table RLS generation. |
 | Real PostgreSQL suite | Six substantive scenarios passed (seven reported tests including the parent test), on native PostgreSQL 17.10 with a restricted application login. |
 | Local HTTP load harness | 1,950 measured requests; zero operation errors. Tenant isolation, read-after-write, unique task generations and non-superuser/non-bypass RLS role checks passed. |
 | Hosted benchmark | **Not run.** User will configure Supabase later. The local run correctly fails the hosted acceptance gate. |
-| Default full unit-suite rerun | **Not completed.** Automatic approval review rejected the additional subprocess run because the account reached its usage limit. Focused migration tests were subsequently verified with Node's single-process test mode. |
-| Full Supabase Docker environment | Not started successfully on this machine. Native PostgreSQL fallback was used for database semantics only. |
-| Live Auth, enterprise scoped RLS, import/export rehearsal, backup restore, six-case real-agent smoke | Not implemented/run by this Phase 0 slice. |
+| Unit suite | 522 tests discovered: 521 passed and one Apple-silicon-only packaging test skipped. Cross-platform path and permission assertions were corrected for Windows. |
+| D1 migration replay | All 33 migrations applied successfully to a fresh local Wrangler D1 database, including `0032_enterprise_identity_hierarchy.sql`. |
+| Clean PostgreSQL migration execution | **Not run in a fresh local Supabase instance.** Docker Desktop did not become ready on this machine. The earlier synthetic fixture passed on native PostgreSQL 17.10 and static coverage tests pass, but `supabase db reset` remains required before hosted apply. |
+| Live Auth, hosted enterprise scoped RLS, backup restore, six-case real-agent smoke | Not implemented/run by this slice. No exporter is planned unless customer data is discovered. |
 | macOS DMG | Not refreshed. This is an isolated backend preparation branch on Windows; the macOS signing/notarization/release pipeline was not invoked. |
 
 ## What the PostgreSQL tests actually prove
