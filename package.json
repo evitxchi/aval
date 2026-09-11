@@ -21,6 +21,7 @@
     "db:postgres:generate": "npm run db:postgres:schema && drizzle-kit generate --config drizzle.postgres.config.ts",
     "db:postgres:rls": "node scripts/migration/generate-rls.mjs",
     "db:postgres:publish": "node scripts/migration/publish-postgres-migrations.mjs && npm run db:postgres:rls",
+    "db:sql-editor:build": "node scripts/migration/build-sql-editor-installer.mjs",
     "db:migrate": "node scripts/migration/apply-supabase-migrations.mjs",
     "db:runtime-role": "node scripts/migration/configure-runtime-role.mjs",
     "test:migration": "node --test tests/migration/*.test.mjs",

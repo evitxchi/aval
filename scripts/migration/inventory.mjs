@@ -105,7 +105,9 @@ export async function buildInventory(root) {
       if (JSON.stringify(fkSignatures(replayedFks)) !== JSON.stringify(fkSignatures(table.foreignKeys))) throw new Error(`Foreign key drift: ${table.name}`);
     }
     const triggers = sqlite.prepare("SELECT name, tbl_name, sql FROM sqlite_schema WHERE type='trigger' ORDER BY name").all().map(({name, tbl_name, sql}) => ({ name, table: tbl_name, sql, sha256: sourceHash(sql) }));
-    const consumers = (await Promise.all(["app", "lib", "db", "worker"].map((dir) => scanConsumers(root, dir)))).flat().sort((a,b) => a.file.localeCompare(b.file));
+    // db/schema.ts is retained only as the historical D1 inventory source. The
+    // deployable database layer lives under db/postgres and must stay SQLite-free.
+    const consumers = (await Promise.all(["app", "lib", "db/postgres", "worker"].map((dir) => scanConsumers(root, dir)))).flat().sort((a,b) => a.file.localeCompare(b.file));
     const manifest = { version: 1, sourceHashEncoding: "UTF-8, LF normalized", schemaSha256: sourceHash(await readFile(schemaPath, "utf8")),
       journalSha256: history.journalSha256, counts: { tables: tables.length, migrations: history.migrations.length,
         triggers: triggers.length, getDbFiles: consumers.filter((c) => c.dependencies.includes("getDb")).length },

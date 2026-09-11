@@ -31,7 +31,7 @@ export async function readActivity(dbSession: DbSession,
     Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
   );
   const since = new Date(+today - 364 * 86400000);
-  const day = sql<string>`strftime('%Y-%m-%d', ${workspaceUsage.minute} * 60, 'unixepoch')`;
+  const day = sql<string>`to_char(to_timestamp(${workspaceUsage.minute} * 60) AT TIME ZONE 'UTC', 'YYYY-MM-DD')`;
   const days = await dbSession.db
     .select({ date: day, minutes: sql<number>`count(*)` })
     .from(workspaceUsage)

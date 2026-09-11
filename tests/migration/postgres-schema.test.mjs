@@ -23,6 +23,10 @@ test("clean PostgreSQL baseline covers the current inventory with deliberate nat
   assert.match(baseline, /numeric\(20, 6\)/);
   assert.doesNotMatch(baseline, /legacy_id_map|uuid_generate|gen_random_uuid/i);
   assert.match(baseline, /CONSTRAINT "access_grants_org_property_fk" FOREIGN KEY \("organization_id","property_id"\) REFERENCES "public"\."properties"\("organization_id","id"\)/);
+  const firstForeignKey = baseline.indexOf("ALTER TABLE ");
+  const uniqueIndexes = [...baseline.matchAll(/^CREATE UNIQUE INDEX /gm)];
+  assert.ok(firstForeignKey > 0 && uniqueIndexes.length > 0);
+  assert.ok(uniqueIndexes.every((match) => match.index < firstForeignKey), "unique indexes must exist before composite foreign keys reference them");
 });
 
 test("RLS covers every organization table and keeps organization roles organization-scoped", async () => {

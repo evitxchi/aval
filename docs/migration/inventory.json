@@ -17340,19 +17340,6 @@
       "sha256": "4420318285ace60e55b93b071abbaedd859425349b9e3f54696013fc569fff71"
     }
   ],
-  "consumers": [
-    {
-      "file": "db/schema.ts",
-      "dependencies": [
-        "SQLite dialect"
-      ]
-    },
-    {
-      "file": "lib/activity/store.ts",
-      "dependencies": [
-        "SQLite dialect"
-      ]
-    }
-  ],
-  "inventorySha256": "74b1eb297be372291fe8599ec86024e801b20e638a243993136a1964ec7eb938"
+  "consumers": [],
+  "inventorySha256": "cd07916e7ae2e1636dae04bb1469dd7b30a5178516ac3070717b258fbc71387b"
 }
