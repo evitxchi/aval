@@ -2,6 +2,8 @@
 
 > Aval agent audit work: see [README_AUDIT_FIXES.md](./README_AUDIT_FIXES.md) for the fixes, validation evidence, live Anthropic evaluation, and known remaining issues on the `khas` branch.
 
+> Supabase migration: [setup, implemented foundation, and remaining gates](./docs/migration/README.md). The application still uses D1. The isolated PostgreSQL spike is ready for local checks and a later hosted Hyperdrive benchmark; this is not a completed database or Auth migration.
+
 A clean full-stack starter running on
 [vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and
 Drizzle support.

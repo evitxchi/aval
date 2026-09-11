@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "status": "unverified",
+  "observedAt": "2026-09-10",
+  "userReport": "The user believes there may be no production database and will configure Supabase later.",
+  "configuredSources": [
+    {
+      "kind": "standalone-cloudflare",
+      "configuration": "wrangler.deploy.jsonc",
+      "databaseId": "d82f33a0-a119-436c-85ec-b79873247fe9",
+      "databaseName": "aval-production",
+      "status": "not-visible-in-connected-account",
+      "tableCounts": null
+    },
+    {
+      "kind": "chatgpt-sites",
+      "configuration": ".openai/hosting.json",
+      "projectId": "appgprj_6a852ce6585881918d6e900d4ebf93ae",
+      "status": "project-not-found-in-connected-session",
+      "tableCounts": null
+    },
+    {
+      "kind": "local-d1",
+      "configuration": "vite.config.ts",
+      "status": "data-not-inventoried",
+      "tableCounts": null
+    }
+  ],
+  "cutoverAllowed": false,
+  "reason": "Neither missing account visibility nor an unverified absence of production data authorizes a destructive migration. Identify all active and historical deployment sources first."
+}
