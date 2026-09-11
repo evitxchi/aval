@@ -15,7 +15,8 @@ import { handleInbound } from "./pipeline.ts";
 import { askAsIdentity } from "./ask-bridge.ts";
 import { sendChannelMessage } from "./outbound.ts";
 import { termsFor } from "./vocabulary-store.ts";
-import { budgetFor, mayCallModel } from "./budget.ts";
+import { mayCallModel } from "./budget.ts";
+import { budgetFor } from "./budget-store.ts";
 import { trace, type ChannelTrace } from "./trace.ts";
 import type { AskAvalEnv } from "@/lib/ask-aval/anthropic";
 import "./whatsapp/adapter.ts"; // self-registers

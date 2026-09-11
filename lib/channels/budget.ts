@@ -25,11 +25,6 @@
  * other, with nothing on screen explaining why.
  */
 
-import { and, eq, gte } from "drizzle-orm";
-import { getDb } from "@/db";
-import { aiUsage } from "@/db/schema";
-import { todayKey } from "@/lib/ask-aval/usage";
-
 export type BudgetTier = "normal" | "reduced" | "templated" | "blocked";
 
 export interface BudgetState {
@@ -53,30 +48,7 @@ const REDUCED_AT = 0.7;
 const TEMPLATED_AT = 0.9;
 
 /** Default, matching `AI_DAILY_CALL_CAP`'s own default so the two cannot drift apart silently. */
-const DEFAULT_CAP = 400;
-
-/**
- * Where this organization sits against its ceiling.
- *
- * Counts rows rather than trusting a counter, for the reason
- * `lib/ask-aval/usage.ts` already documents: a Worker isolate does not
- * reliably persist an in-memory tally.
- */
-export async function budgetFor(
-  organizationId: string,
-  config: { AI_DAILY_CALL_CAP?: string; CHANNEL_DAILY_CALL_CAP?: string } = {},
-): Promise<BudgetState> {
-  const parsed = Number(config.CHANNEL_DAILY_CALL_CAP ?? config.AI_DAILY_CALL_CAP ?? DEFAULT_CAP);
-  const cap = Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_CAP;
-
-  const { day, dayStart } = todayKey();
-  const rows = await getDb()
-    .select({ id: aiUsage.id })
-    .from(aiUsage)
-    .where(and(eq(aiUsage.organizationId, organizationId), eq(aiUsage.day, day), gte(aiUsage.createdAt, dayStart)));
-
-  return stateFor(rows.length, cap);
-}
+export const DEFAULT_CAP = 400;
 
 /** The tier arithmetic, split out so it can be tested without a database. */
 export function stateFor(used: number, cap: number): BudgetState {
