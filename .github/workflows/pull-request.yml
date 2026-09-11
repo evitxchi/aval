@@ -1,0 +1,72 @@
+name: Pull request
+
+# Until this file existed, the only workflow in this repository ran on push to
+# `main` and was gated on deployment secrets. That means nothing was ever
+# checked *before* a merge — a PR that broke tenant isolation could be merged,
+# and would only fail afterwards, on the job whose next step is deploying to
+# production.
+#
+# The isolation job below is the one the build brief calls a required status
+# check. Configure it as such in the repository's branch protection rules:
+#   Settings → Branches → main → Require status checks → "Tenant isolation"
+# Without that, this file reports a failure and merges anyway.
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  isolation:
+    # Its own job, not a step inside `verify`, so that branch protection can
+    # require *this* specifically. A required check that also covers linting is
+    # a check people learn to re-run until it passes.
+    name: Tenant isolation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".node-version"
+          cache: npm
+      - run: npm ci
+
+      # The structural check: every channel query against a tenant-aware table
+      # carries an organizationId predicate. Catches the forgotten `where`
+      # clause on the PR that introduces it.
+      - name: Org scoping (static)
+        run: node --test tests/channel-scoping.test.ts
+
+      # The behavioural check: two organizations with real data, control case
+      # first, org A driven through the real resolution path, asserting it sees
+      # zero rows of org B's.
+      - name: Org isolation (executed)
+        run: node --import ./tests/integration/module-hooks.mjs --test tests/integration/channel-isolation.integration.mjs
+
+  verify:
+    name: Typecheck, lint, test
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".node-version"
+          cache: npm
+      - run: npm ci
+      # The root suite discovers desktop/test/, whose cases read the
+      # electron-builder schema out of desktop's own dependencies.
+      - run: npm ci --prefix desktop
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run i18n:check
+      - run: node --test
+      - run: npm run test:runtime

@@ -163,11 +163,21 @@ export async function storeOverflow(channelIdentityId: string, organizationId: s
  * wrong at the moment somebody asks for it — and answering `MORE` with the
  * remainder of a question from yesterday is worse than answering nothing.
  */
-export async function readOverflow(channelIdentityId: string): Promise<string | null> {
+export async function readOverflow(channelIdentityId: string, organizationId: string): Promise<string | null> {
   const [row] = await getDb()
     .select({ overflow: channelThreadState.overflow, expiresAt: channelThreadState.overflowExpiresAt })
     .from(channelThreadState)
-    .where(eq(channelThreadState.channelIdentityId, channelIdentityId))
+    .where(
+      and(
+        eq(channelThreadState.channelIdentityId, channelIdentityId),
+        // Redundant given the primary key is a uuid the caller got from a
+        // resolved identity — and kept anyway. Defence in depth costs one
+        // predicate here, and `tests/channel-scoping.test.ts` is only worth
+        // running if the code it checks does not carry exceptions of the form
+        // "this one is fine because of how it happens to be called".
+        eq(channelThreadState.organizationId, organizationId),
+      ),
+    )
     .limit(1);
   if (!row?.overflow || !row.expiresAt) return null;
   return row.expiresAt.getTime() > Date.now() ? row.overflow : null;

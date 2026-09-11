@@ -69,7 +69,7 @@ export interface PipelineDeps {
     locale: ChannelLocale;
   }): Promise<{ answer: AskAnswer; toolsUsed: string[] } | null>;
   /** The text left over from this thread's last truncated answer, if any. */
-  readOverflow(channelIdentityId: string): Promise<string | null>;
+  readOverflow(channelIdentityId: string, organizationId: string): Promise<string | null>;
   /** Per-org vocabulary. Defaults are used when this is omitted. */
   terms?(organizationId: string, locale: ChannelLocale): Promise<TermMap>;
 }
@@ -133,7 +133,7 @@ export async function handleInbound(message: InboundChannelMessage, deps: Pipeli
 
   // 5. MORE returns text we already have.
   if (isMoreRequest(message.body) || message.buttonPayload === "more") {
-    const overflow = await deps.readOverflow(identity.channelIdentityId);
+    const overflow = await deps.readOverflow(identity.channelIdentityId, identity.organizationId);
     if (overflow) {
       const rendered = renderPlain(overflow, suggestionsFor({ role: identity.role, locale }), locale);
       return { reply: rendered, to: message.from, modelCalled: false, reason: "more", overflow: rendered.overflow, identity };
