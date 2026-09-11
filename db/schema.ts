@@ -1389,3 +1389,176 @@ export const agentPlanNodes = sqliteTable("agent_plan_nodes", {
 export const agentModelContexts = sqliteTable("agent_model_contexts", {
  id:text("id").primaryKey(),organizationId:text("organization_id").notNull().references(()=>organizations.id),taskId:text("task_id").notNull().references(()=>agentTasks.id),stepIndex:integer("step_index").notNull(),contextJson:text("context_json").notNull(),digest:text("digest").notNull(),createdAt:integer("created_at",{mode:"timestamp_ms"}).notNull(),
 },t=>[index("agent_model_context_task_idx").on(t.organizationId,t.taskId,t.stepIndex)]);
+
+// ---------------------------------------------------------------------------
+// Messaging channels (WhatsApp and any future adapter) — docs/WHATSAPP_AGENT.md
+// ---------------------------------------------------------------------------
+
+/**
+ * Who a phone number belongs to.
+ *
+ * This table *is* the security boundary for the messaging channels. An inbound
+ * WhatsApp message arrives carrying nothing trustworthy except the sender's
+ * number; `organizationId` and `role` come from this lookup and from nowhere
+ * else — never from message content, never from a model argument. A number
+ * with no row here gets one canned reply and no model call at all.
+ *
+ * `externalId` is always the output of `normalisePhone` (lib/channels/phone.ts),
+ * never a raw payload value. The unique index is on `(channel, externalId)`
+ * rather than including the org: one phone number belongs to one person in one
+ * workspace, and allowing the same number to link twice would make the lookup
+ * ambiguous at exactly the moment it decides which tenant's data to open.
+ */
+export const channelIdentities = sqliteTable(
+  "channel_identities",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id").notNull().references(() => organizations.id),
+    // Null for a resident, who has no `users` row: they are reachable on a
+    // channel without being a member of the workspace.
+    userId: text("user_id").references(() => users.id),
+    // The operations-side person this number belongs to, when there is one.
+    // `residents` is the table holding real contact details (see its comment).
+    contactId: text("contact_id").references(() => residents.id),
+    channel: text("channel").notNull(), // ChannelId, lib/channels/registry.ts
+    externalId: text("external_id").notNull(), // E.164, normalised
+    // A WorkspaceRole ("owner" | "approver" | "member") or "resident".
+    // Deliberately not constrained to WorkspaceRole: a resident is not a
+    // workspace member, and widening WorkspaceRole to admit one would hand
+    // every membership check a value it was never written to reason about.
+    // See lib/channels/roles.ts.
+    role: text("role").notNull(),
+    // The codebase's locale spelling ("en" | "es-mx"), matching
+    // app/[locale]/routing.ts and conversations.locale — not BCP-47 as the
+    // brief writes it, so this value can be passed straight to next-intl and
+    // to handleAskAval without translation.
+    locale: text("locale").notNull().default("en"),
+    verifiedAt: integer("verified_at", { mode: "timestamp_ms" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("channel_identities_channel_external_uq").on(table.channel, table.externalId),
+    index("channel_identities_org_idx").on(table.organizationId, table.channel),
+  ],
+);
+
+/**
+ * A single-use code that links a phone number to a workspace.
+ *
+ * The dashboard issues one, the operator sends it from the handset they want
+ * linked, and the webhook matches it. The code is the only thing that
+ * establishes the connection — matching on phone number alone is forbidden,
+ * because a number is not a secret and anyone who knows an operator's can
+ * claim their workspace.
+ *
+ * `consumedAt` rather than a delete: a consumed code must stay visible so a
+ * replay is refused as *consumed* rather than silently treated as unknown, and
+ * so the link event itself remains auditable.
+ */
+export const channelLinkCodes = sqliteTable(
+  "channel_link_codes",
+  {
+    code: text("code").primaryKey(),
+    organizationId: text("organization_id").notNull().references(() => organizations.id),
+    userId: text("user_id").notNull(),
+    role: text("role").notNull(),
+    locale: text("locale").notNull().default("en"),
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+    consumedAt: integer("consumed_at", { mode: "timestamp_ms" }),
+    // Which number consumed it, kept so a support question about a mislinked
+    // handset has an answer.
+    consumedByExternalId: text("consumed_by_external_id"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [index("channel_link_codes_org_idx").on(table.organizationId, table.createdAt)],
+);
+
+/**
+ * An action the agent has proposed over a channel and is waiting to be
+ * confirmed on.
+ *
+ * Nothing that writes executes on first mention. The proposal lands here with
+ * a short TTL, the reply carries buttons whose payload is this row's id, and
+ * only a matching confirmation executes it. Storing the resolved arguments
+ * server-side is the point: the button payload is a bare id, so a crafted
+ * button reply cannot change what runs — it can only choose whether an action
+ * the backend already composed goes ahead.
+ */
+export const channelPendingActions = sqliteTable(
+  "channel_pending_actions",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id").notNull().references(() => organizations.id),
+    channelIdentityId: text("channel_identity_id").notNull().references(() => channelIdentities.id),
+    tool: text("tool").notNull(),
+    argsJson: text("args_json").notNull(),
+    // Per-recipient previews for a batch, so "send reminders to everyone late"
+    // can be expanded and individually pruned before it runs.
+    recipientsJson: text("recipients_json").notNull().default("[]"),
+    summary: text("summary").notNull(),
+    status: text("status").notNull().default("pending"), // pending | confirmed | cancelled | expired
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+    resolvedAt: integer("resolved_at", { mode: "timestamp_ms" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [index("channel_pending_actions_identity_idx").on(table.channelIdentityId, table.status, table.expiresAt)],
+);
+
+/**
+ * What a write looked like before it happened, so it can be put back.
+ *
+ * `reversible` is a claim about the world, not about our code. A ledger row we
+ * wrote can be restored from `before`; a WhatsApp message that has left the
+ * building cannot be unsent by anyone, so it is recorded `reversible: false`
+ * and the reply says so plainly rather than offering an undo that would fail.
+ */
+export const actionCheckpoints = sqliteTable(
+  "action_checkpoints",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id").notNull().references(() => organizations.id),
+    agentActionId: text("agent_action_id").notNull(),
+    tool: text("tool").notNull(),
+    before: text("before").notNull(), // JSON; SQLite has no jsonb
+    reversible: integer("reversible", { mode: "boolean" }).notNull().default(false),
+    revertedAt: integer("reverted_at", { mode: "timestamp_ms" }),
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("action_checkpoints_action_uq").on(table.organizationId, table.agentActionId),
+    index("action_checkpoints_org_expiry_idx").on(table.organizationId, table.expiresAt),
+  ],
+);
+
+/**
+ * A standing subscription: something the operator wants told about, without
+ * asking.
+ *
+ * `gate` names a deterministic SQL predicate (lib/channels/gates.ts) that runs
+ * *before* any model call. Monday 08:00 fires the gate; if nothing crossed a
+ * threshold there is no message and no tokens are spent. Without that, every
+ * subscription pays a model call per period to discover that nothing happened.
+ */
+export const channelSubscriptions = sqliteTable(
+  "channel_subscriptions",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id").notNull().references(() => organizations.id),
+    channelIdentityId: text("channel_identity_id").notNull().references(() => channelIdentities.id),
+    trigger: text("trigger").notNull(), // SubscriptionTrigger, lib/channels/subscriptions.ts
+    paramsJson: text("params_json").notNull().default("{}"),
+    schedule: text("schedule").notNull(),
+    gate: text("gate").notNull(),
+    locale: text("locale").notNull().default("en"),
+    timezone: text("timezone").notNull().default("UTC"),
+    active: integer("active", { mode: "boolean" }).notNull().default(true),
+    lastRunAt: integer("last_run_at", { mode: "timestamp_ms" }),
+    lastFiredAt: integer("last_fired_at", { mode: "timestamp_ms" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    index("channel_subscriptions_due_idx").on(table.active, table.lastRunAt),
+    index("channel_subscriptions_org_idx").on(table.organizationId),
+  ],
+);

@@ -8,6 +8,7 @@ import { ChevronDown, ExternalLink, PanelRightClose, PanelRightOpen, ArrowDownLe
 import { useChatPanel } from "./use-chat-panel";
 import { Foldout } from "./foldout";
 import { readAskStream, type AskProgress } from "@/lib/ask-aval/progress";
+import { formatMetricValue } from "@/lib/ask-aval/format-metric";
 import { autonomyMode } from "@/lib/agents/autonomy";
 import type { ResizeEdge } from "@/lib/ask-aval/panel-geometry";
 import type { FormEvent, MouseEvent as ReactMouseEvent } from "react";
@@ -76,13 +77,9 @@ function isAnswerShaped(value: unknown): value is Answer {
 }
 type SelectedModule = { label: string; snapshot: string };
 
-function formatMetricValue(metric: Metric): string {
-  if (typeof metric.value === "string") return metric.value;
-  if (metric.unit === "currency") return `$${metric.value.toLocaleString()}`;
-  if (metric.unit === "percent") return `${metric.value}%`;
-  if (metric.unit === "days") return `${metric.value}d`;
-  return metric.value.toLocaleString();
-}
+// Shared with the WhatsApp renderer (lib/channels/whatsapp/render.ts) so a
+// figure reads identically on screen and on a phone. This was this component's
+// own local function; the behaviour is unchanged, only its address.
 
 /** A small inline line chart for a live answer's get_metric_series result — real tool output only, never hand-drawn from prose. */
 function AvalChatChart({ chart }: { chart: AnswerChart }) {
