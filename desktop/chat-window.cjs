@@ -11,4 +11,9 @@ function applyChatBackground(window, background, platform = process.platform) {
   window.setBackgroundColor(nativeGlass ? '#00000000' : '#ffffff');
   return { nativeGlass };
 }
-module.exports = { isChatWindowRequest, applyChatBackground };
+function parseChatAppearance(payload) {
+  const value = typeof payload === 'string' ? { background: payload, theme: 'light' } : payload;
+  if (!value || !['white', 'glass'].includes(value.background) || !['light', 'dark'].includes(value.theme)) throw new Error('Invalid chat appearance.');
+  return { background: value.background, theme: value.theme };
+}
+module.exports = { isChatWindowRequest, applyChatBackground, parseChatAppearance };

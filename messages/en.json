@@ -1936,6 +1936,7 @@
     "windowBackgroundHelp": "Choose the background for the separate chat window. Frosted glass blurs the desktop in Aval for Mac; browsers use a solid tinted background.",
     "whiteBackground": "White",
     "glassBackground": "Frosted glass",
-    "thinkingAbout": "Thinking about “{topic}”…"
+    "thinkingAbout": "Thinking about “{topic}”…",
+    "moveWindow": "Drag to move this window"
   }
 }

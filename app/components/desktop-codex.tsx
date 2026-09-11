@@ -40,7 +40,7 @@ export interface DesktopAskPayload {
 }
 
 export interface DesktopCodexBridge {
-  setChatBackground?(background: "white" | "glass"): Promise<{ nativeGlass: boolean }>;
+  setChatBackground?(background: "white" | "glass", theme?: "light" | "dark"): Promise<{ nativeGlass: boolean; nativeTitlebar?: boolean }>;
   getState(): Promise<DesktopCodexState>;
   connect(): Promise<DesktopCodexState>;
   cancelLogin(): Promise<DesktopCodexState>;
