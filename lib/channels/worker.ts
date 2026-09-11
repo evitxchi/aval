@@ -15,6 +15,7 @@ import { handleInbound } from "./pipeline.ts";
 import { askAsIdentity } from "./ask-bridge.ts";
 import { sendChannelMessage } from "./outbound.ts";
 import { termsFor } from "./vocabulary-store.ts";
+import { budgetFor, mayCallModel } from "./budget.ts";
 import { trace, type ChannelTrace } from "./trace.ts";
 import type { AskAvalEnv } from "@/lib/ask-aval/anthropic";
 import "./whatsapp/adapter.ts"; // self-registers
@@ -41,7 +42,24 @@ export async function runChannelWorker(env: AskAvalEnv, batchSize = 5): Promise<
     const span = trace(event.message);
     try {
       const outcome = await handleInbound(event.message, {
-        ask: (input) => askAsIdentity({ ...input, env }),
+        // The budget is checked at the point of the model call rather than at
+        // the top of the loop, because most turns never reach one — help, a
+        // link code, a button tap and an unlinked number all resolve without
+        // spending anything, and none of them should be refused for budget.
+        ask: async (input) => {
+          const budget = await budgetFor(input.identity.organizationId, env as unknown as Record<string, string | undefined>);
+          if (budget.degraded) span.note(`budget:${budget.tier}`);
+
+          if (!mayCallModel(budget.tier)) {
+            // Degrade visibly rather than fail silently. The recipient is told
+            // the workspace is at its limit and how to raise it — both of the
+            // alternatives (an error, or nothing) leave them guessing.
+            return { degraded: budget.tier, answer: null, toolsUsed: [] };
+          }
+
+          const result = await askAsIdentity({ ...input, env });
+          return result ? { ...result, degraded: budget.degraded ? budget.tier : null } : null;
+        },
         readOverflow,
         terms: termsFor,
       });

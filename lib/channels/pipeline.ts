@@ -53,6 +53,7 @@ export interface PipelineOutcome {
     | "resident_handoff"
     | "answered"
     | "answer_failed"
+    | "budget_exhausted"
     | "pending_action"
     | "ignored";
   /** Set when this turn produced overflow text a later MORE should return. */
@@ -62,12 +63,19 @@ export interface PipelineOutcome {
 
 /** The side of the pipeline that needs a model and a database, injected so the routing can be tested without either. */
 export interface PipelineDeps {
-  /** Runs Ask Aval and returns the parsed answer, or null if it could not answer. */
+  /**
+   * Runs Ask Aval and returns the parsed answer, or null if it could not
+   * answer.
+   *
+   * `answer: null` with a `degraded` tier set is the spend-ceiling case: the
+   * workspace is past its limit, no model ran, and the recipient is told so
+   * rather than getting silence or an error.
+   */
   ask(input: {
     question: string;
     identity: InboundIdentity;
     locale: ChannelLocale;
-  }): Promise<{ answer: AskAnswer; toolsUsed: string[] } | null>;
+  }): Promise<{ answer: AskAnswer | null; toolsUsed: string[]; degraded?: string | null } | null>;
   /** The text left over from this thread's last truncated answer, if any. */
   readOverflow(channelIdentityId: string, organizationId: string): Promise<string | null>;
   /** Per-org vocabulary. Defaults are used when this is omitted. */
@@ -169,7 +177,21 @@ export async function handleInbound(message: InboundChannelMessage, deps: Pipeli
 
   // 7. Only now does a model run, with the tool set the role already selected.
   const result = await deps.ask({ question, identity, locale });
-  if (!result) {
+
+  // Past the spend ceiling: no model ran, and the reply says why and how to
+  // lift it. Silently going dark and silently exceeding budget are both worse
+  // than a visible downgrade.
+  if (result && !result.answer) {
+    return {
+      reply: renderPlain(copy(locale, "budgetExhausted"), [], locale),
+      to: message.from,
+      modelCalled: false,
+      reason: "budget_exhausted",
+      identity,
+    };
+  }
+
+  if (!result || !result.answer) {
     return {
       reply: renderPlain(copy(locale, "unavailable"), suggestionsFor({ role: identity.role, locale }), locale),
       to: message.from,
@@ -186,7 +208,19 @@ export async function handleInbound(message: InboundChannelMessage, deps: Pipeli
     suggestions: suggestionsFor({ role: identity.role, locale, toolsUsed: result.toolsUsed }),
   });
 
-  return { reply: rendered, to: message.from, modelCalled: true, reason: "answered", overflow: rendered.overflow, identity };
+  // A degraded answer says so. The operator seeing a shorter reply with no
+  // explanation would read it as the agent getting worse, not as a budget
+  // they can raise.
+  const body = result.degraded ? `${rendered.body}\n\n${copy(locale, "degraded")}` : rendered.body;
+
+  return {
+    reply: { ...rendered, body },
+    to: message.from,
+    modelCalled: true,
+    reason: "answered",
+    overflow: rendered.overflow,
+    identity,
+  };
 }
 
 async function linkOutcome(code: string, message: InboundChannelMessage, channel: ChannelId): Promise<PipelineOutcome> {
