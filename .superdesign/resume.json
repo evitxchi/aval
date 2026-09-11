@@ -180,23 +180,29 @@
         "app/components/independence-controls.tsx",
         "app/components/foldout.tsx",
         "app/enterprise.css:1461:1664",
-        ".superdesign/init/theme.md:1:22"
+        ".superdesign/init/theme.md:1:22",
+        "app/components/chat-window-preferences.tsx",
+        "app/components/use-chat-panel.ts",
+        "lib/appearance.ts"
       ],
       "fingerprints": {
         ".superdesign/design-system.md": "8585099fe271d3e94470a636384cebb291d4302c8e5fa17b41c5990bdd9dd220",
         "app/components/independence-controls.tsx": "1fa8cf4345278ddf22adde63aa8ba841c7dfec3f54bf45e734fca53bc214e6e6",
         "app/components/foldout.tsx": "c3abc9d3e5f412fdfadac65c4a9e46bf429f8827515611b97d41ab34d126c4a5",
-        "app/enterprise.css": "696284e0130f603745fda7733ce14244ee81dc001c6805271605de96c8c7b5e1",
-        ".superdesign/init/theme.md": "f7a29994f6e9fdff8fc0bdab137d5db9f62ebebd245924d9c999bb081c4914e3"
+        "app/enterprise.css": "d085c69fa12a30e822d910c05e631f09df3fcd573631205cb30c324b7f055b4e",
+        ".superdesign/init/theme.md": "f7a29994f6e9fdff8fc0bdab137d5db9f62ebebd245924d9c999bb081c4914e3",
+        "app/components/chat-window-preferences.tsx": "2c5fd7f96f9e8c9a3f30d7b8caf75f4ba9fc77a354f1c2f59309ac1468450dd1",
+        "app/components/use-chat-panel.ts": "595b965051f3d8529ea9b38535bc9e22a913e60d4913213f986d476729a67a95",
+        "lib/appearance.ts": "348d91357333ef5942386385f6f332aab1a2a08f2a19411c5630115464bb6d9b"
       },
       "drafts": {
         "d367a900-48da-4039-8ff4-5e89c8030608": {
           "title": "Aval Frosted Detached Chat",
-          "currentVersion": 4,
+          "currentVersion": 5,
           "visualDirection": "Frosted glass panel, collapsed independence, compact agent and intent pills, real progress, Lucide navigation icons"
         }
       },
-      "updatedAt": "2026-09-11T03:22:11.992298+00:00"
+      "updatedAt": "2026-09-11T03:31:16.326844+00:00"
     }
   }
 }

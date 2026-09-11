@@ -194,7 +194,7 @@ export function AvalAssistant({ view, onCreateDraft }: { view: string; onCreateD
     return () => window.removeEventListener("aval:tour:chat",show);
   }, []);
   const { appearance } = useAppearance();
-  const panel = useChatPanel(() => notify(t("ChatPanel.popupBlocked"), t("ChatPanel.popupHelp")), appearance.chatWindowBackground ?? "white", theme);
+  const panel = useChatPanel(() => notify(t("ChatPanel.popupBlocked"), t("ChatPanel.popupHelp")), appearance.chatWindowBackground ?? "white", theme, appearance.chatWindowTransparency);
   const { minimized, expanded, popupRoot } = panel;
   const [intent, setIntent] = useState<'chat' | 'task'>('chat');
   const toolsRef = useRef<HTMLDetailsElement>(null);

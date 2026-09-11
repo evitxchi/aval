@@ -20,7 +20,8 @@ Verification:
   light text, and 8.81:1 / 5.60:1 in dark mode (minimum 4.5:1).
 - Actual macOS screenshots showed the title strip and readable light glass.
   The captured renderer images below show both theme variants.
-- Manual macOS drag verification remains inconclusive: Computer Use reported
+- The user confirmed twice that the whole window moves when dragging the top
+  title strip. Automated macOS drag verification remains inconclusive: Computer Use reported
   user changes, missing windows and timeouts as the test windows changed or
   closed. No successful pointer-driven movement is claimed from CSS/native flags.
 - Superdesign draft d367a900-48da-4039-8ff4-5e89c8030608 was updated directly to

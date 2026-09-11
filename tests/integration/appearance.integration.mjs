@@ -81,10 +81,11 @@ test("storage failure returns a retryable error instead of claiming a save succe
 
 test('chat background survives account reloads without crossing accounts', async () => {
   const { route } = await setup();
-  const glass = { ...prefs, chatWindowBackground: 'glass' };
+  const glass = { ...prefs, chatWindowBackground: 'glass', chatWindowTransparency: 55 };
   assert.equal((await route.PUT(request('glass-user', glass))).status, 200);
   assert.deepEqual((await (await route.GET(request('glass-user'))).json()).appearance, glass);
   assert.equal((await (await route.GET(request('another-user'))).json()).appearance.chatWindowBackground ?? 'white', 'white');
   assert.equal((await route.PUT(request('glass-user', { ...glass, chatWindowBackground: 'url(https://other.test)' }))).status, 400);
+  assert.equal((await route.PUT(request('glass-user', { ...glass, chatWindowTransparency: 101 }))).status, 400);
   assert.deepEqual((await (await route.GET(request('glass-user'))).json()).appearance, glass);
 });

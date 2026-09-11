@@ -1937,6 +1937,10 @@
     "whiteBackground": "White",
     "glassBackground": "Frosted glass",
     "thinkingAbout": "Thinking about “{topic}”…",
-    "moveWindow": "Drag to move this window"
+    "moveWindow": "Drag to move this window",
+    "transparency": "Transparency",
+    "transparencyValue": "{value}% transparent",
+    "opaque": "Opaque",
+    "moreTransparent": "More transparent"
   }
 }
