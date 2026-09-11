@@ -1,3 +1,5 @@
+import { withApiSession } from "@/lib/api/with-session";
+import type { DbSession } from "@/db/postgres/session";
 /**
  * POST /api/operations/import — load a batch of operations records.
  *
@@ -33,10 +35,10 @@ import { readJsonBody } from "@/lib/operations/validation";
  */
 const MAX_ROWS_PER_BATCH = 2000;
 
-export async function POST(request: Request) {
-  const identity = await getApiIdentity(request);
+async function POSTWithSession(dbSession: DbSession, request: Request) {
+  const identity = await getApiIdentity(dbSession, request);
   if (!identity) return Response.json({ error: "Authentication required" }, { status: 401 });
-  await ensureOrganization(identity);
+  await ensureOrganization(dbSession, identity);
 
   try {
     const body = await readJsonBody(request);
@@ -73,7 +75,7 @@ export async function POST(request: Request) {
       });
     }
 
-    const result = await applyImport(
+    const result = await applyImport(dbSession,
       identity.organizationId,
       batch,
       { sourceProvider, sourceConnectionId: null, externalId: null },
@@ -84,3 +86,5 @@ export async function POST(request: Request) {
     return operationsErrorResponse(error);
   }
 }
+
+export const POST = withApiSession(POSTWithSession);

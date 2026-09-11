@@ -14,7 +14,7 @@ test("inventory replays every checked-in migration, captures triggers and genera
   assert.equal(inventory.counts.migrations, history.migrations.length);
   assert.ok(inventory.tables.some((t) => t.name === "agent_model_contexts"));
   assert.ok(inventory.triggers.some((t) => t.name === "agent_memory_no_update"));
-  assert.ok(inventory.consumers.some((c) => c.file === "lib/planning/store.ts"));
+  assert.deepEqual(inventory.consumers, [], "application runtime must not retain a D1 consumer");
   assert.equal(new Set(inventory.tables.map((t) => t.name)).size, inventory.counts.tables);
   const db = new DatabaseSync(":memory:");
   try {

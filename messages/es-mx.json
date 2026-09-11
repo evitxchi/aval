@@ -111,6 +111,7 @@
   "AuthGate": {
     "accountExistsSignInInstead": "Ya tienes una cuenta con ese correo. Inicia sesión en su lugar.",
     "alreadyHaveAnAccount": "¿Ya tienes una cuenta? Inicia sesión",
+    "checkEmail": "Revisa tu correo para verificar la cuenta y luego inicia sesión.",
     "createAccount": "Crear cuenta",
     "emailLabel": "Correo electrónico",
     "emailPlaceholder": "tu@empresa.com",

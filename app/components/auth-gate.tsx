@@ -21,19 +21,21 @@ export function SignInScreen() {
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setSubmitting(true);
     setError(null);
+    setNotice(null);
     try {
       const response = await fetch(formMode === "signin" ? "/api/auth/login" : "/api/auth/signup", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ email, password, displayName }),
       });
-      const data = (await response.json().catch(() => ({}))) as { error?: string };
+      const data = (await response.json().catch(() => ({}))) as { error?: string; verificationRequired?: boolean };
       if (!response.ok) {
         // A duplicate-email signup is a normal outcome, not a failure the
         // user needs to interpret — the useful next step is signing in,
@@ -44,6 +46,12 @@ export function SignInScreen() {
           return;
         }
         setError(data.error ?? t("AuthGate.somethingWentWrong"));
+        return;
+      }
+      if (data.verificationRequired) {
+        setFormMode("signin");
+        setPassword("");
+        setNotice(t("AuthGate.checkEmail"));
         return;
       }
       window.location.reload();
@@ -86,6 +94,7 @@ export function SignInScreen() {
             />
           </label>
           {error && <p className="auth-gate-error">{error}</p>}
+          {notice && <p>{notice}</p>}
           <button className="primary-button" type="submit" disabled={submitting}>
             {submitting ? t("AuthGate.pleaseWait") : formMode === "signin" ? t("AuthGate.signIn") : t("AuthGate.createAccount")}
           </button>
@@ -96,6 +105,7 @@ export function SignInScreen() {
           onClick={() => {
             setFormMode((current) => (current === "signin" ? "signup" : "signin"));
             setError(null);
+            setNotice(null);
           }}
         >
           {formMode === "signin" ? t("AuthGate.needAnAccount") : t("AuthGate.alreadyHaveAnAccount")}

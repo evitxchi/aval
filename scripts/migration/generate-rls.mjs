@@ -34,6 +34,7 @@ DO $$ BEGIN
 END $$;
 GRANT aval_app TO postgres;
 GRANT USAGE ON SCHEMA public TO aval_app;
+GRANT USAGE ON SCHEMA aval_private TO aval_app;
 
 CREATE OR REPLACE FUNCTION aval_private.current_principal_id() RETURNS text
 LANGUAGE sql STABLE AS $$
@@ -88,6 +89,8 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public AS $$
         OR grant_row.portfolio_id = property_row.portfolio_id
         OR grant_row.region_id = property_row.region_id
       )
+    JOIN public.principals principal ON principal.id = grant_row.principal_id
+      AND principal.status = 'active'
     WHERE property_row.organization_id = target_org AND property_row.id = target_property
   )
 $$;
@@ -108,6 +111,8 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public AS $$
         OR grant_row.portfolio_id = property_row.portfolio_id
         OR grant_row.region_id = property_row.region_id
       )
+    JOIN public.principals principal ON principal.id = grant_row.principal_id
+      AND principal.status = 'active'
     WHERE property_row.organization_id = target_org AND property_row.id = target_property
   )
 $$;

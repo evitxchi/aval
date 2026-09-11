@@ -1,7 +1,8 @@
+import { withApiSession } from "@/lib/api/with-session";
 import { env } from "cloudflare:workers";
 import { and, eq } from "drizzle-orm";
-import { getDb } from "@/db";
-import { integrationConnections } from "@/db/schema";
+import type { DbSession } from "@/db/postgres/session";
+import { integrationConnections } from "@/db/postgres/schema";
 import { decryptSecret, encryptSecret } from "@/lib/integrations/crypto";
 import { REASONING_EFFORT_LEVELS, isModelProviderId } from "@/lib/integrations/model-providers";
 import { isSubscriptionProviderId } from "@/lib/integrations/subscription-oauth";
@@ -19,8 +20,8 @@ const bindings = () => env as unknown as Record<string, string | undefined>;
  * string, not a JSON blob, so their override is tracked in `metadataJson`
  * instead of being spliced into the ciphertext.
  */
-export async function POST(request: Request) {
-  const identity = await getApiIdentity(request);
+async function POSTWithSession(dbSession: DbSession, request: Request) {
+  const identity = await getApiIdentity(dbSession, request);
   if (!identity) return Response.json({ error: "Authentication required" }, { status: 401 });
   const body = await request.json().catch(() => ({})) as { provider?: string; model?: string; reasoningEffort?: string };
   if (!body.provider || !isModelProviderId(body.provider)) return Response.json({ error: "Unknown provider" }, { status: 400 });
@@ -30,7 +31,7 @@ export async function POST(request: Request) {
   const effortInput = (body.reasoningEffort ?? "").trim();
   const reasoningEffort = (REASONING_EFFORT_LEVELS as readonly string[]).includes(effortInput) ? effortInput : "";
 
-  const db = getDb();
+  const db = dbSession.db;
   const [connection] = await db.select().from(integrationConnections)
     .where(and(eq(integrationConnections.organizationId, identity.organizationId), eq(integrationConnections.provider, body.provider)))
     .limit(1);
@@ -58,3 +59,5 @@ export async function POST(request: Request) {
     return Response.json({ error: error instanceof Error ? error.message : "Could not update the model." }, { status: 500 });
   }
 }
+
+export const POST = withApiSession(POSTWithSession);

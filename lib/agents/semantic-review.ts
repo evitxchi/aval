@@ -1,4 +1,4 @@
-import type { Message, MessagesResponse, ToolSchema } from '@/lib/ask-aval/anthropic';
+import type { Message, MessagesResponse, ToolSchema } from '@/lib/ask-aval/model-types';
 
 export type ReviewSource = { id: string; originId?: string; tool: string; arguments: unknown; data: unknown; failed: boolean };
 export type ReviewPacket = {

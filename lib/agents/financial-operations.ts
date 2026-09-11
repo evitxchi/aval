@@ -1,8 +1,8 @@
 /** Durable financial operation ledger and scheduled reconciliation. */
 
 import { and, asc, eq, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
-import { getDb } from "@/db";
-import { agentFinancialEvents, agentFinancialOperations } from "@/db/schema";
+import type { DbSession } from "@/db/postgres/session";
+import { agentFinancialEvents, agentFinancialOperations } from "@/db/postgres/schema";
 import { digestPayload } from "@/lib/audit/chain";
 import { fingerprintAccount } from "./execution-policy.ts";
 import { financialReservationStatement, type FinancialReservationRow } from "./financial-reservation-sql.ts";
@@ -16,7 +16,7 @@ import {
 
 export type FinancialOperationRecord = typeof agentFinancialOperations.$inferSelect;
 
-export async function reserveFinancialOperation(input: {
+export async function reserveFinancialOperation(dbSession: DbSession, input: {
   organizationId: string;
   taskId: string;
   approvalId?: string;
@@ -58,41 +58,31 @@ export async function reserveFinancialOperation(input: {
     updatedAt: now,
     settledAt: null,
   };
-  try {
-    // The aggregate cap and the reservation are one statement, so SQLite
-    // arbitrates the limit at write time. See `financial-reservation-sql.ts`
-    // for why it is built there and rendered by a test.
-    const inserted = await getDb().run(financialReservationStatement(row, { dailyLimitCents: input.dailyLimitCents, since }));
-    if (affectedRows(inserted) !== 1) {
-      // The cap predicate is evaluated before the unique index can object, so a
-      // *retry* of an operation that is already reserved fails the cap on its
-      // own committed amount. Reporting that as a limit breach would be a lie
-      // in the dangerous direction: it invites an operator to raise a cap that
-      // was never reached, when the truth is that the work is already done.
-      if (await keyAlreadyReserved(input.idempotencyKey)) {
-        return { ok: false, duplicate: true, reason: "duplicate" };
-      }
-      return { ok: false, duplicate: false, reason: "daily_limit" };
+  await dbSession.db.execute(sql`select pg_advisory_xact_lock(hashtextextended(${input.organizationId}, 0))`);
+  const inserted = await dbSession.db.execute(financialReservationStatement(row, { dailyLimitCents: input.dailyLimitCents, since }));
+  if (inserted.rowCount !== 1) {
+    // The cap predicate is evaluated before the unique index can object, so a
+    // retry of an operation that is already reserved can fail the cap on its
+    // own committed amount. Check identity before reporting a limit breach.
+    if (await keyAlreadyReserved(dbSession, input.idempotencyKey)) {
+      return { ok: false, duplicate: true, reason: "duplicate" };
     }
-    await appendFinancialEvent(row.id, input.organizationId, "reserved", await digestPayload({
-      taskId: input.taskId,
-      stepIndex: input.stepIndex,
-      toolName: input.toolName,
-      amountCents: input.amountCents,
-      currency: input.currency,
-      accountFingerprint: input.accountFingerprint,
-    }));
-    return { ok: true, operation: row };
-  } catch (error) {
-    if (await keyAlreadyReserved(input.idempotencyKey)) return { ok: false, duplicate: true, reason: "duplicate" };
-    console.error("agent_financial_reservation_failed", { taskId: input.taskId, stepIndex: input.stepIndex, error });
-    return { ok: false, duplicate: false, reason: "storage" };
+    return { ok: false, duplicate: false, reason: "daily_limit" };
   }
+  await appendFinancialEvent(dbSession, row.id, input.organizationId, "reserved", await digestPayload({
+    taskId: input.taskId,
+    stepIndex: input.stepIndex,
+    toolName: input.toolName,
+    amountCents: input.amountCents,
+    currency: input.currency,
+    accountFingerprint: input.accountFingerprint,
+  }));
+  return { ok: true, operation: row };
 }
 
 /** The unique index on the key is the authority on whether this already ran. */
-async function keyAlreadyReserved(idempotencyKey: string): Promise<boolean> {
-  const [existing] = await getDb().select({ id: agentFinancialOperations.id })
+async function keyAlreadyReserved(dbSession: DbSession, idempotencyKey: string): Promise<boolean> {
+  const [existing] = await dbSession.db.select({ id: agentFinancialOperations.id })
     .from(agentFinancialOperations)
     .where(eq(agentFinancialOperations.idempotencyKey, idempotencyKey))
     .limit(1);
@@ -105,28 +95,28 @@ async function keyAlreadyReserved(idempotencyKey: string): Promise<boolean> {
  * Missing output is `unknown`, never `failed`: the side effect may have
  * happened.
  */
-export async function recordFinancialToolResult(
+export async function recordFinancialToolResult(dbSession: DbSession,
   operationId: string,
   organizationId: string,
-  result: unknown,
+  result: unknown
 ): Promise<{ ok: true } | { ok: false; reason: string }> {
   const validated = validateFinancialToolResult(result);
   const now = new Date();
   const resultDigest = await digestPayload(result);
   if (!validated.ok) {
-    await getDb().update(agentFinancialOperations).set({
+    await dbSession.db.update(agentFinancialOperations).set({
       status: "unknown",
       reconciliationStatus: "manual_review",
       discrepancyCode: "invalid_provider_result",
       resultDigest,
       updatedAt: now,
     }).where(and(eq(agentFinancialOperations.id, operationId), eq(agentFinancialOperations.organizationId, organizationId)));
-    await appendFinancialEvent(operationId, organizationId, "provider_result_invalid", resultDigest);
+    await appendFinancialEvent(dbSession, operationId, organizationId, "provider_result_invalid", resultDigest);
     return validated;
   }
 
   const projection = projectProviderReport(validated.status);
-  await getDb().update(agentFinancialOperations).set({
+  await dbSession.db.update(agentFinancialOperations).set({
     // Even a provider-reported settlement remains submitted until the
     // independent reconciliation adapter reads and matches it.
     status: projection.operationStatus,
@@ -137,7 +127,7 @@ export async function recordFinancialToolResult(
     updatedAt: now,
     settledAt: null,
   }).where(and(eq(agentFinancialOperations.id, operationId), eq(agentFinancialOperations.organizationId, organizationId)));
-  await appendFinancialEvent(operationId, organizationId, projection.eventKind, resultDigest, validated.externalTransactionId);
+  await appendFinancialEvent(dbSession, operationId, organizationId, projection.eventKind, resultDigest, validated.externalTransactionId);
   return { ok: true };
 }
 
@@ -150,10 +140,10 @@ export interface ReconciliationEnv {
 }
 
 /** Reconcile all due operations with independent provider reads. */
-export async function reconcileDueFinancialOperations(env: ReconciliationEnv, limit = 25): Promise<{ checked: number; matched: number; discrepancies: number; deferred: number }> {
+export async function reconcileDueFinancialOperations(dbSession: DbSession, env: ReconciliationEnv, limit = 25): Promise<{ checked: number; matched: number; discrepancies: number; deferred: number }> {
   const now = new Date();
   const workerId = `reconcile_${crypto.randomUUID()}`;
-  const operations = await getDb().select().from(agentFinancialOperations)
+  const operations = await dbSession.db.select().from(agentFinancialOperations)
     .where(and(
       inArray(agentFinancialOperations.reconciliationStatus, ["pending", "provider_unavailable"]),
       lte(agentFinancialOperations.nextReconcileAt, now),
@@ -167,30 +157,32 @@ export async function reconcileDueFinancialOperations(env: ReconciliationEnv, li
   let checked = 0;
 
   for (const operation of operations) {
-    if (!(await claimReconciliation(operation, workerId, now))) continue;
+    if (!(await claimReconciliation(dbSession, operation, workerId, now))) continue;
     checked++;
     const adapter = adapterFor(operation, env);
     if (!adapter || !operation.externalTransactionId) {
       deferred++;
-      await deferReconciliation(operation, adapter ? "external_id_missing" : "provider_unavailable", now);
+      await deferReconciliation(dbSession, operation, adapter ? "external_id_missing" : "provider_unavailable", now);
       continue;
     }
     try {
-      const observed = await adapter.lookup(operation);
+      // Persist the lease before contacting Stripe, then resume under a fresh
+      // transaction to record the independently observed state.
+      const observed = await dbSession.outsideTransaction(() => adapter.lookup(operation));
       if (observed === "not_found") {
         discrepancies++;
-        await writeReconciliation(operation, { status: "mismatch", code: "external_transaction_not_found" }, now);
+        await writeReconciliation(dbSession, operation, { status: "mismatch", code: "external_transaction_not_found" }, now);
         continue;
       }
       const verdict = compareFinancialState(operation, observed);
       if (verdict.status === "matched") matched++;
       else if (verdict.status === "mismatch" || verdict.status === "manual_review") discrepancies++;
       else deferred++;
-      await writeReconciliation(operation, verdict, now, observed.externalTransactionId);
+      await writeReconciliation(dbSession, operation, verdict, now, observed.externalTransactionId);
     } catch (error) {
       deferred++;
       console.error("agent_reconciliation_provider_error", { operationId: operation.id, tool: operation.toolName, error });
-      await deferReconciliation(operation, "provider_error", now);
+      await deferReconciliation(dbSession, operation, "provider_error", now);
     }
   }
   return { checked, matched, discrepancies, deferred };
@@ -227,10 +219,10 @@ export function stripeTransferAdapter(secret: string): ReconciliationAdapter {
   };
 }
 
-async function deferReconciliation(operation: FinancialOperationRecord, code: string, now: Date): Promise<void> {
+async function deferReconciliation(dbSession: DbSession, operation: FinancialOperationRecord, code: string, now: Date): Promise<void> {
   const attempt = operation.reconcileAttempts + 1;
   const tooOld = now.getTime() - operation.createdAt.getTime() > 24 * 60 * 60 * 1000;
-  await getDb().update(agentFinancialOperations).set({
+  await dbSession.db.update(agentFinancialOperations).set({
     status: operation.status === "reserved" ? "unknown" : operation.status,
     reconciliationStatus: tooOld ? "manual_review" : "provider_unavailable",
     discrepancyCode: code,
@@ -241,19 +233,19 @@ async function deferReconciliation(operation: FinancialOperationRecord, code: st
     reconcileLeaseExpiresAt: null,
     updatedAt: now,
   }).where(eq(agentFinancialOperations.id, operation.id));
-  await appendFinancialEvent(operation.id, operation.organizationId, tooOld ? "manual_review_required" : "reconciliation_deferred", await digestPayload(code), operation.externalTransactionId ?? undefined);
+  await appendFinancialEvent(dbSession, operation.id, operation.organizationId, tooOld ? "manual_review_required" : "reconciliation_deferred", await digestPayload(code), operation.externalTransactionId ?? undefined);
 }
 
-async function writeReconciliation(
+async function writeReconciliation(dbSession: DbSession,
   operation: FinancialOperationRecord,
   verdict: ReturnType<typeof compareFinancialState> | { status: "mismatch"; code: "external_transaction_not_found" },
   now: Date,
-  externalTransactionId?: string,
+  externalTransactionId?: string
 ): Promise<void> {
   const attempt = operation.reconcileAttempts + 1;
   const pending = verdict.status === "pending";
   const operationStatus = "operationStatus" in verdict ? verdict.operationStatus : operation.status;
-  await getDb().update(agentFinancialOperations).set({
+  await dbSession.db.update(agentFinancialOperations).set({
     status: operationStatus,
     reconciliationStatus: verdict.status,
     discrepancyCode: "code" in verdict ? verdict.code : null,
@@ -265,11 +257,11 @@ async function writeReconciliation(
     updatedAt: now,
     ...(verdict.status === "matched" ? { settledAt: now } : {}),
   }).where(eq(agentFinancialOperations.id, operation.id));
-  await appendFinancialEvent(operation.id, operation.organizationId, pending ? "reconciliation_pending" : `reconciliation_${verdict.status}`, await digestPayload(verdict), externalTransactionId);
+  await appendFinancialEvent(dbSession, operation.id, operation.organizationId, pending ? "reconciliation_pending" : `reconciliation_${verdict.status}`, await digestPayload(verdict), externalTransactionId);
 }
 
-async function claimReconciliation(operation: FinancialOperationRecord, workerId: string, now: Date): Promise<boolean> {
-  const result = await getDb().update(agentFinancialOperations).set({
+async function claimReconciliation(dbSession: DbSession, operation: FinancialOperationRecord, workerId: string, now: Date): Promise<boolean> {
+  const result = await dbSession.db.update(agentFinancialOperations).set({
     reconcileLeaseOwner: workerId,
     reconcileLeaseExpiresAt: new Date(now.getTime() + 60_000),
     updatedAt: now,
@@ -283,15 +275,16 @@ async function claimReconciliation(operation: FinancialOperationRecord, workerId
 }
 
 function affectedRows(result: unknown): number {
-  const value = result as { rowsAffected?: number; meta?: { changes?: number }; changes?: number } | undefined;
-  return value?.rowsAffected ?? value?.meta?.changes ?? value?.changes ?? -1;
+  const value = result as { rowCount?: number | null; rowsAffected?: number; meta?: { changes?: number }; changes?: number } | undefined;
+  return value?.rowCount ?? value?.rowsAffected ?? value?.meta?.changes ?? value?.changes ?? -1;
 }
 
-async function appendFinancialEvent(operationId: string, organizationId: string, kind: string, payloadDigest: string, externalTransactionId?: string): Promise<void> {
-  const [head] = await getDb().select({ sequence: agentFinancialEvents.sequence }).from(agentFinancialEvents)
+async function appendFinancialEvent(dbSession: DbSession, operationId: string, organizationId: string, kind: string, payloadDigest: string, externalTransactionId?: string): Promise<void> {
+  await dbSession.db.execute(sql`select pg_advisory_xact_lock(hashtextextended(${operationId}, 2))`);
+  const [head] = await dbSession.db.select({ sequence: agentFinancialEvents.sequence }).from(agentFinancialEvents)
     .where(eq(agentFinancialEvents.operationId, operationId))
     .orderBy(sql`${agentFinancialEvents.sequence} desc`).limit(1);
-  await getDb().insert(agentFinancialEvents).values({
+  await dbSession.db.insert(agentFinancialEvents).values({
     id: crypto.randomUUID(),
     operationId,
     organizationId,

@@ -111,6 +111,7 @@
   "AuthGate": {
     "accountExistsSignInInstead": "You already have an account with that email — sign in instead.",
     "alreadyHaveAnAccount": "Already have an account? Sign in",
+    "checkEmail": "Check your email to verify the account, then sign in.",
     "createAccount": "Create account",
     "emailLabel": "Email",
     "emailPlaceholder": "you@company.com",

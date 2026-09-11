@@ -22,7 +22,6 @@ export type ProviderId = AdditionalProviderId
   | "telegram"
   | "twilio"
   | "granola"
-  | "anthropic"
   | "openai"
   | "google_gemini"
   | "openrouter"
@@ -59,7 +58,6 @@ export type IntegrationProvider = {
 };
 
 export const MODEL_PROVIDER_IDS: ReadonlySet<ProviderId> = new Set([
-  "anthropic",
   "openai",
   "google_gemini",
   "openrouter",
@@ -370,20 +368,6 @@ export const integrationCatalog: IntegrationProvider[] = [
     note: "Uses Granola's public API; its MCP OAuth route can be added for agent-to-agent access.",
   },
   {
-    id: "anthropic",
-    title: "Anthropic",
-    category: "Model",
-    description: "Power agents and Ask Aval with your own Anthropic account and budget.",
-    authMode: "api_key",
-    permissions: ["Model calls (Messages API)"],
-    credentialFields: [{ key: "apiKey", label: "Anthropic API key", secret: true }],
-    env: [],
-    webhook: false,
-    readOnly: true,
-    note: "Uses Anthropic's Messages API with tool calling.",
-    defaultModel: "claude-sonnet-5",
-  },
-  {
     id: "openai",
     title: "OpenAI",
     category: "Model",
@@ -514,7 +498,6 @@ export const integrationCatalog: IntegrationProvider[] = [
     webhook: false,
     readOnly: true,
     note: "Uses the same OAuth client Claude Code uses. Aval never sees your Anthropic password — only a subscription access token you authorize, which you can revoke anytime from your Anthropic account.",
-    subscriptionOf: "anthropic",
   },
   {
     id: "chatgpt",

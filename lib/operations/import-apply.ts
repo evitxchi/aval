@@ -18,15 +18,14 @@
  * doubled a portfolio's rent roll on the second run would be worse than one
  * that never ran.
  *
- * **A failure on one row does not abandon the rest.** D1 has no transaction
- * spanning these writes, so an all-or-nothing guarantee is not available to
- * claim. What is available is honesty about partial application: each failure
- * is caught, counted and returned, and the caller is told exactly how many
- * rows of each entity landed.
+ * **Application is atomic.** Planning rejects the complete batch when any row
+ * is invalid or cannot resolve a reference. The accepted plan then runs behind
+ * a PostgreSQL savepoint, so an insert, constraint, or repository failure
+ * leaves canonical data exactly as it was before the batch.
  */
 
 import { and, eq } from "drizzle-orm";
-import { getDb } from "@/db";
+import type { DbSession } from "@/db/postgres/session";
 import {
   glAccounts,
   glTransactions,
@@ -39,12 +38,13 @@ import {
   units,
   vendors,
   workOrders,
-} from "@/db/schema";
+} from "@/db/postgres/schema";
 import { createGlAccount, postGlTransaction, postLedgerEntry } from "./accounting";
 import { attachResidentToLease, createLead, createLease, createResident } from "./leasing";
 import { createVendor, createWorkOrder, linkCallback } from "./maintenance";
 import { upsertPropertyFromSource, upsertUnitFromSource } from "./portfolio";
 import type { SourceRef } from "./provenance";
+import { ImportBatchRejectedError } from "./errors";
 import {
   IMPORT_ORDER,
   planImport,
@@ -77,8 +77,8 @@ export interface ImportResult {
 const date = (value: string | null | undefined): Date | null => (value ? new Date(value) : null);
 
 /** External ids this workspace already holds, per entity, so the planner can resolve references against the database as well as the batch. */
-async function loadKnownExternalIds(organizationId: string, sourceProvider: string) {
-  const db = getDb();
+async function loadKnownExternalIds(dbSession: DbSession, organizationId: string, sourceProvider: string) {
+  const db = dbSession.db;
   const scope = <T extends { organizationId: unknown; sourceProvider: unknown; externalId: unknown }>(table: T) =>
     and(
       eq(table.organizationId as never, organizationId),
@@ -118,8 +118,8 @@ async function loadKnownExternalIds(organizationId: string, sourceProvider: stri
  * against, and the shapes that force a cast are exactly the ones where a
  * wrong column would fail silently at runtime.
  */
-async function loadIdMap(organizationId: string, sourceProvider: string) {
-  const db = getDb();
+async function loadIdMap(dbSession: DbSession, organizationId: string, sourceProvider: string) {
+  const db = dbSession.db;
   const scoped = <T extends { organizationId: never; sourceProvider: never }>(table: T) =>
     and(eq(table.organizationId, organizationId), eq(table.sourceProvider, sourceProvider));
   const toMap = (rows: { id: string; externalId: string | null }[]) =>
@@ -159,8 +159,8 @@ async function loadIdMap(organizationId: string, sourceProvider: string) {
  * `completed_with_errors`, which is exactly the normal case this endpoint
  * exists to serve. Found by re-sending a batch against production.
  */
-async function loadExistingEventIds(organizationId: string, sourceProvider: string) {
-  const db = getDb();
+async function loadExistingEventIds(dbSession: DbSession, organizationId: string, sourceProvider: string) {
+  const db = dbSession.db;
   const scoped = <T extends { organizationId: never; sourceProvider: never }>(table: T) =>
     and(eq(table.organizationId, organizationId), eq(table.sourceProvider, sourceProvider));
   const setOf = (rows: { externalId: string | null }[]) =>
@@ -178,20 +178,22 @@ async function loadExistingEventIds(organizationId: string, sourceProvider: stri
 /**
  * Plans and applies a batch.
  *
- * `syncRunId`, when given, has its `countsJson` and status updated from the
- * result — so `POST /api/sync`'s run row stops being a promise about work a
- * worker would do later and becomes a record of what actually happened.
+ * `syncRunId`, when given, has its `countsJson` and status updated only after
+ * the complete batch succeeds.
  */
-export async function applyImport(
+export async function applyImport(dbSession: DbSession,
   organizationId: string,
   batch: ImportBatch,
   source: SourceRef,
-  syncRunId?: string,
+  syncRunId?: string
 ): Promise<ImportResult> {
-  const known = await loadKnownExternalIds(organizationId, source.sourceProvider);
+  const known = await loadKnownExternalIds(dbSession, organizationId, source.sourceProvider);
   const plan = planImport(batch, known);
-  const ids = await loadIdMap(organizationId, source.sourceProvider);
-  const existingEvents = await loadExistingEventIds(organizationId, source.sourceProvider);
+  if (plan.skipped.length > 0) throw new ImportBatchRejectedError(plan.skipped);
+
+  return dbSession.atomic(async () => {
+  const ids = await loadIdMap(dbSession, organizationId, source.sourceProvider);
+  const existingEvents = await loadExistingEventIds(dbSession, organizationId, source.sourceProvider);
 
   const applied = Object.fromEntries(IMPORT_ORDER.map((entity) => [entity, 0])) as Record<ImportEntity, number>;
   const unchanged = Object.fromEntries(IMPORT_ORDER.map((entity) => [entity, 0])) as Record<ImportEntity, number>;
@@ -204,11 +206,10 @@ export async function applyImport(
   for (const step of plan.steps) {
     for (const row of step.rows) {
       const externalId = (row as { externalId: string }).externalId;
-      try {
         switch (step.entity) {
           case "properties": {
             const input = row as ImportProperty;
-            const result = await upsertPropertyFromSource(
+            const result = await upsertPropertyFromSource(dbSession,
               organizationId,
               {
                 name: input.name,
@@ -235,7 +236,7 @@ export async function applyImport(
             const input = row as ImportUnit;
             const propertyId = ids.properties.get(input.propertyExternalId);
             if (!propertyId) throw new Error(`property "${input.propertyExternalId}" resolved in planning but not at apply time`);
-            const result = await upsertUnitFromSource(
+            const result = await upsertUnitFromSource(dbSession,
               organizationId,
               {
                 propertyId,
@@ -259,7 +260,7 @@ export async function applyImport(
           case "residents": {
             if (ids.residents.has(externalId)) { unchanged.residents += 1; break; }
             const input = row as ImportResident;
-            const created = await createResident(
+            const created = await createResident(dbSession,
               organizationId,
               { displayName: input.displayName, email: input.email, phone: input.phone, status: input.status as ResidentStatus | undefined },
               refFor(externalId),
@@ -272,7 +273,7 @@ export async function applyImport(
           case "vendors": {
             if (ids.vendors.has(externalId)) { unchanged.vendors += 1; break; }
             const input = row as ImportVendor;
-            const created = await createVendor(
+            const created = await createVendor(dbSession,
               organizationId,
               { name: input.name, trade: input.trade, email: input.email, phone: input.phone, insuranceExpiresAt: date(input.insuranceExpiresAt) },
               refFor(externalId),
@@ -285,7 +286,7 @@ export async function applyImport(
           case "glAccounts": {
             if (ids.glAccounts.has(externalId)) { unchanged.glAccounts += 1; break; }
             const input = row as ImportGlAccount;
-            const created = await createGlAccount(
+            const created = await createGlAccount(dbSession,
               organizationId,
               { code: input.code, name: input.name, accountType: input.accountType as GlAccountType, isTrustAccount: input.isTrustAccount },
               refFor(externalId),
@@ -300,7 +301,7 @@ export async function applyImport(
             const input = row as ImportLease;
             const unitId = ids.units.get(input.unitExternalId);
             if (!unitId) throw new Error(`unit "${input.unitExternalId}" resolved in planning but not at apply time`);
-            const created = await createLease(
+            const created = await createLease(dbSession,
               organizationId,
               {
                 unitId,
@@ -318,7 +319,7 @@ export async function applyImport(
             ids.leases.set(externalId, created.id);
             for (const residentExternalId of input.residentExternalIds ?? []) {
               const residentId = ids.residents.get(residentExternalId);
-              if (residentId) await attachResidentToLease(organizationId, created.id, residentId);
+              if (residentId) await attachResidentToLease(dbSession, organizationId, created.id, residentId);
             }
             applied.leases += 1;
             break;
@@ -329,7 +330,7 @@ export async function applyImport(
             const input = row as ImportLedgerEntry;
             const leaseId = ids.leases.get(input.leaseExternalId);
             if (!leaseId) throw new Error(`lease "${input.leaseExternalId}" resolved in planning but not at apply time`);
-            await postLedgerEntry(
+            await postLedgerEntry(dbSession,
               organizationId,
               {
                 leaseId,
@@ -351,7 +352,7 @@ export async function applyImport(
             const input = row as ImportWorkOrder;
             const propertyId = ids.properties.get(input.propertyExternalId);
             if (!propertyId) throw new Error(`property "${input.propertyExternalId}" resolved in planning but not at apply time`);
-            const created = await createWorkOrder(
+            const created = await createWorkOrder(dbSession,
               organizationId,
               {
                 propertyId,
@@ -374,7 +375,7 @@ export async function applyImport(
             const completedAt = date(input.completedAt);
             const assignedAt = date(input.assignedAt);
             if (completedAt || assignedAt || input.actualCostCents !== undefined) {
-              await getDb()
+              await dbSession.db
                 .update(workOrders)
                 .set({
                   assignedAt: assignedAt ?? undefined,
@@ -390,7 +391,7 @@ export async function applyImport(
               // A callback link asserted by the source system is a human
               // assertion made there, which is exactly what firstTimeFixPct
               // requires — unlike Aval's own proximity suggestions.
-              if (originalId) await linkCallback(organizationId, created.id, originalId);
+              if (originalId) await linkCallback(dbSession, organizationId, created.id, originalId);
             }
             applied.workOrders += 1;
             break;
@@ -401,7 +402,7 @@ export async function applyImport(
             const input = row as ImportGlTransaction;
             const accountId = ids.glAccounts.get(input.accountExternalId);
             if (!accountId) throw new Error(`GL account "${input.accountExternalId}" resolved in planning but not at apply time`);
-            await postGlTransaction(
+            await postGlTransaction(dbSession,
               organizationId,
               {
                 accountId,
@@ -419,7 +420,7 @@ export async function applyImport(
           case "leads": {
             if (existingEvents.leads.has(externalId)) { unchanged.leads += 1; break; }
             const input = row as ImportLead;
-            const created = await createLead(
+            const created = await createLead(dbSession,
               organizationId,
               {
                 propertyId: input.propertyExternalId ? ids.properties.get(input.propertyExternalId) ?? null : null,
@@ -454,7 +455,7 @@ export async function applyImport(
                       : stamps.contactedAt
                         ? "contacted"
                         : "inquiry";
-            await getDb()
+            await dbSession.db
               .update(leasingLeads)
               .set({ ...stamps, stage, lostReason: input.lostReason ?? null, updatedAt: new Date() })
               .where(and(eq(leasingLeads.organizationId, organizationId), eq(leasingLeads.id, created.id)));
@@ -462,28 +463,23 @@ export async function applyImport(
             break;
           }
         }
-      } catch (error) {
-        // One bad row does not abandon the batch. D1 gives no transaction
-        // across these writes, so the honest guarantee is a full account of
-        // what landed and what did not — not a claim of atomicity.
-        failed.push({ entity: step.entity, externalId, error: error instanceof Error ? error.message : String(error) });
-      }
     }
   }
 
   const result: ImportResult = { applied, unchanged, conflictsDetected, skipped: plan.skipped, failed };
 
   if (syncRunId) {
-    await getDb()
+    await dbSession.db
       .update(syncRuns)
       .set({
-        status: failed.length > 0 ? "completed_with_errors" : "completed",
+        status: "completed",
         countsJson: JSON.stringify({ applied, unchanged, skipped: plan.skipped.length, failed: failed.length, conflicts: conflictsDetected }),
-        error: failed.length > 0 ? `${failed.length} row(s) failed to apply` : null,
+        error: null,
         completedAt: new Date(),
       })
       .where(and(eq(syncRuns.organizationId, organizationId), eq(syncRuns.id, syncRunId)));
   }
 
   return result;
+  });
 }

@@ -41,4 +41,5 @@ yarn-error.log*
 /.wrangler/
 /outputs/
 /work/
+/wrangler.deploy.generated.jsonc
 /.superdesign/tmp/

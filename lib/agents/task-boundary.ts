@@ -1,11 +1,12 @@
+import type { DbSession } from "@/db/postgres/session";
 import { getTask } from './tasks';
 import { getTool } from './registry';
 import { hasPermission, roleForPersona } from './permissions';
 import { MAX_DELEGATION_DEPTH } from './policy';
 /** Re-read every ancestor: delegation never restores revoked authority or inbound scope. */
-export async function taskBoundary(org:string,user:string,taskId:string,toolName:string,args:Record<string,unknown>):Promise<string|null>{
+export async function taskBoundary(dbSession: DbSession, org:string,user:string,taskId:string,toolName:string,args:Record<string,unknown>):Promise<string|null>{
  const tool=getTool(toolName);if(!tool)return null;
- let task=await getTask(org,taskId);const seen=new Set<string>();
+ let task=await getTask(dbSession, org,taskId);const seen=new Set<string>();
  if(!task||task.userId!==user)return 'The task does not belong to this workspace and user.';
  while(task){
   if(seen.has(task.id)||seen.size>MAX_DELEGATION_DEPTH)return 'Invalid or excessive task ancestry.';
@@ -22,7 +23,7 @@ export async function taskBoundary(org:string,user:string,taskId:string,toolName
    if(!ownReply&&!ownRead&&toolName!=='request_execution_plan')return 'Inbound tasks can only read and reply to their originating conversation.';
   }
   if(!task.parentTaskId)break;
-  task=await getTask(org,task.parentTaskId);
+  task=await getTask(dbSession, org,task.parentTaskId);
   if(!task||task.userId!==user)return 'The parent task is unavailable.';
  }
  return null;

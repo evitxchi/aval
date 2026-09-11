@@ -1,3 +1,5 @@
+import { withApiSession } from "@/lib/api/with-session";
+import type { DbSession } from "@/db/postgres/session";
 import { getApiIdentity, isGuestIdentity } from "@/lib/integrations/session";
 import { ensureOrganization } from "@/lib/integrations/organizations";
 import { listMembers } from "@/lib/organizations/membership";
@@ -16,15 +18,15 @@ import {
 } from "@/lib/planning/types";
 const error = (message: string, status: number) =>
   Response.json({ error: message }, { status });
-export async function GET(request: Request) {
-  const identity = await getApiIdentity(request);
+async function GETWithSession(dbSession: DbSession, request: Request) {
+  const identity = await getApiIdentity(dbSession, request);
   if (!identity || isGuestIdentity(identity))
     return error("Sign in to use workspace planning.", 401);
   try {
-    await ensureOrganization(identity);
+    await ensureOrganization(dbSession, identity);
     const [data, members] = await Promise.all([
-      readPlanning(identity.organizationId),
-      listMembers(identity.organizationId),
+      readPlanning(dbSession, identity.organizationId),
+      listMembers(dbSession, identity.organizationId),
     ]);
     const roster = members.map(({ userId, displayName, email, role }) => ({
       userId,
@@ -45,8 +47,8 @@ export async function GET(request: Request) {
     return error("Planning is unavailable. Please try again.", 503);
   }
 }
-async function mutate(request: Request) {
-  const identity = await getApiIdentity(request);
+async function mutate(dbSession: DbSession, request: Request) {
+  const identity = await getApiIdentity(dbSession, request);
   if (!identity || isGuestIdentity(identity))
     return error("Sign in to use workspace planning.", 401);
   try {
@@ -60,7 +62,7 @@ async function mutate(request: Request) {
     }
     if (!body || typeof body !== "object" || Array.isArray(body))
       return error("Invalid request.", 400);
-    await ensureOrganization(identity);
+    await ensureOrganization(dbSession, identity);
     if (request.method === "POST" && body.entity === "project") {
       if (
         typeof body.title !== "string" ||
@@ -74,6 +76,7 @@ async function mutate(request: Request) {
       return Response.json(
         {
           project: await createProject(
+            dbSession,
             identity.organizationId,
             body.title.trim(),
             body.description.trim(),
@@ -92,6 +95,7 @@ async function mutate(request: Request) {
       return error("An item and its current version are required.", 400);
     if (request.method === "DELETE")
       return (await deleteItem(
+        dbSession,
         identity.organizationId,
         body.id as string,
         body.version as number,
@@ -105,13 +109,13 @@ async function mutate(request: Request) {
     if (!input) return error("Check the title, dates, and status.", 400);
     if (
       input.projectId &&
-      !(await hasProject(identity.organizationId, input.projectId))
+      !(await hasProject(dbSession, identity.organizationId, input.projectId))
     )
       return error("Project is not in this workspace.", 400);
     if (
       input.assigneeId &&
       input.assigneeId !== identity.userId &&
-      !(await listMembers(identity.organizationId)).some(
+      !(await listMembers(dbSession, identity.organizationId)).some(
         (m) => m.userId === input.assigneeId,
       )
     )
@@ -120,6 +124,7 @@ async function mutate(request: Request) {
       return Response.json(
         {
           item: await createItem(
+            dbSession,
             identity.organizationId,
             identity.userId,
             input,
@@ -128,6 +133,7 @@ async function mutate(request: Request) {
         { status: 201 },
       );
     const item = await updateItem(
+      dbSession,
       identity.organizationId,
       body.id as string,
       body.version as number,
@@ -143,6 +149,8 @@ async function mutate(request: Request) {
     return error("Your changes could not be saved. Please try again.", 503);
   }
 }
-export const POST = mutate;
-export const PUT = mutate;
-export const DELETE = mutate;
+export const POST = withApiSession(mutate);
+export const PUT = withApiSession(mutate);
+export const DELETE = withApiSession(mutate);
+
+export const GET = withApiSession(GETWithSession);
