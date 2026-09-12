@@ -1,65 +1,32 @@
-# vinext-starter
+# Aval
 
-> Aval agent audit work: see [README_AUDIT_FIXES.md](./README_AUDIT_FIXES.md) for the fixes, validation evidence, live Anthropic evaluation, and known remaining issues on the `khas` branch.
+Aval is an AI-native property-management workspace. The web app, APIs, durable agent runtime, provider integrations, audit trail, approvals, and scheduled work run in one Cloudflare Worker.
 
-> Supabase migration: [setup, implemented foundation, and remaining gates](./docs/migration/README.md). The application still uses D1. The isolated PostgreSQL spike is ready for local checks and a later hosted Hyperdrive benchmark; this is not a completed database or Auth migration.
+The backend MVP uses:
 
-A clean full-stack starter running on
-[vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and
-Drizzle support.
+- Supabase Free for PostgreSQL and email/password authentication.
+- Cloudflare Hyperdrive for the production database connection.
+- PostgreSQL row-level security for organization isolation.
+- Drizzle ORM with explicit request-scoped database sessions.
+- Cloudflare's existing minute cron and task leases for background agent work.
 
-## Prerequisites
+Start with [the Supabase MVP setup guide](./docs/migration/README.md). Audit fixes and prior agent validation are recorded in [README_AUDIT_FIXES.md](./README_AUDIT_FIXES.md).
 
-- Node.js `>=22.13.0`
+## Development
 
-## Quick Start
+Requirements: Node.js `>=22.13.0`, npm, and Docker Desktop for local Supabase.
 
-```bash
+```powershell
 npm install
-npm run dev
-npm run build
+npm run start:local
 ```
 
-This starter does not use `wrangler.jsonc`.
+Useful checks:
 
-## Included Shape
-
-- edit site code under `app/`
-- `.openai/hosting.json` declares optional Sites D1 and R2 bindings
-- `vite.config.ts` simulates declared bindings for local development
-- `db/schema.ts` starts intentionally empty
-- `examples/d1/` contains an optional D1 example surface
-- `drizzle.config.ts` supports local migration generation when needed
-
-## Workspace Auth Headers
-
-Signed-in visitors receive both `oai-authenticated-user-id` and `oai-authenticated-user-email`. Private Sites require every visitor to sign in; public Sites may also have anonymous visitors, for whom neither header is present.
-
-The user ID is stable for the same user on the same Site and different across Sites. Email and name are intended for display or contact purposes.
-
-SIWC-authenticated workspace sites may also receive
-`oai-authenticated-user-full-name` when the user's SIWC profile has a non-empty
-`name` claim. The full-name value is percent-encoded UTF-8 and is accompanied by
-`oai-authenticated-user-full-name-encoding: percent-encoded-utf-8`.
-
-Treat the full name as optional and fall back to email when it is absent:
-
-```tsx
-import { headers } from "next/headers";
-
-export default async function Home() {
-  const requestHeaders = await headers();
-  const userId = requestHeaders.get("oai-authenticated-user-id");
-  const email = requestHeaders.get("oai-authenticated-user-email");
-  const encodedFullName = requestHeaders.get("oai-authenticated-user-full-name");
-  const fullName =
-    encodedFullName &&
-    requestHeaders.get("oai-authenticated-user-full-name-encoding") ===
-      "percent-encoded-utf-8"
-      ? decodeURIComponent(encodedFullName)
-      : null;
-
-  const displayName = fullName ?? email;
-  // ...
-}
+```powershell
+npm test
+npm run lint
+npm run test:postgres
 ```
+
+`test:postgres` requires `AVAL_TEST_DATABASE_URL` pointing at a fresh disposable local PostgreSQL database. Hosted deployment is intentionally blocked until the Supabase and Hyperdrive values listed in the setup guide are configured.

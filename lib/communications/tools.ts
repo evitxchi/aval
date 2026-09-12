@@ -1,8 +1,8 @@
-import type { ToolSchema } from '@/lib/ask-aval/anthropic';
+import type { ToolSchema } from '@/lib/ask-aval/model-types';
 import { marketingConnections, publishListing } from "@/lib/marketing/service";
 import { and, eq, asc } from 'drizzle-orm';
-import { getDb } from '@/db';
-import { conversations, messages, integrationConnections } from '@/db/schema';
+import type { DbSession } from "@/db/postgres/session";
+import { conversations, messages, integrationConnections } from "@/db/postgres/schema";
 import { deliver, readCommunicationsConfig, replyToConversation } from './store';
 import { SEND_PROVIDERS } from './providers';
 const text = { type:'string' };
@@ -16,26 +16,26 @@ export const COMMUNICATION_TOOLS: ToolSchema[] = [
   { name:'send_external_message', description:'Send a real message. Prefer conversation_id from list_conversations; otherwise supply provider and to from a verified record. Must run in a durable task. Provider acceptance is not proof of delivery.', input_schema:{type:'object',properties:{conversation_id:text,provider:{type:'string',enum:[...SEND_PROVIDERS]},to:text,body:{type:'string',minLength:1,maxLength:4000},subject:{type:'string',maxLength:200}},required:['body']} },
   { name:'place_call', description:'Place a Twilio call with a short spoken script, optionally bridging to a configured team route. Read route IDs first. Requires enabled call routing, a connected account and a known international destination.', input_schema:{type:'object',properties:{to:text,script:{type:'string',maxLength:1200},team_route_id:text},required:['to','script']} },
 ];
-export async function runCommunicationTool(name:string,args:Record<string,unknown>,org:string,key?:string) {
+export async function runCommunicationTool(dbSession: DbSession, name:string,args:Record<string,unknown>,org:string,key?:string) {
   if (name === 'read_conversation') {
-    const [thread]=await getDb().select().from(conversations).where(and(eq(conversations.organizationId,org),eq(conversations.id,String(args.conversation_id)))).limit(1);
+    const [thread]=await dbSession.db.select().from(conversations).where(and(eq(conversations.organizationId,org),eq(conversations.id,String(args.conversation_id)))).limit(1);
     if(!thread)throw Error('Conversation not found.');
-    return {id:thread.id,provider:thread.channel,messages:await getDb().select({direction:messages.direction,body:messages.body,createdAt:messages.createdAt}).from(messages).where(eq(messages.conversationId,thread.id)).orderBy(asc(messages.createdAt)).limit(30)};
+    return {id:thread.id,provider:thread.channel,messages:await dbSession.db.select({direction:messages.direction,body:messages.body,createdAt:messages.createdAt}).from(messages).where(eq(messages.conversationId,thread.id)).orderBy(asc(messages.createdAt)).limit(30)};
   }
-  if (name === 'get_marketing_channels') return marketingConnections(org);
-  if (name === 'publish_listing') { if (!key) throw new Error('Publication requires a durable task.'); return publishListing(org, String(args.provider), String(args.body), key); }
+  if (name === 'get_marketing_channels') return marketingConnections(dbSession, org);
+  if (name === 'publish_listing') { if (!key) throw new Error('Publication requires a durable task.'); return publishListing(dbSession, org, String(args.provider), String(args.body), key); }
   if (name === 'get_communication_channels') {
-    const connections = await getDb().select({provider:integrationConnections.provider,status:integrationConnections.status,account:integrationConnections.externalAccountName}).from(integrationConnections).where(eq(integrationConnections.organizationId,org));
-    const config = await readCommunicationsConfig(org);
+    const connections = await dbSession.db.select({provider:integrationConnections.provider,status:integrationConnections.status,account:integrationConnections.externalAccountName}).from(integrationConnections).where(eq(integrationConnections.organizationId,org));
+    const config = await readCommunicationsConfig(dbSession, org);
     return { connections:connections.filter(c => (SEND_PROVIDERS as readonly string[]).includes(c.provider)), callsEnabled:config.enabled, routes:config.routes.map(r => ({id:r.id,label:r.label})) };
   }
-  if (name === 'list_conversations') return getDb().select({id:conversations.id,provider:conversations.channel,destination:conversations.externalThreadId,contact:conversations.contactDisplayName,draft:conversations.draftReply}).from(conversations).where(and(eq(conversations.organizationId,org),eq(conversations.status,'open'))).limit(30);
+  if (name === 'list_conversations') return dbSession.db.select({id:conversations.id,provider:conversations.channel,destination:conversations.externalThreadId,contact:conversations.contactDisplayName,draft:conversations.draftReply}).from(conversations).where(and(eq(conversations.organizationId,org),eq(conversations.status,'open'))).limit(30);
   if (name === 'request_execution_plan') return { approved:true, instruction:'Execute only the exact approved actions. Changes require another approval.' };
   if (!key) throw new Error('External actions require a durable operation key.');
   if (name === 'send_external_message') {
-    if (typeof args.conversation_id === 'string') return replyToConversation(org,args.conversation_id,String(args.body),key);
-    return deliver(org,{provider:String(args.provider),to:String(args.to),body:String(args.body),...(typeof args.subject === 'string' ? {subject:args.subject} : {})},key);
+    if (typeof args.conversation_id === 'string') return replyToConversation(dbSession, org,args.conversation_id,String(args.body),key);
+    return deliver(dbSession, org,{provider:String(args.provider),to:String(args.to),body:String(args.body),...(typeof args.subject === 'string' ? {subject:args.subject} : {})},key);
   }
-  if (name === 'place_call') return deliver(org,{provider:'twilio',to:String(args.to),body:String(args.script)},key,'call',typeof args.team_route_id === 'string' ? args.team_route_id : undefined);
+  if (name === 'place_call') return deliver(dbSession, org,{provider:'twilio',to:String(args.to),body:String(args.script)},key,'call',typeof args.team_route_id === 'string' ? args.team_route_id : undefined);
   throw new Error('Unknown communication tool.');
 }

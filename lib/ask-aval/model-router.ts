@@ -5,17 +5,17 @@
  * OAuth (see lib/integrations/subscription-oauth.ts). Every caller that
  * used to call `callClaude` directly (loop.ts, bill-extraction.ts) now
  * calls `callModel(env, orgId, params)` instead — same params shape, same
- * MessagesResponse/AnthropicError contract, so nothing downstream needed
+ * MessagesResponse/ModelProviderError contract, so nothing downstream needed
  * to change.
  */
 
 import { and, eq } from "drizzle-orm";
-import { getDb } from "@/db";
-import { integrationConnections, organizations } from "@/db/schema";
+import type { DbSession } from "@/db/postgres/session";
+import { integrationConnections, organizations } from "@/db/postgres/schema";
 import { decryptSecret, encryptSecret } from "@/lib/integrations/crypto";
 import { getProvider } from "@/lib/integrations/catalog";
 import { codexInstallationId, isCredentialFresh, isSubscriptionProviderId, refreshSubscriptionCredential, type SubscriptionProviderId } from "@/lib/integrations/subscription-oauth";
-import { AnthropicError, callClaude, type AskAvalEnv, type Message, type MessagesResponse, type ToolSchema } from "./anthropic";
+import { ModelProviderError, type AskAvalEnv, type Message, type MessagesResponse, type ToolSchema } from "./model-types";
 import { callOpenAiCompatible } from "./openai-compatible";
 import { callClaudeOAuth } from "./claude-oauth";
 import { callChatgptOAuth } from "./chatgpt-oauth";
@@ -36,7 +36,7 @@ type Override =
   | { kind: "subscription"; providerId: SubscriptionProviderId; accessToken: string; accountId?: string; model?: string; reasoningEffort?: string };
 
 /** A workspace must explicitly connect and select its own model provider. */
-export class ModelConfigurationError extends AnthropicError {
+export class ModelConfigurationError extends ModelProviderError {
   constructor(message: string) {
     super(message, 409, false);
     this.name = "ModelConfigurationError";
@@ -50,8 +50,8 @@ export class ModelConfigurationError extends AnthropicError {
  * the refresh round-trip. Broken or missing workspace credentials fail
  * closed; Aval no longer carries a shared model-provider credential.
  */
-async function resolveOverride(env: AskAvalEnv, orgId: string): Promise<Override | null> {
-  const db = getDb();
+async function resolveOverride(dbSession: DbSession, env: AskAvalEnv, orgId: string): Promise<Override | null> {
+  const db = dbSession.db;
   const [org] = await db.select({ activeModelProvider: organizations.activeModelProvider }).from(organizations).where(eq(organizations.id, orgId)).limit(1);
   if (!org?.activeModelProvider) return null;
 
@@ -85,7 +85,7 @@ async function resolveOverride(env: AskAvalEnv, orgId: string): Promise<Override
       }
       if (!connection.refreshTokenCiphertext) throw new ModelConfigurationError("The selected model subscription must be reconnected in Settings → Intelligence.");
       const refreshToken = await decryptSecret(connection.refreshTokenCiphertext, encryptionKey);
-      const refreshed = await refreshSubscriptionCredential(providerId, refreshToken);
+      const refreshed = await dbSession.outsideTransaction(() => refreshSubscriptionCredential(providerId, refreshToken));
       const now = new Date();
       await db.update(integrationConnections).set({
         accessTokenCiphertext: await encryptSecret(refreshed.access, encryptionKey),
@@ -112,8 +112,8 @@ async function resolveOverride(env: AskAvalEnv, orgId: string): Promise<Override
   }
 }
 
-export async function callModel(env: AskAvalEnv, orgId: string, params: CallParams): Promise<MessagesResponse> {
-  const override = await resolveOverride(env, orgId);
+export async function callModel(dbSession: DbSession, env: AskAvalEnv, orgId: string, params: CallParams): Promise<MessagesResponse> {
+  const override = await resolveOverride(dbSession, env, orgId);
   if (!override) {
     throw new ModelConfigurationError("Connect and select a model provider in Settings → Intelligence before using Ask Aval or agent tasks.");
   }
@@ -121,22 +121,18 @@ export async function callModel(env: AskAvalEnv, orgId: string, params: CallPara
   if (override.kind === "subscription") {
     if (override.providerId === "claude") {
       const model = override.model ?? "claude-sonnet-5";
-      return withRouting(await callClaudeOAuth(override.accessToken, { ...params, model }), "claude", model);
+      return withRouting(await dbSession.outsideTransaction(() => callClaudeOAuth(override.accessToken, { ...params, model })), "claude", model);
     }
     const model = override.model ?? "gpt-5.1-codex";
-    return withRouting(await callChatgptOAuth(override.accessToken, override.accountId, {
+    const installationId = await codexInstallationId(orgId);
+    return withRouting(await dbSession.outsideTransaction(() => callChatgptOAuth(override.accessToken, override.accountId, {
       ...params,
       model,
       reasoningEffort: override.reasoningEffort ?? params.reasoningEffort,
       // Derived from the org id so it is stable per workspace — a fresh id
       // on every call would look like a new install each time.
-      installationId: await codexInstallationId(orgId),
-    }), "chatgpt", model);
-  }
-
-  if (override.providerId === "anthropic") {
-    const model = override.model ?? getProvider("anthropic")?.defaultModel ?? "claude-sonnet-5";
-    return withRouting(await callClaude({ ...env, ANTHROPIC_API_KEY: override.apiKey, ANTHROPIC_MODEL: model }, params), "anthropic", model);
+      installationId,
+    })), "chatgpt", model);
   }
 
   const catalogEntry = getProvider(override.providerId);
@@ -144,8 +140,9 @@ export async function callModel(env: AskAvalEnv, orgId: string, params: CallPara
   if (!catalogEntry?.baseUrl || !model) {
     throw new ModelConfigurationError("The selected model provider is not supported by this runtime. Choose another provider in Settings → Intelligence.");
   }
+  const baseUrl = catalogEntry.baseUrl;
   return withRouting(
-    await callOpenAiCompatible({ baseUrl: catalogEntry.baseUrl, apiKey: override.apiKey, model, providerLabel: catalogEntry.title }, params),
+    await dbSession.outsideTransaction(() => callOpenAiCompatible({ baseUrl, apiKey: override.apiKey, model, providerLabel: catalogEntry.title }, params)),
     override.providerId,
     model,
   );

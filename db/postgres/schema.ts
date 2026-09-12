@@ -2,7 +2,8 @@
 // Edit db/schema.ts or the generator, then run npm run db:postgres:schema.
 
 import { sql } from "drizzle-orm";
-import { bigint, boolean, check, doublePrecision, foreignKey, index, integer, jsonb, numeric, pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { bigint, boolean, check, date, doublePrecision, foreignKey, index, integer, numeric, pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { jsonText } from "./json-text.ts";
 
 export const userOnboarding = pgTable("user_onboarding", {
   userId: text("user_id").notNull(),
@@ -31,7 +32,6 @@ export const users = pgTable(
   {
     id: text("id").primaryKey(),
     email: text("email").notNull(),
-    passwordHash: text("password_hash").notNull(),
     displayName: text("display_name").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
@@ -86,7 +86,7 @@ export const ssoConnections = pgTable("sso_connections", {
   id: text("id").primaryKey(),
   organizationId: text("organization_id").notNull().references(() => organizations.id),
   supabaseProviderId: text("supabase_provider_id"),
-  permittedDomainsJson: jsonb("permitted_domains_json").notNull().default([]),
+  permittedDomainsJson: jsonText("permitted_domains_json").notNull().default("[]"),
   enforcement: text("enforcement").notNull().default("disabled"),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
@@ -172,11 +172,11 @@ export const integrationConnections = pgTable(
     authMode: text("auth_mode").notNull(),
     externalAccountId: text("external_account_id"),
     externalAccountName: text("external_account_name"),
-    scopesJson: jsonb("scopes_json").notNull().default([]),
+    scopesJson: jsonText("scopes_json").notNull().default("[]"),
     accessTokenCiphertext: text("access_token_ciphertext"),
     refreshTokenCiphertext: text("refresh_token_ciphertext"),
     expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }),
-    metadataJson: jsonb("metadata_json").notNull().default({}),
+    metadataJson: jsonText("metadata_json").notNull().default("{}"),
     lastSyncAt: timestamp("last_sync_at", { withTimezone: true, mode: "date" }),
     createdBy: text("created_by").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
@@ -212,7 +212,7 @@ export const integrationEvents = pgTable(
     provider: text("provider").notNull(),
     externalEventId: text("external_event_id").notNull(),
     eventType: text("event_type").notNull(),
-    payloadJson: jsonb("payload_json").notNull(),
+    payloadJson: jsonText("payload_json").notNull(),
     status: text("status").notNull().default("received"),
     receivedAt: timestamp("received_at", { withTimezone: true, mode: "date" }).notNull(),
     processedAt: timestamp("processed_at", { withTimezone: true, mode: "date" }),
@@ -231,8 +231,8 @@ export const syncRuns = pgTable(
     connectionId: text("connection_id").notNull().references(() => integrationConnections.id),
     provider: text("provider").notNull(),
     status: text("status").notNull().default("queued"),
-    cursorJson: jsonb("cursor_json").notNull().default({}),
-    countsJson: jsonb("counts_json").notNull().default({}),
+    cursorJson: jsonText("cursor_json").notNull().default("{}"),
+    countsJson: jsonText("counts_json").notNull().default("{}"),
     error: text("error"),
     startedAt: timestamp("started_at", { withTimezone: true, mode: "date" }).notNull(),
     completedAt: timestamp("completed_at", { withTimezone: true, mode: "date" }),
@@ -246,7 +246,7 @@ export const integrationSyncState = pgTable("integration_sync_state", {
   organizationId: text("organization_id").notNull().references(() => organizations.id),
   externalAccountId: text("external_account_id").notNull(),
   enabled: boolean("enabled").notNull().default(true),
-  cursorJson: jsonb("cursor_json").notNull().default({}),
+  cursorJson: jsonText("cursor_json").notNull().default("{}"),
   nextRunAt: timestamp("next_run_at", { withTimezone: true, mode: "date" }).notNull(),
   leaseToken: text("lease_token"),
   leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true, mode: "date" }),
@@ -289,7 +289,7 @@ export const messages = pgTable(
     externalMessageId: text("external_message_id").notNull(),
     direction: text("direction").notNull(),
     body: text("body").notNull(),
-    payloadJson: jsonb("payload_json").notNull().default({}),
+    payloadJson: jsonText("payload_json").notNull().default("{}"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
   },
   (table) => [
@@ -307,8 +307,8 @@ export const portfolioSnapshots = pgTable(
     metricKey: text("metric_key").notNull(),
     numericValue: integer("numeric_value"),
     textValue: text("text_value"),
-    periodStart: timestamp("period_start", { withTimezone: true, mode: "date" }),
-    periodEnd: timestamp("period_end", { withTimezone: true, mode: "date" }),
+    periodStart: date("period_start", { mode: "date" }),
+    periodEnd: date("period_end", { mode: "date" }),
     capturedAt: timestamp("captured_at", { withTimezone: true, mode: "date" }).notNull(),
   },
   (table) => [index("portfolio_snapshots_org_captured_idx").on(table.organizationId, table.capturedAt)],
@@ -336,7 +336,7 @@ export const aiUsage = pgTable(
     id: text("id").primaryKey(),
     organizationId: text("organization_id").notNull().references(() => organizations.id),
     userId: text("user_id").notNull(),
-    day: text("day").notNull(),
+    day: date("day").notNull(),
     inputTokens: bigint("input_tokens", { mode: "number" }).notNull().default(0),
     outputTokens: bigint("output_tokens", { mode: "number" }).notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
@@ -398,8 +398,8 @@ export const draftDocuments = pgTable(
     narrative: text("narrative"),
     documentType: text("document_type"),
     documentMarkdown: text("document_markdown"),
-    metricsJson: jsonb("metrics_json").notNull().default([]),
-    chartJson: jsonb("chart_json"),
+    metricsJson: jsonText("metrics_json").notNull().default("[]"),
+    chartJson: jsonText("chart_json"),
     confidence: text("confidence"),
     errorMessage: text("error_message"),
     sentTo: text("sent_to"),
@@ -454,7 +454,7 @@ export const automationSteps = pgTable(
     kind: text("kind").notNull(),
     actorLabel: text("actor_label").notNull(),
     summary: text("summary").notNull(),
-    payloadJson: jsonb("payload_json").notNull().default({}),
+    payloadJson: jsonText("payload_json").notNull().default("{}"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
   },
   (table) => [index("automation_steps_run_idx").on(table.runId)],
@@ -471,10 +471,11 @@ export const rateLimitHits = pgTable(
   "rate_limit_hits",
   {
     id: text("id").primaryKey(),
+    organizationId: text("organization_id").notNull().references(() => organizations.id),
     scopeKey: text("scope_key").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
   },
-  (table) => [index("rate_limit_hits_scope_created_idx").on(table.scopeKey, table.createdAt)],
+  (table) => [index("rate_limit_hits_org_scope_created_idx").on(table.organizationId, table.scopeKey, table.createdAt)],
 );
 
 // One row per approve/deny/send decision on an actionable insight — the
@@ -530,8 +531,8 @@ export const utilityBills = pgTable(
     id: text("id").primaryKey(),
     organizationId: text("organization_id").notNull().references(() => organizations.id),
     meterId: text("meter_id").notNull().references(() => utilityMeters.id),
-    periodStart: timestamp("period_start", { withTimezone: true, mode: "date" }).notNull(),
-    periodEnd: timestamp("period_end", { withTimezone: true, mode: "date" }).notNull(),
+    periodStart: date("period_start", { mode: "date" }).notNull(),
+    periodEnd: date("period_end", { mode: "date" }).notNull(),
     usageAmount: numeric("usage_amount", { precision: 20, scale: 6, mode: "number" }).notNull(),
     costCents: bigint("cost_cents", { mode: "number" }).notNull(),
     currency: text("currency").notNull().default("USD"),
@@ -559,7 +560,7 @@ export const agentPersonas = pgTable(
     organizationId: text("organization_id").notNull().references(() => organizations.id),
     label: text("label").notNull(),
     focusDescription: text("focus_description").notNull(),
-    toolNamesJson: jsonb("tool_names_json"), // JSON string array, or null meaning "every tool" (matches AgentPersona.toolNames)
+    toolNamesJson: jsonText("tool_names_json"), // JSON string array, or null meaning "every tool" (matches AgentPersona.toolNames)
     shape: text("shape").notNull(), // ShapeId, app/components/agent-avatar/shapes.tsx
     theme: text("theme").notNull(), // ThemeId, app/components/agent-avatar/themes.ts
     createdBy: text("created_by").notNull(),
@@ -760,7 +761,7 @@ export const accessGrants = pgTable("access_grants", {
   portfolioId: text("portfolio_id").references(() => portfolios.id),
   regionId: text("region_id").references(() => regions.id),
   propertyId: text("property_id").references(() => properties.id),
-  capabilitiesJson: jsonb("capabilities_json").notNull().default([]),
+  capabilitiesJson: jsonText("capabilities_json").notNull().default("[]"),
   expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }),
   revokedAt: timestamp("revoked_at", { withTimezone: true, mode: "date" }),
   createdByPrincipalId: text("created_by_principal_id").references(() => principals.id),
@@ -816,7 +817,7 @@ export const units = pgTable(
     status: text("status").notNull().default("vacant_ready"), // UnitStatus, lib/operations/types.ts
     // Set when the unit last went vacant, so days-vacant is measured rather
     // than guessed. Null for a unit that has never turned over here.
-    vacantSince: timestamp("vacant_since", { withTimezone: true, mode: "date" }),
+    vacantSince: date("vacant_since", { mode: "date" }),
     sourceProvider: text("source_provider").notNull().default("manual"),
     sourceConnectionId: text("source_connection_id").references(() => integrationConnections.id),
     externalId: text("external_id"),
@@ -864,13 +865,13 @@ export const leases = pgTable(
     unitId: text("unit_id").notNull().references(() => units.id),
     propertyId: text("property_id").notNull().references(() => properties.id), // denormalized so portfolio rollups don't join through units
     status: text("status").notNull().default("active"), // LeaseStatus, lib/operations/types.ts
-    startDate: timestamp("start_date", { withTimezone: true, mode: "date" }).notNull(),
+    startDate: date("start_date", { mode: "date" }).notNull(),
     // Null for month-to-month, which is why isMonthToMonth exists separately:
     // a null end date otherwise reads identically to "we didn't get one".
-    endDate: timestamp("end_date", { withTimezone: true, mode: "date" }),
+    endDate: date("end_date", { mode: "date" }),
     isMonthToMonth: boolean("is_month_to_month").notNull().default(false),
-    moveInDate: timestamp("move_in_date", { withTimezone: true, mode: "date" }),
-    moveOutDate: timestamp("move_out_date", { withTimezone: true, mode: "date" }),
+    moveInDate: date("move_in_date", { mode: "date" }),
+    moveOutDate: date("move_out_date", { mode: "date" }),
     rentCents: bigint("rent_cents", { mode: "number" }).notNull(),
     // Held on behalf of the resident, not revenue. Kept on the lease and
     // mirrored into a trust-flagged GL account rather than mixed into
@@ -937,7 +938,7 @@ export const ledgerEntries = pgTable(
     postedAt: timestamp("posted_at", { withTimezone: true, mode: "date" }).notNull(),
     // Charges only — the date aging is measured from. Null on payments, which
     // are not owed on a date.
-    dueAt: timestamp("due_at", { withTimezone: true, mode: "date" }),
+    dueAt: date("due_at", { mode: "date" }),
     memo: text("memo"),
     sourceProvider: text("source_provider").notNull().default("manual"),
     sourceConnectionId: text("source_connection_id").references(() => integrationConnections.id),
@@ -963,7 +964,7 @@ export const vendors = pgTable(
     phone: text("phone"),
     // Compliance, not trivia: an expired COI on an assigned vendor is a
     // liability an operator wants surfaced before the work is booked.
-    insuranceExpiresAt: timestamp("insurance_expires_at", { withTimezone: true, mode: "date" }),
+    insuranceExpiresAt: date("insurance_expires_at", { mode: "date" }),
     isActive: boolean("is_active").notNull().default(true),
     sourceProvider: text("source_provider").notNull().default("manual"),
     sourceConnectionId: text("source_connection_id").references(() => integrationConnections.id),
@@ -1201,10 +1202,10 @@ export const agentTasks = pgTable(
     status: text("status").notNull(),
     // Conversation state, so a resumed run continues rather than restarting.
     // Sized by maxSteps and the model's own max_tokens, not unbounded.
-    executionScopeJson: jsonb("execution_scope_json").notNull().default({}),
-    checkJson: jsonb("check_json").notNull().default({}),
+    executionScopeJson: jsonText("execution_scope_json").notNull().default("{}"),
+    checkJson: jsonText("check_json").notNull().default("{}"),
     deadlineAt: timestamp("deadline_at", { withTimezone: true, mode: "date" }),
-    transcriptJson: jsonb("transcript_json").notNull().default([]),
+    transcriptJson: jsonText("transcript_json").notNull().default("[]"),
     stepCount: integer("step_count").notNull().default(0),
     maxSteps: integer("max_steps").notNull(),
     tokensUsed: integer("tokens_used").notNull().default(0),
@@ -1225,12 +1226,14 @@ export const agentTasks = pgTable(
     // which is what makes crash recovery automatic: a dead worker's lease
     // simply times out and the next worker picks the task up mid-run.
     leaseOwner: text("lease_owner"),
+    // Monotonic fencing token prevents stale checkpoints after reassignment.
+    leaseGeneration: integer("lease_generation").notNull().default(0),
     leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true, mode: "date" }),
     lastHeartbeatAt: timestamp("last_heartbeat_at", { withTimezone: true, mode: "date" }),
     // Terminal outcome. `resultJson` is the rendered answer, the one payload
     // worth retaining because the user asked for it; `error` is a message,
     // never a stack trace or a provider response body.
-    resultJson: jsonb("result_json"),
+    resultJson: jsonText("result_json"),
     error: text("error"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
@@ -1309,6 +1312,7 @@ export const agentApprovals = pgTable(
     id: text("id").primaryKey(),
     taskId: text("task_id").notNull().references(() => agentTasks.id),
     organizationId: text("organization_id").notNull().references(() => organizations.id),
+    propertyId: text("property_id").references(() => properties.id),
     stepIndex: integer("step_index").notNull(),
     toolName: text("tool_name").notNull(),
     riskLevel: text("risk_level").notNull(),
@@ -1319,7 +1323,7 @@ export const agentApprovals = pgTable(
     // What the approver is shown: the action, its arguments in a redacted
     // summary form, and the evidence the agent assembled. Retained because a
     // person has to be able to see what they approved, later.
-    evidenceJson: jsonb("evidence_json").notNull().default({}),
+    evidenceJson: jsonText("evidence_json").notNull().default("{}"),
     // pending | approved | rejected | expired
     status: text("status").notNull(),
     requestedAt: timestamp("requested_at", { withTimezone: true, mode: "date" }).notNull(),
@@ -1338,7 +1342,9 @@ export const agentApprovals = pgTable(
   },
   (table) => [
     index("agent_approvals_org_status_idx").on(table.organizationId, table.status),
+    index("agent_approvals_org_property_status_idx").on(table.organizationId, table.propertyId, table.status),
     uniqueIndex("agent_approvals_task_step_uq").on(table.taskId, table.stepIndex),
+    foreignKey({ columns: [table.organizationId, table.propertyId], foreignColumns: [properties.organizationId, properties.id], name: "agent_approvals_org_property_fk" }),
   ],
 );
 
@@ -1370,10 +1376,10 @@ export const agentExecutionPolicies = pgTable("agent_execution_policies", {
   singleApprovalMaxCents: bigint("single_approval_max_cents", { mode: "number" }).notNull().default(50_000),
   hardCeilingCents: bigint("hard_ceiling_cents", { mode: "number" }).notNull().default(2_500_000),
   dailyLimitCents: bigint("daily_limit_cents", { mode: "number" }).notNull().default(5_000_000),
-  allowedCurrenciesJson: jsonb("allowed_currencies_json").notNull().default(["USD"]),
+  allowedCurrenciesJson: jsonText("allowed_currencies_json").notNull().default('["USD"]'),
   // SHA-256 fingerprints only. Account identifiers remain in the provider;
   // Aval can check an allowlist without becoming another copy of bank data.
-  allowedAccountFingerprintsJson: jsonb("allowed_account_fingerprints_json").notNull().default([]),
+  allowedAccountFingerprintsJson: jsonText("allowed_account_fingerprints_json").notNull().default("[]"),
   version: integer("version").notNull().default(1),
   approvedByUserId: text("approved_by_user_id"),
   approvedAt: timestamp("approved_at", { withTimezone: true, mode: "date" }),
@@ -1446,6 +1452,7 @@ export const agentWorkerRuns = pgTable(
   "agent_worker_runs",
   {
     id: text("id").primaryKey(),
+    organizationId: text("organization_id").notNull().references(() => organizations.id),
     trigger: text("trigger").notNull(), // scheduled | request | approval | manual
     status: text("status").notNull(), // running | completed | failed
     tasksScanned: integer("tasks_scanned").notNull().default(0),
@@ -1497,7 +1504,7 @@ export const communicationDeliveries = pgTable("communication_deliveries", {
 
 export const communicationSettings = pgTable("communication_settings", {
   organizationId: text("organization_id").primaryKey().references(() => organizations.id),
-  configJson: jsonb("config_json").notNull().default({}),
+  configJson: jsonText("config_json").notNull().default("{}"),
   updatedBy: text("updated_by").notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
 });
@@ -1515,15 +1522,15 @@ export const communicationPollSources = pgTable('communication_poll_sources', {
 
 
 export const agentChecks = pgTable("agent_checks", {
- id:text("id").primaryKey(), organizationId:text("organization_id").notNull().references(()=>organizations.id), taskId:text("task_id").notNull().references(()=>agentTasks.id), stepIndex:integer("step_index").notNull(), exitCode:integer("exit_code").notNull(), outputJson:jsonb("output_json").notNull(), createdAt:timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+ id:text("id").primaryKey(), organizationId:text("organization_id").notNull().references(()=>organizations.id), taskId:text("task_id").notNull().references(()=>agentTasks.id), stepIndex:integer("step_index").notNull(), exitCode:integer("exit_code").notNull(), outputJson:jsonText("output_json").notNull(), createdAt:timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
 },t=>[index("agent_checks_task_idx").on(t.organizationId,t.taskId)]);
 export const agentMemory = pgTable("agent_memory", {
  id:text("id").primaryKey(),organizationId:text("organization_id").notNull().references(()=>organizations.id),taskId:text("task_id").notNull().references(()=>agentTasks.id),stepIndex:integer("step_index").notNull(),requestKey:text("request_key").notNull(),body:text("body").notNull(),createdAt:timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
 },t=>[uniqueIndex("agent_memory_request_uq").on(t.organizationId,t.requestKey),index("agent_memory_task_step_idx").on(t.taskId,t.stepIndex)]);
 export const agentPlanNodes = pgTable("agent_plan_nodes", {
- id:text("id").primaryKey(),organizationId:text("organization_id").notNull().references(()=>organizations.id),rootTaskId:text("root_task_id").notNull().references(()=>agentTasks.id),revision:integer("revision").notNull(),nodeKey:text("node_key").notNull(),taskId:text("task_id").notNull().references(()=>agentTasks.id),dependenciesJson:jsonb("dependencies_json").notNull(),createdAt:timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+ id:text("id").primaryKey(),organizationId:text("organization_id").notNull().references(()=>organizations.id),rootTaskId:text("root_task_id").notNull().references(()=>agentTasks.id),revision:integer("revision").notNull(),nodeKey:text("node_key").notNull(),taskId:text("task_id").notNull().references(()=>agentTasks.id),dependenciesJson:jsonText("dependencies_json").notNull(),createdAt:timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
 },t=>[uniqueIndex("agent_plan_node_uq").on(t.rootTaskId,t.revision,t.nodeKey),index("agent_plan_root_idx").on(t.rootTaskId,t.revision)]);
 
 export const agentModelContexts = pgTable("agent_model_contexts", {
- id:text("id").primaryKey(),organizationId:text("organization_id").notNull().references(()=>organizations.id),taskId:text("task_id").notNull().references(()=>agentTasks.id),stepIndex:integer("step_index").notNull(),contextJson:jsonb("context_json").notNull(),digest:text("digest").notNull(),createdAt:timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+ id:text("id").primaryKey(),organizationId:text("organization_id").notNull().references(()=>organizations.id),taskId:text("task_id").notNull().references(()=>agentTasks.id),stepIndex:integer("step_index").notNull(),contextJson:jsonText("context_json").notNull(),digest:text("digest").notNull(),createdAt:timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
 },t=>[index("agent_model_context_task_idx").on(t.organizationId,t.taskId,t.stepIndex)]);

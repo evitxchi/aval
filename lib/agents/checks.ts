@@ -1,9 +1,9 @@
 import { and, eq, sql, asc } from 'drizzle-orm';
-import { getDb } from '@/db';
-import { agentChecks, communicationDeliveries, learnedPreferences, agentPlanNodes, agentTasks, conversations, integrationConnections } from '@/db/schema';
+import type { DbSession } from "@/db/postgres/session";
+import { agentChecks, communicationDeliveries, learnedPreferences, agentPlanNodes, agentTasks, conversations, integrationConnections } from "@/db/postgres/schema";
 import { implementedTools } from './registry';
 import type { TaskRecord } from './tasks';
-import type { Message } from '@/lib/ask-aval/anthropic';
+import type { Message } from '@/lib/ask-aval/model-types';
 export type TaskCheck = {
     kind: 'evidence';
     tools: string[];
@@ -53,7 +53,7 @@ export function parseTaskCheck(value: unknown): TaskCheck {
         return { kind: 'preference', topic: c.topic, statement: c.statement };
     throw Error('Choose an evidence, delivery, preference, or plan completion condition. Evidence requires {"kind":"evidence","tools":["exact_read_tool_name"]}; delivery requires operation and status; preference requires topic and statement.');
 }
-export async function checkTask(task: TaskRecord, messages: Message[], stepIndex: number, review?: () => Promise<{ exitCode: number; problems: string[]; [key: string]: unknown }>) {
+export async function checkTask(dbSession: DbSession, task: TaskRecord, messages: Message[], stepIndex: number, review?: () => Promise<{ exitCode: number; problems: string[]; [key: string]: unknown }>) {
     const problems: string[] = [];
     let check: TaskCheck | undefined;
     try {
@@ -89,20 +89,20 @@ export async function checkTask(task: TaskRecord, messages: Message[], stepIndex
     }
     if (check?.kind === 'delivery') {
         const statuses = check.status === 'delivered' ? ['delivered'] : ['accepted', 'queued', 'initiated', 'ringing', 'in-progress', 'sent', 'delivered', 'completed'];
-        const deliveryRows = await getDb().select({ delivery: communicationDeliveries, provider: integrationConnections.provider }).from(communicationDeliveries).innerJoin(integrationConnections, and(eq(integrationConnections.id, communicationDeliveries.connectionId), eq(integrationConnections.organizationId, task.organizationId))).where(and(eq(communicationDeliveries.organizationId, task.organizationId), sql `substr(${communicationDeliveries.requestKey},1,${task.id.length + 1}) = ${task.id + ":"}`, eq(communicationDeliveries.kind, check.operation)));
-        const thread = check.conversationId ? (await getDb().select().from(conversations).where(and(eq(conversations.organizationId, task.organizationId), eq(conversations.id, check.conversationId))).limit(1))[0] : undefined;
+        const deliveryRows = await dbSession.db.select({ delivery: communicationDeliveries, provider: integrationConnections.provider }).from(communicationDeliveries).innerJoin(integrationConnections, and(eq(integrationConnections.id, communicationDeliveries.connectionId), eq(integrationConnections.organizationId, task.organizationId))).where(and(eq(communicationDeliveries.organizationId, task.organizationId), sql `substr(${communicationDeliveries.requestKey},1,${task.id.length + 1}) = ${task.id + ":"}`, eq(communicationDeliveries.kind, check.operation)));
+        const thread = check.conversationId ? (await dbSession.db.select().from(conversations).where(and(eq(conversations.organizationId, task.organizationId), eq(conversations.id, check.conversationId))).limit(1))[0] : undefined;
         const rows = deliveryRows.map(row => ({ ...row.delivery, provider: row.provider }));
         const destination = thread?.channel === 'whatsapp' && !thread.externalThreadId.startsWith('+') ? '+' + thread.externalThreadId : thread?.externalThreadId;
         if (!rows.some(r => statuses.includes(r.status) && (!check.conversationId || (thread && r.destination === destination && (check.operation !== 'message' || r.provider === thread.channel)))))
             problems.push(`No ${check.operation} operation for this task has provider-confirmed ${check.status} status. Do not claim it happened or repeat an unknown send.`);
     }
     if (check?.kind === 'preference') {
-        const rows = await getDb().select().from(learnedPreferences).where(and(eq(learnedPreferences.organizationId, task.organizationId), eq(learnedPreferences.topic, check.topic), eq(learnedPreferences.statement, check.statement)));
+        const rows = await dbSession.db.select().from(learnedPreferences).where(and(eq(learnedPreferences.organizationId, task.organizationId), eq(learnedPreferences.topic, check.topic), eq(learnedPreferences.statement, check.statement)));
         if (!rows.length)
             problems.push('The required preference was not saved.');
     }
     if (check?.kind === 'plan') {
-        const nodes = await getDb().select({ key: agentPlanNodes.nodeKey, revision: agentPlanNodes.revision, status: agentTasks.status }).from(agentPlanNodes).innerJoin(agentTasks, eq(agentTasks.id, agentPlanNodes.taskId)).where(and(eq(agentPlanNodes.rootTaskId, task.id), eq(agentPlanNodes.organizationId, task.organizationId))).orderBy(asc(agentPlanNodes.revision));
+        const nodes = await dbSession.db.select({ key: agentPlanNodes.nodeKey, revision: agentPlanNodes.revision, status: agentTasks.status }).from(agentPlanNodes).innerJoin(agentTasks, eq(agentTasks.id, agentPlanNodes.taskId)).where(and(eq(agentPlanNodes.rootTaskId, task.id), eq(agentPlanNodes.organizationId, task.organizationId))).orderBy(asc(agentPlanNodes.revision));
         const latest = new Map<string, typeof nodes[number]>();
         for (const node of nodes)
             latest.set(node.key, node);
@@ -114,9 +114,9 @@ export async function checkTask(task: TaskRecord, messages: Message[], stepIndex
     if (semantic) problems.push(...semantic.problems);
     if (semantic?.exitCode && !problems.length) problems.push('Semantic review did not pass.');
     const output = { exitCode: problems.length ? 1 : 0, check: check ?? null, problems, ...(semantic ? { semantic } : {}), scope: semantic ? 'Stored outcomes plus independent probabilistic semantic review; not a proof of truth.' : 'Stored task outcomes and evidence access' };
-    await getDb().insert(agentChecks).values({ id: crypto.randomUUID(), organizationId: task.organizationId, taskId: task.id, stepIndex, exitCode: output.exitCode, outputJson: JSON.stringify(output), createdAt: new Date() });
+    await dbSession.db.insert(agentChecks).values({ id: crypto.randomUUID(), organizationId: task.organizationId, taskId: task.id, stepIndex, exitCode: output.exitCode, outputJson: JSON.stringify(output), createdAt: new Date() });
     return output;
 }
-export async function failedCheckCount(org: string, taskId: string) {
-    return (await getDb().select({ id: agentChecks.id }).from(agentChecks).where(and(eq(agentChecks.organizationId, org), eq(agentChecks.taskId, taskId), eq(agentChecks.exitCode, 1)))).length;
+export async function failedCheckCount(dbSession: DbSession, org: string, taskId: string) {
+    return (await dbSession.db.select({ id: agentChecks.id }).from(agentChecks).where(and(eq(agentChecks.organizationId, org), eq(agentChecks.taskId, taskId), eq(agentChecks.exitCode, 1)))).length;
 }
