@@ -101,7 +101,9 @@ async function authFetch(bindings: SupabaseAuthBindings, path: string, init: Req
   const { url, anonKey } = configuration(bindings);
   return fetch(`${url}/auth/v1/${path}`, {
     ...init,
-    redirect: "error",
+    // Cloudflare Workers supports `follow` and `manual`, but rejects the
+    // browser-only `error` mode before the request reaches Supabase.
+    redirect: "manual",
     signal: AbortSignal.timeout(12_000),
     headers: {
       apikey: anonKey,
