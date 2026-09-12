@@ -5,6 +5,7 @@ import { Client } from "pg";
 import { and, eq } from "drizzle-orm";
 import { properties } from "../../db/postgres/schema.ts";
 import { withDbSession } from "../../db/postgres/session.ts";
+import { runAuditCases } from "./audit-cases.mjs";
 import { applySupabaseMigrations } from "../../scripts/migration/apply-supabase-migrations.mjs";
 
 const url = process.env.AVAL_TEST_DATABASE_URL;
@@ -15,7 +16,7 @@ if (!["127.0.0.1", "localhost", "[::1]", "::1"].includes(new URL(url).hostname))
 
 const personalOrganization = (subject) => `org_${createHash("sha256").update(subject).digest("hex").slice(0, 24)}`;
 
-test("clean Supabase migrations support auth bootstrap, RLS isolation and rollback", async () => {
+test("clean Supabase migrations support auth bootstrap, RLS isolation and rollback", async (t) => {
   const admin = new Client({ connectionString: url });
   await admin.connect();
   const existing = await admin.query("SELECT to_regclass('public.properties') AS table_name");
@@ -23,7 +24,7 @@ test("clean Supabase migrations support auth bootstrap, RLS isolation and rollba
   await admin.end();
 
   const first = await applySupabaseMigrations(url);
-  assert.equal(first.discovered, 7);
+  assert.ok(first.discovered >= 8);
   assert.equal(first.applied.length, first.discovered);
   const replay = await applySupabaseMigrations(url);
   assert.deepEqual(replay.applied, [], "migration replay must be a no-op");
@@ -115,6 +116,7 @@ test("clean Supabase migrations support auth bootstrap, RLS isolation and rollba
     const ownRows = await session(userA, (dbSession) => dbSession.db.select().from(properties)
       .where(and(eq(properties.organizationId, personalOrganization(userA)), eq(properties.id, propertyId))));
     assert.equal(ownRows.length, 1);
+    await runAuditCases(t, { config, administrator, userId: userA, invitedUserId: userB, organizationId: personalOrganization(userA) });
   } finally {
     if (roleCreated) {
       await administrator.query(`REVOKE aval_app, aval_worker FROM "${loginName}"`).catch(() => undefined);

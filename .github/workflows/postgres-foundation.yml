@@ -3,6 +3,10 @@ on:
   pull_request:
     paths:
       - 'db/**'
+      - 'lib/**'
+      - 'app/**'
+      - 'worker/**'
+      - 'tests/**'
       - 'drizzle/**'
       - 'supabase/**'
       - 'infra/benchmark/**'
@@ -42,6 +46,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run typecheck
+      - run: npm run test:unit
       - run: npm run lint:migration
       - run: npm run test:migration
       - run: npm run db:inventory
